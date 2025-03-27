@@ -1,4 +1,18 @@
+# Cache
+*.pyc
+__pycache__/
+
+# Environment variables
 .env
 .env.local
-*.pyc
+
+# Databases
 *.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# IDE / OS files
+.idea/
+.vscode/
+*.DS_Store

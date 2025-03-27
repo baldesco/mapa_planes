@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Planes</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+        integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+    <style>
+        /* Basic Styling */
+        :root {
+            --primary-color: #4CAF50;
+            /* Green */
+            --secondary-color: #f4f4f4;
+            --border-color: #ddd;
+            --text-color: #333;
+            --white: #fff;
+            --error-color: #d9534f;
+            --warning-color: #f0ad4e;
+            --info-color: #5bc0de;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 0 15px 15px 15px;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 20px auto;
+            background: var(--white);
+            padding: 25px;
+            box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        h1,
+        h2 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            font-size: 2.2em;
+        }
+
+        h2 {
+            font-size: 1.6em;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        /* Map */
+        #map {
+            height: 500px;
+            width: 100%;
+            margin-bottom: 25px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+        }
+
+        /* Forms & Sections */
+        .form-section,
+        .filter-section {
+            margin-bottom: 25px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            background-color: #fdfdfd;
+            border-radius: 5px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 6px;
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+
+        input[type="text"],
+        input[type="number"],
+        select,
+        textarea {
+            width: 100%;
+            /* Full width */
+            padding: 10px;
+            margin-bottom: 12px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-sizing: border-box;
+            /* Include padding and border in element's total width and height */
+            font-size: 1em;
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        button,
+        input[type="submit"] {
+            background-color: var(--primary-color);
+            color: white;
+            padding: 10px 18px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.2s ease;
+        }
+
+        button:hover,
+        input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        /* Specific Form Adjustments */
+        #add-place-form fieldset {
+            border: none;
+            padding: 0;
+        }
+
+        #add-place-form legend {
+            font-size: 1.3em;
+            margin-bottom: 15px;
+            font-weight: bold;
+            color: #555;
+        }
+
+        #add-place-form .coords-section {
+            margin-top: 15px;
+            margin-bottom: 15px;
+            padding: 12px;
+            background-color: #eef;
+            border: 1px dashed #ccf;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        #add-place-form .coords-section p {
+            margin: 5px 0;
+        }
+
+        #find-coords-btn {
+            margin-left: 10px;
+            padding: 8px 12px;
+            font-size: 0.9em;
+            width: auto;
+            display: inline-block;
+            vertical-align: middle;
+            margin-bottom: 12px;
+        }
+
+        #address-input {
+            width: calc(100% - 150px);
+            display: inline-block;
+            vertical-align: middle;
+        }
+
+        /* Adjust width based on button */
+
+        /* Filters */
+        .filter-section form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .filter-section label {
+            margin-bottom: 0;
+            margin-right: 5px;
+        }
+
+        .filter-section select {
+            width: auto;
+            flex-grow: 1;
+            min-width: 150px;
+        }
+
+        .filter-section button {
+            width: auto;
+            padding: 8px 15px;
+            font-size: 0.9em;
+        }
+
+        /* Status Messages */
+        .status-message {
+            min-height: 1.2em;
+            margin: 8px 0;
+            font-size: 0.9em;
+            padding: 5px;
+            border-radius: 3px;
+        }
+
+        .loading-indicator {
+            font-style: italic;
+            color: #555;
+        }
+
+        .error-message {
+            color: var(--error-color);
+            background-color: #fdd;
+            border: 1px solid var(--error-color);
+        }
+
+        .success-message {
+            color: #3c763d;
+            background-color: #dff0d8;
+            border: 1px solid #d6e9c6;
+        }
+
+        /* Popups */
+        .leaflet-popup-content h4 {
+            margin: 0 0 10px 0;
+            color: var(--primary-color);
+            font-size: 1.1em;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 5px;
+        }
+
+        .leaflet-popup-content p {
+            margin: 5px 0;
+            font-size: 0.95em;
+        }
+
+        .leaflet-popup-content form {
+            margin-top: 12px;
+            padding-top: 8px;
+            border-top: 1px solid #eee;
+        }
+
+        .leaflet-popup-content img {
+            margin-top: 8px;
+            border-radius: 4px;
+        }
+
+        /* Attribution */
+        .attribution {
+            text-align: center;
+            font-size: 0.8em;
+            color: #777;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>My Mapa Planes</h1>
+
+        <!-- Filter Section -->
+        <div class="filter-section">
+            <form method="get" action="{{ request.url_for('read_root') }}">
+                <div>
+                    <label for="category">Category:</label>
+                    <select id="category" name="category" onchange="this.form.submit()">
+                        <option value="">All</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{ cat|capitalize }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="status">Status:</label> <!-- Changed name to 'status' to match Query param alias -->
+                    <select id="status" name="status" onchange="this.form.submit()">
+                        <option value="">All</option>
+                        {% for stat in statuses %}
+                        <option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{ stat|replace('_',
+                            ' ')|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit">Filter</button>
+                <button type="button" onclick="window.location.href='{{ request.url_for('read_root') }}'">Clear</button>
+            </form>
+        </div>
+
+        <!-- Map Display -->
+        <div id="map">
+            <!-- Folium map HTML will be injected here -->
+            {{ map_html|safe if map_html else '<p style="text-align: center; padding: 20px;">Map could not be loaded.
+            </p>' }}
+        </div>
+        <div class="attribution">
+            {{ nominatim_attribution|safe }}
+        </div>
+
+        <!-- Add Place Form -->
+        <div class="form-section">
+            <form id="add-place-form" action="{{ request.url_for('create_new_place_endpoint') }}" method="post">
+                <fieldset>
+                    <legend>Add New Place</legend>
+
+                    <label for="name">Place Name:</label>
+                    <input type="text" id="name" name="name" required maxlength="100">
+
+                    <!-- Geocoding Input -->
+                    <label for="address-input">Address or Place Name (for Coordinates):</label>
+                    <div>
+                        <input type="text" id="address-input" placeholder="e.g., Torre Colpatria, Bogota">
+                        <button type="button" id="find-coords-btn">Find</button>
+                    </div>
+                    <div id="geocode-status" class="status-message">
+                        <!-- Geocoding status/error messages appear here -->
+                    </div>
+
+                    <!-- Display/Hidden Coordinates & Address Details -->
+                    <div id="coords-section" class="coords-section" style="display: none;">
+                        <p><strong>Found:</strong> <span id="display-address"></span></p>
+                        <p>Coords: (<span id="display-lat"></span>, <span id="display-lon"></span>)</p>
+                        <!-- Hidden fields to submit with the form -->
+                        <input type="hidden" id="latitude" name="latitude" required>
+                        <input type="hidden" id="longitude" name="longitude" required>
+                        <input type="hidden" id="address" name="address">
+                        <input type="hidden" id="city" name="city">
+                        <input type="hidden" id="country" name="country">
+                    </div>
+                    <!-- Manual Coord Entry (Fallback/Alternative) -->
+                    <!-- Consider adding manual lat/lon inputs as a fallback -->
+                    <!--
+                    <label for="manual_latitude">Latitude (Manual):</label>
+                    <input type="number" id="manual_latitude" name="latitude" step="any">
+                    <label for="manual_longitude">Longitude (Manual):</label>
+                    <input type="number" id="manual_longitude" name="longitude" step="any">
+                     -->
+
+                    <label for="add-category">Category:</label>
+                    <select id="add-category" name="category" required>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}">{{ cat|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <label for="add-status">Initial Status:</label>
+                    <select id="add-status" name="status" required>
+                        {% for stat in statuses %}
+                        {% if stat != 'visited' %} {# Don't allow adding directly as 'visited' via this form #}
+                        <option value="{{ stat }}" {% if stat=='pending' %}selected{% endif %}>{{ stat|replace('_', '
+                            ')|capitalize }}</option>
+                        {% endif %}
+                        {% endfor %}
+                    </select>
+
+                    <button type="submit" id="add-place-submit-btn" disabled>Add Place</button>
+                </fieldset>
+            </form>
+        </div>
+
+        <!-- Review / Image Upload Section (Placeholder - Needs more JS for interaction) -->
+        <div class="form-section" id="edit-section" style="display: none;"> <!-- Hidden by default -->
+            <h2>Add Review / Image</h2>
+            <p>For place: <strong id="edit-place-name"></strong> (ID: <span id="edit-place-id-display"></span>)</p>
+
+            <!-- Form for Review -->
+            <form id="review-form" action="" method="post" style="margin-bottom: 20px;">
+                <input type="hidden" id="review-place-id" name="place_id">
+                <label for="review">Review:</label>
+                <textarea id="review" name="review" rows="4" maxlength="1000"></textarea>
+                <button type="submit">Save Review</button>
+            </form>
+
+            <!-- Form for Image Upload -->
+            <form id="image-form" action="" method="post" enctype="multipart/form-data">
+                <input type="hidden" id="image-place-id" name="place_id">
+                <label for="image">Upload Image:</label>
+                <input type="file" id="image" name="file" accept="image/*">
+                <button type="submit">Upload Image</button>
+            </form>
+            <button type="button" onclick="hideEditSection()">Cancel</button>
+        </div>
+
+    </div> <!-- /container -->
+
+    <script>
+        // --- DOM Elements ---
+        const addPlaceForm = document.getElementById('add-place-form');
+        const addressInput = document.getElementById('address-input');
+        const findCoordsBtn = document.getElementById('find-coords-btn');
+        const geocodeStatus = document.getElementById('geocode-status');
+        const coordsSection = document.getElementById('coords-section');
+        const displayLat = document.getElementById('display-lat');
+        const displayLon = document.getElementById('display-lon');
+        const displayAddress = document.getElementById('display-address');
+        const hiddenLat = document.getElementById('latitude');
+        const hiddenLon = document.getElementById('longitude');
+        const hiddenAddress = document.getElementById('address');
+        const hiddenCity = document.getElementById('city');
+        const hiddenCountry = document.getElementById('country');
+        const submitBtn = document.getElementById('add-place-submit-btn');
+
+        // Edit section elements
+        const editSection = document.getElementById('edit-section');
+        const editPlaceName = document.getElementById('edit-place-name');
+        const editPlaceIdDisplay = document.getElementById('edit-place-id-display');
+        const reviewForm = document.getElementById('review-form');
+        const imageForm = document.getElementById('image-form');
+        const reviewPlaceIdInput = document.getElementById('review-place-id');
+        const imagePlaceIdInput = document.getElementById('image-place-id');
+        const reviewTextarea = document.getElementById('review');
+
+        // --- Utility Functions ---
+        function setStatusMessage(element, message, type = 'info') {
+            element.textContent = message;
+            element.className = 'status-message'; // Reset classes
+            if (type === 'error') {
+                element.classList.add('error-message');
+            } else if (type === 'success') {
+                element.classList.add('success-message');
+            } else if (type === 'loading') {
+                element.classList.add('loading-indicator');
+            }
+        }
+
+        function clearGeocodeResults() {
+            coordsSection.style.display = 'none';
+            hiddenLat.value = '';
+            hiddenLon.value = '';
+            hiddenAddress.value = '';
+            hiddenCity.value = '';
+            hiddenCountry.value = '';
+            submitBtn.disabled = true;
+            setStatusMessage(geocodeStatus, ''); // Clear status
+        }
+
+        // --- Event Listeners ---
+
+        // Clear geocode results if address input changes after successful geocoding
+        addressInput.addEventListener('input', () => {
+            if (hiddenLat.value || hiddenLon.value) { // Only clear if results were previously found
+                clearGeocodeResults();
+            }
+        });
+
+        // Find Coordinates Button Click
+        findCoordsBtn.addEventListener('click', async () => {
+            const addressQuery = addressInput.value.trim();
+            if (!addressQuery) {
+                setStatusMessage(geocodeStatus, 'Please enter an address or place name.', 'error');
+                return;
+            }
+
+            clearGeocodeResults();
+            setStatusMessage(geocodeStatus, 'Searching...', 'loading');
+            findCoordsBtn.disabled = true;
+
+            try {
+                // Use fetch API to call the backend geocode endpoint
+                const response = await fetch(`{{ request.url_for('geocode_address_endpoint') }}?address=${encodeURIComponent(addressQuery)}`);
+
+                if (response.ok) {
+                    const result = await response.json();
+                    setStatusMessage(geocodeStatus, 'Location found!', 'success');
+
+                    displayLat.textContent = result.latitude.toFixed(6);
+                    displayLon.textContent = result.longitude.toFixed(6);
+                    displayAddress.textContent = result.display_name;
+
+                    hiddenLat.value = result.latitude;
+                    hiddenLon.value = result.longitude;
+                    hiddenAddress.value = result.address || ''; // Specific address part
+                    hiddenCity.value = result.city || '';
+                    hiddenCountry.value = result.country || '';
+
+                    coordsSection.style.display = 'block';
+                    submitBtn.disabled = false; // Enable the main form submit button
+
+                } else {
+                    const errorData = await response.json();
+                    setStatusMessage(geocodeStatus, `Error: ${errorData.detail || response.statusText}`, 'error');
+                    submitBtn.disabled = true;
+                }
+            } catch (error) {
+                console.error('Geocoding fetch error:', error);
+                setStatusMessage(geocodeStatus, 'Error: Could not connect to geocoding service.', 'error');
+                submitBtn.disabled = true;
+            } finally {
+                findCoordsBtn.disabled = false; // Re-enable find button
+            }
+        });
+
+        // Add Place Form Submission (Standard HTML form submission)
+        // The JS above mainly handles the geocoding part.
+        // The form action and method are set, so browser handles submission.
+        // We just need to ensure the hidden fields are populated and required attribute works.
+        addPlaceForm.addEventListener('submit', (event) => {
+            // Client-side check before allowing submission
+            if (!hiddenLat.value || !hiddenLon.value) {
+                event.preventDefault(); // Stop submission
+                setStatusMessage(geocodeStatus, 'Please use the "Find" button to get coordinates before adding.', 'error');
+                // Or alert('Please find coordinates first.');
+                return false;
+            }
+            // Disable button on submit to prevent double clicks
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Adding...';
+            // Allow submission to proceed
+        });
+
+
+        // --- Functions for Edit Section (Example) ---
+        function showEditSection(placeId, placeName, currentReview = '') {
+            // Populate IDs and names
+            editPlaceName.textContent = placeName;
+            editPlaceIdDisplay.textContent = placeId;
+            reviewPlaceIdInput.value = placeId;
+            imagePlaceIdInput.value = placeId;
+
+            // Set current review
+            reviewTextarea.value = currentReview;
+
+            // Set form actions dynamically (replace :place_id placeholder)
+            reviewForm.action = `{{ request.url_for('add_update_review_endpoint', place_id=999) }}`.replace('999', placeId);
+            imageForm.action = `{{ request.url_for('upload_image_for_place_endpoint', place_id=999) }}`.replace('999', placeId);
+
+
+            editSection.style.display = 'block';
+            editSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function hideEditSection() {
+            editSection.style.display = 'none';
+        }
+
+        // --- Add calls to showEditSection from popups if needed ---
+        // Example (to be added inside the popup HTML generation in main.py):
+        // Need careful escaping of quotes and newlines for JS strings in Python!
+        // review_js_escaped = place.review.replace("'", "\\'").replace("\n", "\\n") if place.review else ''
+        // popup_html += f'<button type="button" onclick="showEditSection({place.id}, \'{place.name.replace("'", "\\'")}\', \'{review_js_escaped}\')">Review/Image</button>'
+
+    </script>
+
+</body>
+
+</html>
