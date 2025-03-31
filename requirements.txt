@@ -1,8 +1,7 @@
-fastapi[all]>=0.100.0  # Includes uvicorn, jinja2, python-multipart etc.
+fastapi[all]>=0.100.0
 sqlalchemy>=2.0.0
 python-dotenv>=1.0.0
 folium>=0.14.0
-supabase>=1.0.0      # Check for latest supabase-py version
-geopy>=2.3.0
+supabase>=2.0.0
 pydantic-settings>=2.0.0
-# requests - Removed as not directly used now
+opencage>=2.0.0

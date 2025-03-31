@@ -1,4 +1,3 @@
-# app/core/config.py
 import logging
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from dotenv import load_dotenv
@@ -16,9 +15,7 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str | None = None
     SUPABASE_SERVICE_ROLE_KEY: str | None = None  # Use with caution
     SUPABASE_BUCKET_NAME: str = "place-images"
-    GEOCODING_USER_AGENT: str = (
-        "mapa_planes_generic_agent/1.0"  # Default, override in .env
-    )
+    OPENCAGE_API_KEY: str | None = None
 
     # Pydantic V2 configuration
     model_config = SettingsConfigDict(
@@ -31,30 +28,38 @@ settings = Settings()
 
 # --- Basic Logging Setup ---
 log_level = logging.DEBUG if settings.APP_ENV == "development" else logging.INFO
-# Basic console logging
 logging.basicConfig(
     level=log_level,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()],  # Ensure logs go to console/stdout
+    format="%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s",
+    handlers=[logging.StreamHandler()],
 )
-# You might want to configure file logging for production later
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # Get logger for the current module context
 
+# --- Initial Config Logging ---
 logger.info(f"Application environment: {settings.APP_ENV}")
-if settings.APP_ENV == "development" and settings.DATABASE_URL.startswith("sqlite"):
-    logger.info(f"Using local SQLite database: {settings.DATABASE_URL}")
-elif settings.SUPABASE_URL:
-    logger.info("Using Supabase database.")
-else:
+if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+    logger.info("Supabase configured: URL and Key found.")
+elif settings.APP_ENV != "development":
     logger.warning(
-        "Database configuration unclear. Check APP_ENV, DATABASE_URL, SUPABASE_URL."
+        "Supabase NOT configured (URL or Key missing) in non-development environment."
     )
 
 if (
-    not settings.GEOCODING_USER_AGENT
-    or "your_email@example.com" in settings.GEOCODING_USER_AGENT
-    or "generic_agent" in settings.GEOCODING_USER_AGENT
+    IS_LOCAL_SQLITE := settings.APP_ENV == "development"
+    and settings.DATABASE_URL.startswith("sqlite")
 ):
-    logger.warning(
-        "IMPORTANT: Update GEOCODING_USER_AGENT in your .env file with a unique app identifier and your contact email for Nominatim."
-    )
+    logger.info(f"Local SQLite configured: {settings.DATABASE_URL}")
+    if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+        logger.info(
+            "Supabase is also configured; it will be prioritized for DB operations."
+        )
+    else:
+        logger.warning(
+            "Local SQLite is configured, but Supabase is not. CRUD operations expecting Supabase may fail."
+        )
+else:
+    logger.debug("Local SQLite is not configured for the current environment.")
+
+
+if not settings.OPENCAGE_API_KEY:
+    logger.warning("OPENCAGE_API_KEY is missing in .env. Geocoding will not function.")

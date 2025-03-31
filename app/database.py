@@ -1,11 +1,12 @@
 import os
-import logging
 from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
-from supabase import Client as SupabaseClient, create_client
+from sqlalchemy.orm import (
+    sessionmaker,
+    declarative_base,
+)
+from supabase import create_client, Client as SupabaseClient
 
-# Ensure config is loaded correctly, handle running as script
+# Ensure config is loaded correctly
 try:
     from .core.config import settings, logger
 except ImportError:
@@ -15,8 +16,10 @@ except ImportError:
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from app.core.config import settings, logger
 
+
 # --- SQLAlchemy Base for local models ---
 Base = declarative_base()
+
 
 # --- Constants ---
 IS_LOCAL_SQLITE = (
@@ -28,7 +31,24 @@ local_engine = None
 SessionLocal = None
 supabase: SupabaseClient | None = None
 
-# --- Local SQLite Setup ---
+# --- Supabase Client Setup (Attempt first) ---
+if settings.SUPABASE_URL and settings.SUPABASE_KEY:
+    logger.info("Attempting to initialize Supabase client...")
+    try:
+        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
+        # Optional: Add a quick check here to see if connection works
+        # e.g., supabase.table('places').select('id', head=True).execute()
+        logger.info("Supabase client initialized successfully.")
+    except Exception as e:
+        logger.error(f"Failed to initialize Supabase client: {e}", exc_info=True)
+        supabase = None
+else:
+    logger.info(
+        "Supabase URL or Key not provided, skipping Supabase client initialization."
+    )
+
+
+# --- Local SQLite Setup (Attempt if relevant and Supabase failed/absent) ---
 if IS_LOCAL_SQLITE:
     db_url = settings.DATABASE_URL
     db_path = db_url.replace("sqlite:///", "")  # Simple path extraction
@@ -43,9 +63,7 @@ if IS_LOCAL_SQLITE:
 
     try:
         local_engine = create_engine(
-            db_url,
-            connect_args={"check_same_thread": False},  # Crucial for FastAPI + SQLite
-            echo=False,  # Set True to see generated SQL
+            db_url, connect_args={"check_same_thread": False}, echo=False
         )
         SessionLocal = sessionmaker(
             autocommit=False, autoflush=False, bind=local_engine
@@ -55,27 +73,16 @@ if IS_LOCAL_SQLITE:
         logger.error(f"Failed to create SQLite engine: {e}", exc_info=True)
         local_engine = None
 else:
-    logger.debug("Skipping local SQLite setup.")
-
-# --- Supabase Client Setup ---
-if settings.SUPABASE_URL and settings.SUPABASE_KEY:
-    logger.info("Initializing Supabase client...")
-    try:
-        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-        # Verify connection (optional, e.g., try a simple read)
-        # test_resp = supabase.table('places').select('id', head=True).execute() # Example check
-        logger.info("Supabase client initialized.")
-    except Exception as e:
-        logger.error(f"Failed to initialize Supabase client: {e}", exc_info=True)
-        supabase = None
-elif settings.APP_ENV != "development":  # Warn if not dev and Supabase isn't configured
-    logger.warning("Supabase URL or Key not found. Supabase client NOT initialized.")
+    logger.debug("Skipping local SQLite setup (not development env or not SQLite URL).")
 
 
 # --- Dependency Functions for FastAPI ---
 def get_local_db():
     """FastAPI dependency to get a local SQLite session."""
     if not SessionLocal:
+        logger.error(
+            "Dependency Error: Request for local DB session, but SessionLocal is not initialized."
+        )
         raise RuntimeError("Local database session (SessionLocal) not initialized.")
     db = SessionLocal()
     try:
@@ -87,45 +94,42 @@ def get_local_db():
 def get_supabase_client() -> SupabaseClient:
     """FastAPI dependency to get the initialized Supabase client."""
     if not supabase:
-        # If running in an env where Supabase should be available, this is an error
-        if settings.APP_ENV != "development" or (
-            settings.SUPABASE_URL and settings.SUPABASE_KEY
-        ):
-            logger.error(
-                "Supabase client requested but not initialized. Check config and connectivity."
-            )
-            raise RuntimeError(
-                "Supabase client not initialized. Check environment variables."
-            )
-        else:
-            # If in dev without Supabase configured, maybe raise a specific error or return None?
-            # For now, raise error as CRUD expects a client.
-            raise RuntimeError(
-                "Supabase client not configured for the current environment."
-            )
+        logger.error(
+            "Dependency Error: Request for Supabase client, but it's not initialized."
+        )
+        raise RuntimeError(
+            "Supabase client not initialized. Check config and connectivity."
+        )
     return supabase
 
 
-# Choose the primary DB dependency based on environment
-if supabase:  # If Supabase IS configured, ALWAYS use it as the primary get_db
+# --- Determine the primary 'get_db' dependency ---
+# PRIORITIZE Supabase if it's configured, as CRUD is written for it.
+if supabase:
     logger.info(
-        "Supabase client configured, using get_supabase_client as primary 'get_db'."
+        "Using Supabase client (get_supabase_client) as the primary 'get_db' dependency."
     )
     get_db = get_supabase_client
-elif IS_LOCAL_SQLITE:  # If Supabase is NOT configured, AND we are in local dev
+elif (
+    IS_LOCAL_SQLITE and SessionLocal
+):  # Fallback to SQLite ONLY if Supabase is absent AND local is configured
     logger.warning(
-        "Using get_local_db for dependency 'get_db'. NOTE: CRUD functions currently require Supabase."
+        "Supabase client NOT available. Falling back to local SQLite 'get_local_db'."
     )
-    # This will still likely fail if endpoints use CRUD, but allows running non-DB endpoints.
-    # For full local SQLite, CRUD needs modification.
-    get_db = get_local_db  # Use local DB *only* as a fallback if Supabase is absent
-    # Consider raising a more informative error immediately if CRUD needs Supabase:
-    # def get_db(): raise NotImplementedError("Local SQLite CRUD operations not implemented. Configure Supabase or update CRUD functions.")
-else:  # Neither Supabase configured nor local dev SQLite
-    logger.error("FATAL: No database configured.")
+    logger.warning(
+        "NOTE: Current CRUD functions expect Supabase. Endpoints using CRUD will likely fail!"
+    )
+    # Assign local DB, but be aware of the limitation
+    get_db = get_local_db
+    # Alternatively, raise a configuration error immediately if CRUD must work:
+    # def get_db(): raise RuntimeError("Application requires Supabase configuration for database operations, but it's missing.")
+else:  # No working database configuration found
+    logger.critical(
+        "FATAL: No database client available (Supabase not configured/failed, local SQLite not configured/failed)."
+    )
 
     def get_db():
-        raise RuntimeError("No database configured.")
+        raise RuntimeError("No functional database connection available.")
 
 
 # --- Function to Create Local Tables (for standalone script) ---
@@ -137,21 +141,19 @@ def create_local_tables():
 
     logger.info(f"Checking/creating tables for database: {local_engine.url}")
     try:
-        # Import models here to ensure Base is defined
-        from . import schemas  # Contains PlaceDB inheriting from Base
+        # Import models here, works when run as module or script if path correct
+        # Using absolute import based on expected structure when run via `-m`
+        from app import schemas  # Contains PlaceDB inheriting from Base
 
         inspector = inspect(local_engine)
         existing_tables = inspector.get_table_names()
         logger.debug(f"Existing tables: {existing_tables}")
 
-        # Base.metadata.create_all handles the check internally (checkfirst=True)
-        Base.metadata.create_all(bind=local_engine)
+        Base.metadata.create_all(bind=local_engine)  # checkfirst=True is default
 
-        # Verify creation (optional)
         inspector = inspect(local_engine)  # Re-inspect
         new_tables = inspector.get_table_names()
         logger.info(f"Tables after creation attempt: {new_tables}")
-        # Check if expected tables are present
         expected_tables = Base.metadata.tables.keys()
         missing_tables = [t for t in expected_tables if t not in new_tables]
         if not missing_tables:
@@ -161,9 +163,9 @@ def create_local_tables():
             logger.error(f"Failed to create the following tables: {missing_tables}")
             return False
 
-    except ImportError:
+    except ImportError as e:
         logger.error(
-            "Could not import 'app.schemas'. Ensure it exists and defines SQLAlchemy models.",
+            f"Could not import 'app.schemas'. Ensure it exists and check Python path. Error: {e}",
             exc_info=True,
         )
         return False
@@ -178,7 +180,11 @@ if __name__ == "__main__":
     print("Running Database Setup Script")
     print(f"Environment: {settings.APP_ENV}")
     print(f"Local DB URL: {settings.DATABASE_URL}")
-    print(f"Supabase Configured: {'Yes' if settings.SUPABASE_URL else 'No'}")
+    print(
+        f"Supabase Configured: {'Yes' if settings.SUPABASE_URL and settings.SUPABASE_KEY else 'No'}"
+    )
+    print(f"Supabase Client Initialized: {'Yes' if supabase else 'No'}")
+    print(f"Local SQLite Engine Initialized: {'Yes' if local_engine else 'No'}")
     print("-" * 30)
 
     if IS_LOCAL_SQLITE:
@@ -186,7 +192,7 @@ if __name__ == "__main__":
         if create_local_tables():
             print("Local SQLite table setup completed successfully.")
         else:
-            print("Local SQLite table setup failed. Check logs.")
+            print("Local SQLite table setup failed. Check logs above.")
     else:
         print(
             "Skipping local SQLite table setup (not development env or not SQLite URL)."
