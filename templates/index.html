@@ -5,20 +5,14 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapa Planes</title>
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <!-- Leaflet JavaScript -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <!-- Font Awesome (for icons used in Folium) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
         integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-
-
     <style>
-        /* Basic Styling (keep existing) */
         :root {
             --primary-color: #4CAF50;
             /* Green */
@@ -27,6 +21,7 @@
             --text-color: #333;
             --white: #fff;
             --error-color: #d9534f;
+            /* Red */
             --warning-color: #f0ad4e;
             /* Orange */
             --info-color: #5bc0de;
@@ -103,7 +98,6 @@
 
         .form-section legend,
         .form-section h2 {
-            /* Style section titles */
             font-size: 1.3em;
             margin-bottom: 15px;
             font-weight: bold;
@@ -173,7 +167,6 @@
             background-color: #888;
         }
 
-        /* Specific Form Adjustments (keep existing #add-place-form styles) */
         #add-place-form fieldset,
         #edit-place-section fieldset,
         #review-image-section fieldset {
@@ -222,7 +215,6 @@
             margin-top: 10px;
         }
 
-        /* Filters (keep existing) */
         .filter-section form {
             display: flex;
             flex-wrap: wrap;
@@ -247,7 +239,6 @@
             font-size: 0.9em;
         }
 
-        /* Status Messages (keep existing) */
         .status-message {
             min-height: 1.2em;
             margin: 8px 0;
@@ -255,6 +246,7 @@
             padding: 8px 10px;
             border-radius: 3px;
             border: 1px solid transparent;
+            display: none;
         }
 
         .loading-indicator {
@@ -276,7 +268,6 @@
             border-color: #d6e9c6;
         }
 
-        /* Popups (keep most, adjust buttons) */
         .leaflet-popup-content h4 {
             margin: 0 0 10px 0;
             color: var(--primary-color);
@@ -296,7 +287,6 @@
             padding: 0;
             border: none;
             display: inline-block;
-            /* Make forms flow */
             vertical-align: middle;
         }
 
@@ -307,29 +297,24 @@
             height: auto;
         }
 
-        /* Style popup action buttons */
-        .leaflet-popup-content button,
+        .leaflet-popup-content button[type=button],
+        .leaflet-popup-content button[type=submit],
         .leaflet-popup-content select {
             padding: 3px 8px !important;
-            /* Override default button padding */
             font-size: 0.85em !important;
             border-radius: 3px !important;
             cursor: pointer !important;
             border: none !important;
             color: white !important;
             margin: 0 2px;
-            /* Spacing between buttons */
         }
 
         .leaflet-popup-content select {
-            /* Style status dropdown */
             color: var(--text-color) !important;
-            /* Text color for select */
             background-color: #eee !important;
             border: 1px solid #ccc !important;
         }
 
-        /* Specific button colors */
         .leaflet-popup-content button[title*="Edit Place"] {
             background-color: var(--warning-color) !important;
         }
@@ -354,8 +339,6 @@
             background-color: var(--danger-color-hover) !important;
         }
 
-
-        /* Attribution (keep existing) */
         .attribution {
             text-align: center;
             font-size: 0.8em;
@@ -381,26 +364,17 @@
         <!-- Filter Section -->
         <div class="filter-section">
             <form method="get" action="{{ request.url_for('read_root') }}">
-                <div>
-                    <label for="category">Category:</label>
-                    <select id="category" name="category" onchange="this.form.submit()">
-                        <option value="" {% if not current_category %}selected{% endif %}>All</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{ cat|capitalize }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label for="status">Status:</label>
-                    <select id="status" name="status" onchange="this.form.submit()">
-                        <option value="" {% if not current_status %}selected{% endif %}>All</option>
-                        {% for stat in statuses %}
-                        <option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{ stat|replace('_',
-                            ' ')|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
+                <div><label for="category">Category:</label><select id="category" name="category"
+                        onchange="this.form.submit()">
+                        <option value="" {% if not current_category %}selected{% endif %}>All</option>{% for cat in
+                        categories %}<option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{
+                            cat|capitalize }}</option>{% endfor %}
+                    </select></div>
+                <div><label for="status">Status:</label><select id="status" name="status" onchange="this.form.submit()">
+                        <option value="" {% if not current_status %}selected{% endif %}>All</option>{% for stat in
+                        statuses %}<option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{
+                            stat|replace('_', ' ')|capitalize }}</option>{% endfor %}
+                    </select></div>
                 <button type="submit">Filter</button>
                 <button type="button" onclick="window.location.href='{{ request.url_for('read_root') }}'">Clear</button>
             </form>
@@ -411,122 +385,83 @@
             {{ map_html|safe if map_html else '<p style="text-align: center; padding: 20px; color: red;">Map could not
                 be loaded.</p>' }}
         </div>
-        <div class="attribution">
-            {{ attribution_html|safe if attribution_html else '' }}
-        </div>
+        <div class="attribution"> {{ attribution_html|safe if attribution_html else '' }} </div>
 
-        <!-- Add Place Form (Keep as is) -->
+        <!-- Add Place Form -->
         <div class="form-section">
             <form id="add-place-form" action="{{ request.url_for('create_new_place_endpoint') }}" method="post">
                 <fieldset>
                     <legend>Add New Place</legend>
-                    <label for="name">Place Name:</label>
-                    <input type="text" id="name" name="name" required maxlength="100">
-                    <label for="address-input">Address or Place Name (for Coordinates):</label>
-                    <div class="address-input-row">
-                        <input type="text" id="address-input" placeholder="e.g., Torre Colpatria, Bogota">
-                        <button type="button" id="find-coords-btn">Find</button>
-                    </div>
+                    <label for="name">Place Name:</label><input type="text" id="name" name="name" required
+                        maxlength="100">
+                    <label for="address-input">Address/Place (for Coords):</label>
+                    <div class="address-input-row"><input type="text" id="address-input"
+                            placeholder="e.g., Torre Colpatria, Bogota"><button type="button"
+                            id="find-coords-btn">Find</button></div>
                     <div id="geocode-status" class="status-message"></div>
                     <div id="coords-section" class="coords-section" style="display: none;">
                         <p><strong>Found:</strong> <span id="display-address"></span></p>
-                        <p>Coords: (<span id="display-lat"></span>, <span id="display-lon"></span>)</p>
-                        <input type="hidden" id="latitude" name="latitude" required>
-                        <input type="hidden" id="longitude" name="longitude" required>
-                        <input type="hidden" id="address" name="address">
-                        <input type="hidden" id="city" name="city">
-                        <input type="hidden" id="country" name="country">
+                        <p>Coords: (<span id="display-lat"></span>, <span id="display-lon"></span>)</p><input
+                            type="hidden" id="latitude" name="latitude" required><input type="hidden" id="longitude"
+                            name="longitude" required><input type="hidden" id="address" name="address"><input
+                            type="hidden" id="city" name="city"><input type="hidden" id="country" name="country">
                     </div>
-                    <label for="add-category">Category:</label>
-                    <select id="add-category" name="category" required>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}">{{ cat|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-                    <label for="add-status">Initial Status:</label>
-                    <select id="add-status" name="status" required>
-                        {% for stat in statuses %}
-                        {% if stat != 'visited' %}
-                        <option value="{{ stat }}" {% if stat=='pending' %}selected{% endif %}>{{ stat|replace('_', '
-                            ')|capitalize }}</option>
-                        {% endif %}
-                        {% endfor %}
-                    </select>
+                    <label for="add-category">Category:</label><select id="add-category" name="category" required>{% for
+                        cat in categories %}<option value="{{ cat }}">{{ cat|capitalize }}</option>{% endfor %}</select>
+                    <label for="add-status">Initial Status:</label><select id="add-status" name="status" required>{% for
+                        stat in statuses %}{% if stat != 'visited' %}<option value="{{ stat }}" {% if stat=='pending'
+                            %}selected{% endif %}>{{ stat|replace('_', ' ')|capitalize }}</option>{% endif %}{% endfor
+                        %}</select>
                     <button type="submit" id="add-place-submit-btn" disabled>Add Place</button>
                 </fieldset>
             </form>
         </div>
 
-        <!-- NEW: Edit Place Form Section (Initially Hidden) -->
+        <!-- Edit Place Form Section -->
         <div class="form-section" id="edit-place-section" style="display: none;">
-            <form id="edit-place-form" action="" method="post"> <!-- Action set dynamically by JS -->
+            <form id="edit-place-form" action="" method="post">
                 <fieldset>
                     <h2>Edit Place: <span id="edit-place-form-title"></span></h2>
-                    <input type="hidden" id="edit-place-id" name="place_id">
-                    <!-- Not needed if ID is in URL, but good practice -->
-
-                    <label for="edit-name">Place Name:</label>
-                    <input type="text" id="edit-name" name="name" required maxlength="100">
-
-                    <!-- Geocoding section for editing -->
-                    <label for="edit-address-input">Address or Place Name (for New Coordinates):</label>
-                    <div class="address-input-row">
-                        <input type="text" id="edit-address-input" placeholder="Enter new address to re-geocode">
-                        <button type="button" id="edit-find-coords-btn">Find New Coords</button>
-                    </div>
+                    <label for="edit-name">Place Name:</label><input type="text" id="edit-name" name="name" required
+                        maxlength="100">
+                    <label for="edit-address-input">Address/Place (for New Coords):</label>
+                    <div class="address-input-row"><input type="text" id="edit-address-input"
+                            placeholder="Enter new address to re-geocode"><button type="button"
+                            id="edit-find-coords-btn">Find New Coords</button></div>
                     <div id="edit-geocode-status" class="status-message"></div>
                     <div id="edit-coords-section" class="coords-section">
                         <p>Current Coords: (<span id="edit-display-lat"></span>, <span id="edit-display-lon"></span>)
                         </p>
-                        <p style="font-size: 0.85em;">(Only click "Find New Coords" if changing location)</p>
-                        <!-- Hidden inputs for submitting coordinates -->
-                        <input type="hidden" id="edit-latitude" name="latitude" required>
-                        <input type="hidden" id="edit-longitude" name="longitude" required>
-                        <!-- Hidden address parts potentially updated by geocoding -->
-                        <input type="hidden" id="edit-address" name="address">
-                        <input type="hidden" id="edit-city" name="city">
-                        <input type="hidden" id="edit-country" name="country">
+                        <p style="font-size: 0.85em;">(Only click "Find" if changing location)</p><input type="hidden"
+                            id="edit-latitude" name="latitude" required><input type="hidden" id="edit-longitude"
+                            name="longitude" required><input type="hidden" id="edit-address" name="address"><input
+                            type="hidden" id="edit-city" name="city"><input type="hidden" id="edit-country"
+                            name="country">
                     </div>
-
-                    <label for="edit-category">Category:</label>
-                    <select id="edit-category" name="category" required>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}">{{ cat|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-
-                    <label for="edit-status">Status:</label>
-                    <select id="edit-status" name="status" required>
-                        {% for stat in statuses %}
-                        <option value="{{ stat }}">{{ stat|replace('_', ' ')|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-
+                    <label for="edit-category">Category:</label><select id="edit-category" name="category" required>{%
+                        for cat in categories %}<option value="{{ cat }}">{{ cat|capitalize }}</option>{% endfor
+                        %}</select>
+                    <label for="edit-status">Status:</label><select id="edit-status" name="status" required>{% for stat
+                        in statuses %}<option value="{{ stat }}">{{ stat|replace('_', ' ')|capitalize }}</option>{%
+                        endfor %}</select>
                     <button type="submit" id="edit-place-submit-btn">Save Changes</button>
                     <button type="button" class="cancel-btn" onclick="hideEditPlaceForm()">Cancel</button>
                 </fieldset>
             </form>
         </div>
 
-        <!-- NEW: Review / Image Form Section (Initially Hidden) -->
+        <!-- Review / Image Form Section -->
         <div class="form-section" id="review-image-section" style="display: none;">
             <form id="review-image-form" action="" method="post" enctype="multipart/form-data">
-                <!-- Action set by JS -->
                 <fieldset>
                     <h2>Add/Edit Review for: <span id="review-form-title"></span></h2>
-                    <input type="hidden" id="review-place-id" name="place_id"> <!-- Not needed if ID is in URL -->
-
-                    <label for="review-title">Review Title:</label>
-                    <input type="text" id="review-title" name="review_title" maxlength="150">
-
-                    <label for="review-text">Review Text:</label>
-                    <textarea id="review-text" name="review_text" rows="5" maxlength="1000"></textarea>
-
-                    <label for="review-image">Upload Image (Optional):</label>
-                    <input type="file" id="review-image" name="image"
-                        accept="image/jpeg, image/png, image/gif, image/webp">
+                    <label for="review-title">Review Title:</label><input type="text" id="review-title"
+                        name="review_title" maxlength="150">
+                    <label for="review-text">Review Text:</label><textarea id="review-text" name="review_text" rows="5"
+                        maxlength="1000"></textarea>
+                    <label for="review-image">Upload Image (Optional):</label><input type="file" id="review-image"
+                        name="image" accept="image/jpeg, image/png, image/gif, image/webp">
                     <p style="font-size: 0.85em; color: #666;">Max file size ~5MB recommended.</p>
-
                     <button type="submit" id="review-image-submit-btn">Save Review & Image</button>
                     <button type="button" class="cancel-btn" onclick="hideReviewForm()">Cancel</button>
                 </fieldset>
@@ -536,281 +471,252 @@
     </div> <!-- /container -->
 
     <script>
-        // --- DOM Elements ---
-        const addPlaceForm = document.getElementById('add-place-form');
-        const addressInput = document.getElementById('address-input');
-        const findCoordsBtn = document.getElementById('find-coords-btn');
-        const geocodeStatus = document.getElementById('geocode-status');
-        const coordsSection = document.getElementById('coords-section');
-        const displayLat = document.getElementById('display-lat');
-        const displayLon = document.getElementById('display-lon');
-        const displayAddress = document.getElementById('display-address');
-        const hiddenLat = document.getElementById('latitude');
-        const hiddenLon = document.getElementById('longitude');
-        const hiddenAddress = document.getElementById('address');
-        const hiddenCity = document.getElementById('city');
-        const hiddenCountry = document.getElementById('country');
-        const addSubmitBtn = document.getElementById('add-place-submit-btn');
+        document.addEventListener('DOMContentLoaded', function () {
 
-        // Edit Form Elements
-        const editPlaceSection = document.getElementById('edit-place-section');
-        const editPlaceForm = document.getElementById('edit-place-form');
-        const editPlaceFormTitle = document.getElementById('edit-place-form-title');
-        const editPlaceIdInput = document.getElementById('edit-place-id'); // If needed by form handler
-        const editNameInput = document.getElementById('edit-name');
-        const editAddressInput = document.getElementById('edit-address-input');
-        const editFindCoordsBtn = document.getElementById('edit-find-coords-btn');
-        const editGeocodeStatus = document.getElementById('edit-geocode-status');
-        const editCoordsSection = document.getElementById('edit-coords-section');
-        const editDisplayLat = document.getElementById('edit-display-lat');
-        const editDisplayLon = document.getElementById('edit-display-lon');
-        const editLatitudeInput = document.getElementById('edit-latitude');
-        const editLongitudeInput = document.getElementById('edit-longitude');
-        const editAddressHidden = document.getElementById('edit-address');
-        const editCityHidden = document.getElementById('edit-city');
-        const editCountryHidden = document.getElementById('edit-country');
-        const editCategorySelect = document.getElementById('edit-category');
-        const editStatusSelect = document.getElementById('edit-status');
-        const editSubmitBtn = document.getElementById('edit-place-submit-btn');
+            // --- DOM Elements ---
+            const addPlaceForm = document.getElementById('add-place-form');
+            const addressInput = document.getElementById('address-input');
+            const findCoordsBtn = document.getElementById('find-coords-btn');
+            const geocodeStatus = document.getElementById('geocode-status');
+            const coordsSection = document.getElementById('coords-section');
+            const displayLat = document.getElementById('display-lat');
+            const displayLon = document.getElementById('display-lon');
+            const displayAddress = document.getElementById('display-address');
+            const hiddenLat = document.getElementById('latitude');
+            const hiddenLon = document.getElementById('longitude');
+            const hiddenAddress = document.getElementById('address');
+            const hiddenCity = document.getElementById('city');
+            const hiddenCountry = document.getElementById('country');
+            const addSubmitBtn = document.getElementById('add-place-submit-btn');
 
-        // Review/Image Form Elements
-        const reviewImageSection = document.getElementById('review-image-section');
-        const reviewImageForm = document.getElementById('review-image-form');
-        const reviewFormTitle = document.getElementById('review-form-title');
-        const reviewPlaceIdInput = document.getElementById('review-place-id'); // If needed by form handler
-        const reviewTitleInput = document.getElementById('review-title');
-        const reviewTextInput = document.getElementById('review-text');
-        const reviewImageInput = document.getElementById('review-image');
-        const reviewSubmitBtn = document.getElementById('review-image-submit-btn');
+            const editPlaceSection = document.getElementById('edit-place-section');
+            const editPlaceForm = document.getElementById('edit-place-form');
+            const editPlaceFormTitle = document.getElementById('edit-place-form-title');
+            const editNameInput = document.getElementById('edit-name');
+            const editAddressInput = document.getElementById('edit-address-input');
+            const editFindCoordsBtn = document.getElementById('edit-find-coords-btn');
+            const editGeocodeStatus = document.getElementById('edit-geocode-status');
+            const editCoordsSection = document.getElementById('edit-coords-section');
+            const editDisplayLat = document.getElementById('edit-display-lat');
+            const editDisplayLon = document.getElementById('edit-display-lon');
+            const editLatitudeInput = document.getElementById('edit-latitude');
+            const editLongitudeInput = document.getElementById('edit-longitude');
+            const editAddressHidden = document.getElementById('edit-address');
+            const editCityHidden = document.getElementById('edit-city');
+            const editCountryHidden = document.getElementById('edit-country');
+            const editCategorySelect = document.getElementById('edit-category');
+            const editStatusSelect = document.getElementById('edit-status');
+            const editSubmitBtn = document.getElementById('edit-place-submit-btn');
 
+            const reviewImageSection = document.getElementById('review-image-section');
+            const reviewImageForm = document.getElementById('review-image-form');
+            const reviewFormTitle = document.getElementById('review-form-title');
+            const reviewTitleInput = document.getElementById('review-title');
+            const reviewTextInput = document.getElementById('review-text');
+            const reviewImageInput = document.getElementById('review-image');
+            const reviewSubmitBtn = document.getElementById('review-image-submit-btn');
 
-        // --- Utility Functions ---
-        function setStatusMessage(element, message, type = 'info') {
-            if (!element) return;
-            element.textContent = message;
-            element.className = 'status-message'; // Reset classes
-            if (type === 'error') element.classList.add('error-message');
-            else if (type === 'success') element.classList.add('success-message');
-            else if (type === 'loading') element.classList.add('loading-indicator');
-            element.style.display = message ? 'block' : 'none'; // Show/hide
-        }
+            console.log("DOM Loaded, JS Initializing...");
 
-        function clearGeocodeResults(formType = 'add') {
-            const section = formType === 'edit' ? editCoordsSection : coordsSection;
-            const latInput = formType === 'edit' ? editLatitudeInput : hiddenLat;
-            const lonInput = formType === 'edit' ? editLongitudeInput : hiddenLon;
-            const addressInputHidden = formType === 'edit' ? editAddressHidden : hiddenAddress;
-            const cityInputHidden = formType === 'edit' ? editCityHidden : hiddenCity;
-            const countryInputHidden = formType === 'edit' ? editCountryHidden : hiddenCountry;
-            const statusEl = formType === 'edit' ? editGeocodeStatus : geocodeStatus;
-            const submitButton = formType === 'edit' ? editSubmitBtn : addSubmitBtn;
-
-            // Don't hide the whole edit coords section, just clear status/results
-            if (formType === 'add') {
-                section.style.display = 'none';
-            } else {
-                // For edit, maybe just clear the 'Found:' part if we add one?
-                // Or just clear the status message.
+            // --- Utility Functions ---
+            function setStatusMessage(element, message, type = 'info') {
+                if (!element) { console.warn("setStatusMessage: Target element not found."); return; }
+                element.textContent = message;
+                element.className = 'status-message';
+                if (type === 'error') element.classList.add('error-message');
+                else if (type === 'success') element.classList.add('success-message');
+                else if (type === 'loading') element.classList.add('loading-indicator');
+                element.style.display = message ? 'block' : 'none';
             }
 
-            // Clear hidden values needed for submission if they were set by *this* geocode attempt
-            // For edit, we only clear them IF a new search is initiated. Keep original values otherwise.
-            // This needs refinement based on UX decision. Let's assume Find button clears previous *found* data.
-            if (formType === 'add' || statusEl.textContent.includes('Searching') || statusEl.textContent.includes('found')) {
-                // latInput.value = ''; // Keep original coords in edit unless new ones found
-                // lonInput.value = '';
-                addressInputHidden.value = '';
-                cityInputHidden.value = '';
-                countryInputHidden.value = '';
-            }
+            // --- Geocode Function ---
+            async function findCoordinates(formType = 'add') {
+                console.log(`findCoordinates called for form type: ${formType}`);
+                const addressQueryEl = formType === 'edit' ? editAddressInput : addressInput;
+                const findBtn = formType === 'edit' ? editFindCoordsBtn : findCoordsBtn;
+                const statusEl = formType === 'edit' ? editGeocodeStatus : geocodeStatus;
+                const coordsSect = formType === 'edit' ? editCoordsSection : coordsSection;
+                const dispLatEl = formType === 'edit' ? editDisplayLat : displayLat;
+                const dispLonEl = formType === 'edit' ? editDisplayLon : displayLon;
+                const dispAddrEl = formType === 'edit' ? null : displayAddress;
+                const latInput = formType === 'edit' ? editLatitudeInput : hiddenLat;
+                const lonInput = formType === 'edit' ? editLongitudeInput : hiddenLon;
+                const addrHidden = formType === 'edit' ? editAddressHidden : hiddenAddress;
+                const cityHidden = formType === 'edit' ? editCityHidden : hiddenCity;
+                const countryHidden = formType === 'edit' ? editCountryHidden : hiddenCountry;
+                const submitButton = formType === 'edit' ? editSubmitBtn : addSubmitBtn;
 
-            setStatusMessage(statusEl, '');
-            // Re-enable submit button for edit form unless explicitly disabled by failed geocode later
-            if (submitButton) submitButton.disabled = (formType === 'add');
-        }
-
-        // --- Geocode Function (Generalized) ---
-        async function findCoordinates(formType = 'add') {
-            const addressQueryEl = formType === 'edit' ? editAddressInput : addressInput;
-            const findBtn = formType === 'edit' ? editFindCoordsBtn : findCoordsBtn;
-            const statusEl = formType === 'edit' ? editGeocodeStatus : geocodeStatus;
-            const coordsSect = formType === 'edit' ? editCoordsSection : coordsSection;
-            const dispLatEl = formType === 'edit' ? editDisplayLat : displayLat; // For display only in edit
-            const dispLonEl = formType === 'edit' ? editDisplayLon : displayLon; // For display only in edit
-            const dispAddrEl = formType === 'edit' ? null : displayAddress; // No dedicated display in edit? Add one if needed.
-            const latInput = formType === 'edit' ? editLatitudeInput : hiddenLat;
-            const lonInput = formType === 'edit' ? editLongitudeInput : hiddenLon;
-            const addrHidden = formType === 'edit' ? editAddressHidden : hiddenAddress;
-            const cityHidden = formType === 'edit' ? editCityHidden : hiddenCity;
-            const countryHidden = formType === 'edit' ? editCountryHidden : hiddenCountry;
-            const submitButton = formType === 'edit' ? editSubmitBtn : addSubmitBtn;
-
-            const addressQuery = addressQueryEl.value.trim();
-            if (!addressQuery) {
-                setStatusMessage(statusEl, 'Please enter an address or place name.', 'error');
-                return;
-            }
-
-            // If editing, signal that we are attempting a change
-            if (formType === 'edit') setStatusMessage(statusEl, 'Verifying new location...', 'loading');
-            else setStatusMessage(statusEl, 'Searching...', 'loading');
-
-            findBtn.disabled = true;
-            if (submitButton) submitButton.disabled = true; // Disable submit while geocoding
-
-            try {
-                const geocodeUrl = `{{ request.url_for('geocode_address_endpoint') }}?address=${encodeURIComponent(addressQuery)}`;
-                const response = await fetch(geocodeUrl);
-
-                if (response.ok) {
-                    const result = await response.json();
-                    setStatusMessage(statusEl, `New location found: ${result.display_name}`, 'success');
-
-                    // Update display and hidden inputs
-                    latInput.value = result.latitude;
-                    lonInput.value = result.longitude;
-                    addrHidden.value = result.address || '';
-                    cityHidden.value = result.city || '';
-                    countryHidden.value = result.country || '';
-
-                    if (dispLatEl) dispLatEl.textContent = result.latitude.toFixed(6); // Update display spans if they exist
-                    if (dispLonEl) dispLonEl.textContent = result.longitude.toFixed(6);
-                    if (dispAddrEl) dispAddrEl.textContent = result.display_name;
-
-                    if (formType === 'add') coordsSect.style.display = 'block'; // Show section for add form
-                    if (submitButton) submitButton.disabled = false; // Re-enable submit
-
-                } else {
-                    let errorDetail = `Geocoding failed (${response.status}).`;
-                    try { const errorData = await response.json(); errorDetail = errorData.detail || errorDetail; } catch (e) { /* ignore */ }
-                    setStatusMessage(statusEl, `Error: ${errorDetail}`, 'error');
-                    // Keep submit disabled if geocode failed *during edit*? Yes.
-                    if (submitButton) submitButton.disabled = true;
+                // Basic check for element existence
+                if (!addressQueryEl || !findBtn || !statusEl || !latInput || !lonInput || !addrHidden || !cityHidden || !countryHidden || (formType === 'add' && !coordsSect) || (formType === 'edit' && !editCoordsSection)) {
+                    console.error(`Geocode Error: Missing required elements for form type '${formType}'. Cannot proceed.`);
+                    setStatusMessage(statusEl || geocodeStatus, "Internal page error. Cannot find coordinates.", "error"); // Show error on whichever status element exists
+                    return;
                 }
-            } catch (error) {
-                console.error('Geocoding fetch error:', error);
-                setStatusMessage(statusEl, 'Network error during geocoding.', 'error');
-                if (submitButton) submitButton.disabled = true; // Disable on network error too
-            } finally {
-                findBtn.disabled = false;
+
+
+                const addressQuery = addressQueryEl.value.trim();
+                if (!addressQuery) {
+                    setStatusMessage(statusEl, 'Please enter an address or place name.', 'error');
+                    return;
+                }
+                setStatusMessage(statusEl, 'Searching...', 'loading');
+                findBtn.disabled = true;
+                if (submitButton) submitButton.disabled = true;
+
+                try {
+                    const geocodeUrl = `{{ request.url_for('geocode_address_endpoint') }}?address=${encodeURIComponent(addressQuery)}`;
+                    console.log("Geocoding URL:", geocodeUrl);
+                    const response = await fetch(geocodeUrl);
+                    console.log("Geocoding Response Status:", response.status);
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        console.log("Geocoding Result:", result);
+                        let successMsg = `Location found: ${result.display_name}`;
+                        if (formType === 'edit') successMsg = `New location found: ${result.display_name}`;
+                        setStatusMessage(statusEl, successMsg, 'success');
+
+                        latInput.value = result.latitude;
+                        lonInput.value = result.longitude;
+                        addrHidden.value = result.address || '';
+                        cityHidden.value = result.city || '';
+                        countryHidden.value = result.country || '';
+                        if (dispLatEl) dispLatEl.textContent = result.latitude?.toFixed(6) ?? 'N/A';
+                        if (dispLonEl) dispLonEl.textContent = result.longitude?.toFixed(6) ?? 'N/A';
+                        if (dispAddrEl) dispAddrEl.textContent = result.display_name;
+
+                        if (formType === 'add' && coordsSect) coordsSect.style.display = 'block';
+                        if (submitButton) submitButton.disabled = false;
+                    } else {
+                        let errorDetail = `Geocoding failed (${response.status}).`;
+                        try { const d = await response.json(); errorDetail = d.detail || errorDetail; } catch (e) { }
+                        console.error("Geocoding Error:", errorDetail);
+                        setStatusMessage(statusEl, `Error: ${errorDetail}`, 'error');
+                        if (submitButton) submitButton.disabled = true;
+                    }
+                } catch (error) {
+                    console.error('Geocoding fetch error:', error);
+                    setStatusMessage(statusEl, 'Network error during geocoding.', 'error');
+                    if (submitButton) submitButton.disabled = true;
+                } finally {
+                    if (findBtn) findBtn.disabled = false;
+                }
+            } // end findCoordinates
+
+            // --- Event Listeners ---
+            if (findCoordsBtn) findCoordsBtn.addEventListener('click', () => findCoordinates('add'));
+            if (addPlaceForm) addPlaceForm.addEventListener('submit', (event) => {
+                console.log("Add Place Form Submit triggered");
+                if (!hiddenLat || !hiddenLon || !hiddenLat.value || !hiddenLon.value) {
+                    console.error("Add Place Submit Prevented: Lat/Lon hidden inputs missing or empty.");
+                    event.preventDefault();
+                    setStatusMessage(geocodeStatus, 'Coordinates missing or invalid. Use "Find" button.', 'error');
+                    return false;
+                }
+                console.log(`Add Place Submit OK: Lat=${hiddenLat.value}, Lon=${hiddenLon.value}`);
+                if (addSubmitBtn) { addSubmitBtn.disabled = true; addSubmitBtn.textContent = 'Adding...'; }
+            });
+
+            if (editFindCoordsBtn) editFindCoordsBtn.addEventListener('click', () => findCoordinates('edit'));
+            if (editPlaceForm) editPlaceForm.addEventListener('submit', (event) => {
+                console.log("Edit Place Form Submit triggered");
+                if (!editLatitudeInput || !editLongitudeInput || !editLatitudeInput.value || !editLongitudeInput.value) {
+                    console.error("Edit Place Submit Prevented: Lat/Lon hidden inputs missing or empty.");
+                    event.preventDefault();
+                    setStatusMessage(editGeocodeStatus, 'Coordinates missing or invalid.', 'error');
+                    return false;
+                }
+                if (editAddressInput && editAddressInput.value.trim() !== '' && editGeocodeStatus && (editGeocodeStatus.textContent.includes('Error') || editGeocodeStatus.textContent.includes('Searching'))) {
+                    event.preventDefault();
+                    setStatusMessage(editGeocodeStatus, 'Resolve geocoding status before saving.', 'error');
+                    return false;
+                }
+                if (editSubmitBtn) { editSubmitBtn.disabled = true; editSubmitBtn.textContent = 'Saving...'; }
+            });
+
+            if (reviewImageForm) reviewImageForm.addEventListener('submit', (event) => {
+                console.log("Review/Image Form Submit triggered");
+                if (reviewSubmitBtn) { reviewSubmitBtn.disabled = true; reviewSubmitBtn.textContent = 'Saving...'; }
+            });
+
+            // --- Show/Hide Form Functions (Assign to window object) ---
+            window.showEditPlaceForm = function (placeData) {
+                console.log("Global showEditPlaceForm called with:", placeData);
+                if (!editPlaceSection || !editPlaceForm || !editPlaceFormTitle || !editNameInput || !editCategorySelect || !editStatusSelect || !editAddressInput || !editDisplayLat || !editDisplayLon || !editLatitudeInput || !editLongitudeInput || !editAddressHidden || !editCityHidden || !editCountryHidden || !editGeocodeStatus || !editSubmitBtn) {
+                    console.error("CRITICAL: One or more Edit Form elements are missing!"); alert("Error: Edit form elements missing."); return;
+                }
+                console.log("Edit Form elements checked.");
+
+                try {
+                    editPlaceFormTitle.textContent = placeData.name || 'Unknown';
+                    editNameInput.value = placeData.name || '';
+                    editCategorySelect.value = placeData.category || 'other';
+                    editStatusSelect.value = placeData.status || 'pending';
+                    editAddressInput.value = '';
+                    editDisplayLat.textContent = placeData.latitude?.toFixed(6) ?? 'N/A';
+                    editDisplayLon.textContent = placeData.longitude?.toFixed(6) ?? 'N/A';
+                    editLatitudeInput.value = placeData.latitude || '';
+                    editLongitudeInput.value = placeData.longitude || '';
+                    editAddressHidden.value = placeData.address || '';
+                    editCityHidden.value = placeData.city || '';
+                    editCountryHidden.value = placeData.country || '';
+                    setStatusMessage(editGeocodeStatus, '');
+                    editSubmitBtn.disabled = false;
+
+                    const url = `{{ request.url_for('edit_place_from_form_endpoint', place_id=999) }}`.replace('999', placeData.id);
+                    editPlaceForm.action = url;
+                    console.log("Edit form action set to:", url);
+
+                    hideReviewForm();
+                    editPlaceSection.style.display = 'block';
+                    console.log("Edit form displayed.");
+                    editPlaceSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } catch (e) {
+                    console.error("Error in showEditPlaceForm:", e); alert("Error preparing edit form.");
+                }
             }
-        }
 
-
-        // --- Event Listeners ---
-        // Add Form
-        addressInput.addEventListener('input', () => clearGeocodeResults('add'));
-        findCoordsBtn.addEventListener('click', () => findCoordinates('add'));
-        addPlaceForm.addEventListener('submit', (event) => {
-            if (!hiddenLat.value || !hiddenLon.value) {
-                event.preventDefault();
-                setStatusMessage(geocodeStatus, 'Coordinates not found. Use "Find" button.', 'error');
-                return false;
-            }
-            addSubmitBtn.disabled = true;
-            addSubmitBtn.textContent = 'Adding...';
-        });
-
-        // Edit Form
-        editAddressInput.addEventListener('input', () => {
-            // Clear status, but don't clear hidden coords unless 'Find' is clicked
-            setStatusMessage(editGeocodeStatus, '');
-            // Maybe re-enable submit button here? Or only after successful find? Let's require find if address changes.
-            // editSubmitBtn.disabled = false; // Cautious: keep disabled if address changed until 'Find' clicked
-        });
-        editFindCoordsBtn.addEventListener('click', () => findCoordinates('edit'));
-        editPlaceForm.addEventListener('submit', (event) => {
-            if (!editLatitudeInput.value || !editLongitudeInput.value) {
-                event.preventDefault();
-                setStatusMessage(editGeocodeStatus, 'Coordinates missing. Use "Find New Coords" if location changed.', 'error');
-                return false;
-            }
-            // Check if address was modified but geocode failed or wasn't run
-            if (editAddressInput.value.trim() !== '' && editGeocodeStatus.textContent.includes('Error')) {
-                event.preventDefault();
-                setStatusMessage(editGeocodeStatus, 'Resolve geocoding error or clear address field before saving.', 'error');
-                return false;
-            }
-            editSubmitBtn.disabled = true;
-            editSubmitBtn.textContent = 'Saving...';
-        });
-
-
-        // --- Functions for Edit/Review Forms ---
-
-        function showEditPlaceForm(placeData) {
-            console.log("Editing Place:", placeData);
-            // Populate Form
-            editPlaceFormTitle.textContent = placeData.name || 'Unknown';
-            if (editPlaceIdInput) editPlaceIdInput.value = placeData.id; // If using hidden ID input
-            editNameInput.value = placeData.name || '';
-            editCategorySelect.value = placeData.category || 'other';
-            editStatusSelect.value = placeData.status || 'pending';
-
-            // Address and Coordinates
-            editAddressInput.value = ''; // Clear input field, encourage re-geocode if changing
-            editDisplayLat.textContent = placeData.latitude?.toFixed(6) || 'N/A';
-            editDisplayLon.textContent = placeData.longitude?.toFixed(6) || 'N/A';
-            editLatitudeInput.value = placeData.latitude || ''; // Set initial hidden coords
-            editLongitudeInput.value = placeData.longitude || '';
-            editAddressHidden.value = placeData.address || ''; // Set initial hidden address parts
-            editCityHidden.value = placeData.city || '';
-            editCountryHidden.value = placeData.country || '';
-
-            setStatusMessage(editGeocodeStatus, ''); // Clear any previous status
-            editSubmitBtn.disabled = false; // Enable submit initially
-
-            // Set Form Action URL
-            try {
-                const formActionUrl = `{{ request.url_for('edit_place_from_form_endpoint', place_id=999) }}`.replace('999', placeData.id);
-                editPlaceForm.action = formActionUrl;
-            } catch (e) {
-                console.error("Error setting edit form action:", e);
-                alert("Could not prepare edit form action URL.");
-                return; // Don't show form if action fails
+            window.hideEditPlaceForm = function () {
+                if (editPlaceSection) editPlaceSection.style.display = 'none';
+                console.log("Edit form hidden.");
             }
 
-            // Hide other forms and show this one
-            hideReviewForm();
-            editPlaceSection.style.display = 'block';
-            editPlaceSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+            window.showReviewForm = function (placeData) {
+                console.log("Global showReviewForm called with:", placeData);
+                if (!reviewImageSection || !reviewImageForm || !reviewFormTitle || !reviewTitleInput || !reviewTextInput || !reviewImageInput || !reviewSubmitBtn) {
+                    console.error("CRITICAL: One or more Review Form elements missing!"); alert("Error: Review form elements missing."); return;
+                }
+                console.log("Review Form elements checked.");
 
-        function hideEditPlaceForm() {
-            editPlaceSection.style.display = 'none';
-        }
+                try {
+                    reviewFormTitle.textContent = placeData.name || 'Unknown';
+                    reviewTitleInput.value = placeData.review_title || '';
+                    reviewTextInput.value = placeData.review || '';
+                    reviewImageInput.value = '';
+                    reviewSubmitBtn.disabled = false;
 
-        function showReviewForm(placeData) {
-            console.log("Reviewing Place:", placeData);
-            // Populate Form
-            reviewFormTitle.textContent = placeData.name || 'Unknown';
-            if (reviewPlaceIdInput) reviewPlaceIdInput.value = placeData.id; // If using hidden ID
-            reviewTitleInput.value = placeData.review_title || '';
-            reviewTextInput.value = placeData.review || '';
-            reviewImageInput.value = ''; // Clear file input
+                    const url = `{{ request.url_for('add_review_image_endpoint', place_id=999) }}`.replace('999', placeData.id);
+                    reviewImageForm.action = url;
+                    console.log("Review form action set to:", url);
 
-            // Set Form Action URL
-            try {
-                const formActionUrl = `{{ request.url_for('add_review_image_endpoint', place_id=999) }}`.replace('999', placeData.id);
-                reviewImageForm.action = formActionUrl;
-            } catch (e) {
-                console.error("Error setting review form action:", e);
-                alert("Could not prepare review form action URL.");
-                return; // Don't show form if action fails
+                    hideEditPlaceForm();
+                    reviewImageSection.style.display = 'block';
+                    console.log("Review form displayed.");
+                    reviewImageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } catch (e) {
+                    console.error("Error in showReviewForm:", e); alert("Error preparing review form.");
+                }
             }
 
-            // Hide other forms and show this one
-            hideEditPlaceForm();
-            reviewImageSection.style.display = 'block';
-            reviewImageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
+            window.hideReviewForm = function () {
+                if (reviewImageSection) reviewImageSection.style.display = 'none';
+                console.log("Review form hidden.");
+            }
 
-        function hideReviewForm() {
-            reviewImageSection.style.display = 'none';
-        }
+            console.log("JS Initialization Complete.");
 
+        }); // End of DOMContentLoaded listener
     </script>
-
 </body>
 
 </html>

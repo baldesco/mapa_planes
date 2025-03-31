@@ -35,20 +35,21 @@ class PlaceDB(Base):
         nullable=False,
         index=True,
     )
+    review_title = Column(String(150), nullable=True)  # Added
     review = Column(Text, nullable=True)
     image_url = Column(String(1024), nullable=True)  # Store image URL as string
 
-    # Timestamps - Use default=func.now() for creation time
-    # onupdate=func.now() attempts to update timestamp on modification
+    # Timestamps
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), default=func.now(), onupdate=func.now()
     )
+    # Soft Delete column
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
 
     def __repr__(self):
-        return (
-            f"<PlaceDB(id={self.id}, name='{self.name}', status='{self.status.value}')>"
-        )
+        deleted_marker = "[DELETED] " if self.deleted_at else ""
+        return f"<PlaceDB(id={self.id}, name='{self.name}', status='{self.status.value}') {deleted_marker}>"
 
 
 # Define other tables here if your schema grows
