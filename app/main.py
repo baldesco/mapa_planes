@@ -2,31 +2,31 @@
 
 import asyncio
 import folium
-import html  # For escaping HTML in popups
+import html
+import json
 from fastapi import (
     FastAPI,
     Depends,
     HTTPException,
     status,
-    Request,  # Ensure status is imported
+    Request,
     File,
     UploadFile,
     Form,
     Query,
+    Response,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-
-# from fastapi.staticfiles import StaticFiles # Uncomment if needed
-from opencage.geocoder import OpenCageGeocode, RateLimitExceededError  # Using OpenCage
+from opencage.geocoder import OpenCageGeocode, RateLimitExceededError
 from typing import List, Optional
-from pydantic import ValidationError  # Import for catching Pydantic errors
+from pydantic import ValidationError
 
 # Import local modules
 from . import crud, models, database
 from .core.config import settings, logger
-from .models import PlaceCategory, PlaceStatus  # Keep PlaceStatus import
-from .database import get_db  # Use the determined DB dependency
+from .models import PlaceCategory, PlaceStatus
+from .database import get_db
 
 # --- FastAPI App Initialization ---
 app = FastAPI(
@@ -35,11 +35,9 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Setup Jinja2 templates
 templates = Jinja2Templates(directory="templates")
-# app.mount("/static", StaticFiles(directory="static"), name="static") # Uncomment if needed
 
-# --- Geocoding Setup (OpenCage) ---
+# --- Geocoding Setup ---
 if not settings.OPENCAGE_API_KEY:
     logger.critical("OPENCAGE_API_KEY is not set. Geocoding endpoint will fail.")
     geocoder = None
@@ -56,14 +54,11 @@ else:
 async def perform_geocode(address: str) -> models.GeocodeResult | None:
     """Performs geocoding using OpenCage Geocoder. Raises HTTPException on failure."""
     if not geocoder:
-        logger.error(
-            "Geocoding skipped: OpenCage Geocoder not initialized (API Key missing?)."
-        )
+        logger.error("Geocoding skipped: OpenCage Geocoder not initialized.")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Geocoding service is not configured.",
         )
-
     try:
         logger.debug(f"Geocoding address with OpenCage: '{address}'")
         results = await asyncio.to_thread(
@@ -76,15 +71,12 @@ async def perform_geocode(address: str) -> models.GeocodeResult | None:
             no_annotations=1,
             timeout=10,
         )
-
         if results and len(results):
             best_result = results[0]
             components = best_result.get("components", {})
             geometry = best_result.get("geometry", {})
             formatted_address = best_result.get("formatted")
-
             if geometry and "lat" in geometry and "lng" in geometry:
-                # Extract details safely using .get()
                 city = components.get(
                     "city",
                     components.get(
@@ -98,7 +90,6 @@ async def perform_geocode(address: str) -> models.GeocodeResult | None:
                 neighbourhood = components.get("neighbourhood")
                 street_address_parts = filter(None, [house_number, road, neighbourhood])
                 street_address = ", ".join(street_address_parts)
-
                 result = models.GeocodeResult(
                     latitude=geometry["lat"],
                     longitude=geometry["lng"],
@@ -111,28 +102,24 @@ async def perform_geocode(address: str) -> models.GeocodeResult | None:
                 return result
             else:
                 logger.warning(
-                    f"OpenCage result found for '{address}', but missing/invalid geometry. Data: {best_result}"
+                    f"OpenCage result missing geometry for '{address}'. Data: {best_result}"
                 )
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Geocoding found a location but lacks coordinate data.",
+                    detail="Geocoding lacks coordinate data.",
                 )
         else:
-            logger.warning(
-                f"OpenCage geocoding failed: No results found for '{address}'"
-            )
+            logger.warning(f"OpenCage geocoding failed: No results for '{address}'")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Address not found."
             )
-
     except RateLimitExceededError:
         logger.error("OpenCage API rate limit exceeded.")
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Geocoding limit reached. Please try again later.",
+            detail="Geocoding limit reached.",
         )
     except HTTPException as http_exc:
-        # Explicitly re-raise known HTTPExceptions
         raise http_exc
     except Exception as e:
         logger.error(
@@ -140,7 +127,7 @@ async def perform_geocode(address: str) -> models.GeocodeResult | None:
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="An error occurred during geocoding.",
+            detail="Error during geocoding.",
         )
 
 
@@ -150,14 +137,10 @@ async def read_root(
     request: Request,
     db=Depends(get_db),
     category_str: Optional[str] = Query(
-        None,
-        alias="category",
-        description="Filter by category (accepts enum value or empty)",
+        None, alias="category", description="Filter by category"
     ),
     status_str: Optional[str] = Query(
-        None,
-        alias="status",
-        description="Filter by status (accepts enum value or empty)",
+        None, alias="status", description="Filter by status"
     ),
 ):
     """Serves the main HTML page displaying the map and places."""
@@ -167,91 +150,78 @@ async def read_root(
 
     # --- Process filter strings into Enums ---
     category: Optional[PlaceCategory] = None
-    if category_str:  # Check if not None and not empty string
+    if category_str:
         try:
             category = PlaceCategory(category_str)
         except ValueError:
-            logger.warning(
-                f"Invalid category filter value received: '{category_str}'. Ignoring filter."
-            )
-            # Optionally: Redirect or show an error message to the user
-            # For now, we just ignore the invalid filter
-
+            logger.warning(f"Invalid category filter: '{category_str}'. Ignoring.")
     status_filter: Optional[PlaceStatus] = None
-    if status_str:  # Check if not None and not empty string
+    if status_str:
         try:
             status_filter = PlaceStatus(status_str)
         except ValueError:
-            logger.warning(
-                f"Invalid status filter value received: '{status_str}'. Ignoring filter."
-            )
-            # Optionally: Redirect or show an error message
-            # For now, we just ignore the invalid filter
-
+            logger.warning(f"Invalid status filter: '{status_str}'. Ignoring.")
     logger.info(f"Processed Filters: category={category}, status={status_filter}")
     # --- End Filter Processing ---
 
-    map_html_content = '<p style="color: red; text-align: center; padding: 20px;">Map data could not be loaded. Check server logs.</p>'
+    map_html_content = '<p style="color: red; text-align: center; padding: 20px;">Map data could not be loaded.</p>'
     places = []
     try:
         places = await crud.get_places(
-            db=db,
-            category=category,
-            status_filter=status_filter,
-            limit=500,  # Use processed variables
+            db=db, category=category, status_filter=status_filter, limit=500
         )
         logger.info(f"MAIN: Fetched {len(places)} validated places.")
 
-        map_center = [4.7110, -74.0721]  # Bogota
+        map_center = [4.7110, -74.0721]
         zoom_start = 12
         m = folium.Map(
-            location=map_center, zoom_start=zoom_start, tiles="OpenStreetMap"
-        )
+            location=map_center, zoom_start=zoom_start, tiles="CartoDB positron"
+        )  # Use a lighter tile
+
+        # --- Icon Mapping ---
+        category_icons = {
+            PlaceCategory.RESTAURANT: "cutlery",
+            PlaceCategory.PARK: "tree-conifer",  # FontAwesome 5 free name
+            PlaceCategory.ENTERTAINMENT: "film",
+            PlaceCategory.SHOPPING: "shopping-cart",
+            PlaceCategory.OTHER: "map-marker",
+        }
+        default_icon = "info-sign"  # Fallback
 
         marker_count = 0
-        # Check if places list is not None before iterating (it should always be a list from crud)
-        if places is not None:
-            for i, place in enumerate(places):
-                logger.debug(
-                    f"MAIN: Processing marker {i + 1}/{len(places)} for place ID {place.id}"
-                )
+        if places:
+            for place in places:
+                logger.debug(f"MAIN: Processing marker for place ID {place.id}")
                 try:
-                    # Validate essential data for marker
                     place_lat = place.latitude
                     place_lon = place.longitude
-                    # Ensure coordinates are valid numbers
                     if not isinstance(place_lat, (int, float)) or not isinstance(
                         place_lon, (int, float)
                     ):
                         logger.warning(
-                            f"MAIN: Skipping place ID {place.id} ('{getattr(place, 'name', 'N/A')}') due to invalid coordinates: Lat={place_lat}, Lon={place_lon}"
+                            f"MAIN: Skipping place ID {place.id} invalid coords: {place_lat}, {place_lon}"
                         )
                         continue
 
-                    # Prepare display data safely
                     place_name = html.escape(place.name or "Unnamed Place")
-                    # Use .value safely, handle potential None category/status if data is imperfect
-                    place_category_val = getattr(place.category, "value", "N/A")
-                    place_status_val = getattr(place.status, "value", "N/A")
-                    place_category = html.escape(place_category_val)
-                    place_status = html.escape(place_status_val)
+                    place_category_enum = place.category
+                    place_category_val = getattr(place_category_enum, "value", "N/A")
+                    place_status_enum = place.status
+                    place_status_val = getattr(place_status_enum, "value", "N/A")
 
-                    review = html.escape(place.review or "")
-                    # Ensure image_url is treated as string before checking startswith
+                    place_category_display = html.escape(place_category_val)
+                    place_status_display = html.escape(place_status_val)
+                    review_title = html.escape(place.review_title or "")
+                    review_text = html.escape(place.review or "")
                     image_url_str = str(place.image_url or "")
-                    image_url = html.escape(image_url_str)
+                    image_url_display = html.escape(image_url_str)
 
-                    # Build popup HTML
-                    popup_parts = [f"<h4>{place_name}</h4><p>"]
-                    popup_parts.append(f"<b>Category:</b> {place_category}<br>")
-                    popup_parts.append(f"<b>Status:</b> {place_status}<br>")
-                    # Add check for lat/lon validity before formatting
-                    if place_lat is not None and place_lon is not None:
-                        popup_parts.append(
-                            f"<b>Coords:</b> ({place_lat:.5f}, {place_lon:.5f})<br>"
-                        )
-                    else:
-                        popup_parts.append("<b>Coords:</b> (Not available)<br>")
+                    # --- Popup HTML Generation ---
+                    popup_parts = [
+                        f"<h4 style='margin-bottom: 8px;'>{place_name}</h4><div style='font-size: 0.9em; max-height: 200px; overflow-y: auto;'>"
+                    ]  # Added style
+                    popup_parts.append(f"<b>Category:</b> {place_category_display}<br>")
+                    popup_parts.append(f"<b>Status:</b> {place_status_display}<br>")
 
                     address_info = ", ".join(
                         filter(
@@ -265,80 +235,127 @@ async def read_root(
                     )
                     if address_info:
                         popup_parts.append(f"<b>Address:</b> {address_info}<br>")
-                    popup_parts.append("</p>")
 
-                    if review:
+                    # Display Review Title and Text if they exist
+                    if review_title:
                         popup_parts.append(
-                            f"<p style='margin-top: 5px;'><b>Review:</b><br>{review[:150]}{'...' if len(review) > 150 else ''}</p>"
+                            f"<p style='margin-top: 5px;'><b>Review Title:</b><br>{review_title}</p>"
                         )
-                    # Check if image_url_str is a valid url before creating img tag
+                    if review_text:
+                        review_snippet = review_text[:150] + (
+                            "..." if len(review_text) > 150 else ""
+                        )
+                        popup_parts.append(
+                            f"<p style='margin-top: 5px;'><b>Review:</b><br>{review_snippet}</p>"
+                        )
+
                     if image_url_str and image_url_str.startswith(
                         ("http://", "https://")
                     ):
                         popup_parts.append(
-                            f'<img src="{image_url}" alt="{place_name}" style="max-width: 200px; max-height: 150px; margin-top: 5px; display: block;">'
+                            f'<img src="{image_url_display}" alt="{place_name}" style="max-width: 200px; max-height: 150px; margin-top: 5px; display: block; border-radius: 4px;">'
                         )
 
-                    # Status update form (Check place.status exists before comparing)
-                    current_status = (
-                        place.status if place.status else PlaceStatus.PENDING
-                    )  # Default if somehow None
+                    popup_parts.append("</div>")  # Close scrollable div
 
+                    # --- Actions Section ---
+                    popup_parts.append(
+                        "<div style='margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px; display: flex; flex-wrap: wrap; gap: 5px;'>"
+                    )  # Flex container
+
+                    # Status Change Form (kept similar)
+                    current_status = (
+                        place_status_enum if place_status_enum else PlaceStatus.PENDING
+                    )
+                    status_form_url = request.url_for(
+                        "update_place_status_from_form_endpoint", place_id=place.id
+                    )
                     popup_parts.append(f"""
-                    <form action="{request.url_for("update_place_status_from_form_endpoint", place_id=place.id)}" method="post" style="margin-top: 10px;">
-                         <label for="status-popup-{place.id}" style="font-size: 0.9em;">Change Status:</label><br>
-                         <select name="status" id="status-popup-{place.id}" onchange="this.form.submit()" style="padding: 3px;">
+                    <form action="{status_form_url}" method="post" style="display: inline-block; margin-right: 5px;">
+                         <select name="status" onchange="this.form.submit()" title="Change Status" style="padding: 3px 5px; font-size: 0.85em; border-radius: 3px;">
                             <option value="{PlaceStatus.PENDING.value}" {"selected" if current_status == PlaceStatus.PENDING else ""}>Pending</option>
                             <option value="{PlaceStatus.PENDING_PRIORITIZED.value}" {"selected" if current_status == PlaceStatus.PENDING_PRIORITIZED else ""}>Prioritized</option>
                             <option value="{PlaceStatus.VISITED.value}" {"selected" if current_status == PlaceStatus.VISITED else ""}>Visited</option>
                          </select>
-                         <noscript><button type="submit" style="margin-left: 5px;">Update</button></noscript>
                     </form>""")
 
+                    # Edit Button (Triggers JS)
+                    # Pass necessary data safely escaped for JS context
+                    place_data_for_js = {
+                        "id": place.id,
+                        "name": place.name,
+                        "latitude": place.latitude,
+                        "longitude": place.longitude,
+                        "category": place_category_val,
+                        "status": place_status_val,
+                        "address": place.address,
+                        "city": place.city,
+                        "country": place.country,
+                        "review_title": place.review_title,
+                        "review": place.review,  # Pass review data too
+                    }
+                    # Use json.dumps for robust JS string conversion
+                    js_data_arg = html.escape(json.dumps(place_data_for_js), quote=True)
+                    popup_parts.append(
+                        f'<button onclick=\'showEditForm({js_data_arg})\' title="Edit Place" style="padding: 3px 8px; font-size: 0.85em; background-color: #f0ad4e; color: white; border: none; border-radius: 3px; cursor: pointer;">Edit</button>'
+                    )
+
+                    # Add/Edit Review Button (Triggers JS)
+                    popup_parts.append(
+                        f'<button onclick=\'showReviewForm({js_data_arg})\' title="Add/Edit Review & Image" style="padding: 3px 8px; font-size: 0.85em; background-color: #5bc0de; color: white; border: none; border-radius: 3px; cursor: pointer;">Review</button>'
+                    )
+
+                    # Delete Button (Simple Form POST)
+                    delete_form_url = request.url_for(
+                        "delete_place_from_form_endpoint", place_id=place.id
+                    )
+                    popup_parts.append(f"""
+                    <form action="{delete_form_url}" method="post" style="display: inline-block;" onsubmit="return confirm('Are you sure you want to delete {html.escape(place_name)}?');">
+                        <button type="submit" title="Delete Place" style="padding: 3px 8px; font-size: 0.85em; background-color: #d9534f; color: white; border: none; border-radius: 3px; cursor: pointer;">Delete</button>
+                    </form>""")
+
+                    popup_parts.append("</div>")  # Close actions div
+                    # --- End Actions ---
+
                     popup_html = "".join(popup_parts)
-                    color_map = {
+
+                    # --- Marker Icon and Color ---
+                    status_color_map = {
                         PlaceStatus.VISITED: "green",
                         PlaceStatus.PENDING_PRIORITIZED: "orange",
                         PlaceStatus.PENDING: "blue",
                     }
-                    # Use the current_status variable for color mapping
-                    marker_color = color_map.get(current_status, "gray")
+                    marker_color = status_color_map.get(current_status, "gray")
+                    marker_icon = category_icons.get(place_category_enum, default_icon)
 
-                    # Final check before adding marker
-                    if place_lat is not None and place_lon is not None:
-                        folium.Marker(
-                            location=[place_lat, place_lon],
-                            popup=folium.Popup(popup_html, max_width=300),
-                            tooltip=f"{place_name} ({place_status})",
-                            icon=folium.Icon(color=marker_color, icon="info-sign"),
-                        ).add_to(m)
-                        marker_count += 1
-                    else:
-                        logger.warning(
-                            f"MAIN: Skipping marker for place ID {place.id} due to missing coordinates post-validation."
-                        )
-
+                    folium.Marker(
+                        location=[place_lat, place_lon],
+                        popup=folium.Popup(
+                            popup_html, max_width=350
+                        ),  # Slightly wider popup
+                        tooltip=f"{place_name} ({place_status_display})",
+                        icon=folium.Icon(
+                            color=marker_color, icon=marker_icon, prefix="fa"
+                        ),  # Use FontAwesome prefix
+                    ).add_to(m)
+                    marker_count += 1
                 except Exception as marker_error:
                     logger.error(
                         f"MAIN: Error processing marker for place ID {place.id}: {marker_error}",
-                        exc_info=True,  # Log full traceback for marker errors
+                        exc_info=True,
                     )
-                    # Continue to next marker
 
-            logger.info(f"MAIN: Successfully added {marker_count} markers to the map.")
-            map_html_content = m._repr_html_()  # Render HTML only if successful
-
-        elif not places:  # Explicitly check for empty list
-            logger.info("MAIN: No places found matching criteria to display on map.")
-            # Keep default map centered on Bogota
-            map_html_content = m._repr_html_()  # Render the empty map
+            logger.info(f"MAIN: Successfully added {marker_count} markers.")
+            map_html_content = m._repr_html_()
+        elif not places:
+            logger.info("MAIN: No places found to display.")
+            map_html_content = m._repr_html_()
 
     except Exception as page_load_error:
         logger.error(
             f"MAIN: Critical error generating map page: {page_load_error}",
             exc_info=True,
         )
-        # map_html_content retains the default error message
 
     context = {
         "request": request,
@@ -346,31 +363,25 @@ async def read_root(
         "places": places,
         "categories": [c.value for c in PlaceCategory],
         "statuses": [s.value for s in PlaceStatus],
-        # Pass the original string values for re-populating the dropdowns
         "current_category": category_str if category_str else None,
         "current_status": status_str if status_str else None,
-        "attribution_html": "Geocoding by <a href='https://opencagedata.com/' target='_blank'>OpenCage</a>. Map data © <a href='https://openstreetmap.org/copyright' target='_blank'>OpenStreetMap</a> contributors & others.",
+        "attribution_html": "Geocoding by <a href='https://opencagedata.com/' target='_blank'>OpenCage</a>. Map data © <a href='https://openstreetmap.org/copyright' target='_blank'>OpenStreetMap</a> contributors.",
     }
     return templates.TemplateResponse("index.html", context)
 
 
 # --- API Endpoints ---
-
-
 @app.get("/geocode", response_model=models.GeocodeResult, summary="Geocode Address")
-async def geocode_address_endpoint(
-    address: str = Query(
-        ..., min_length=3, description="Address or place name to geocode"
-    ),
-):
+async def geocode_address_endpoint(address: str = Query(..., min_length=3)):
     """Geocodes an address string using OpenCage."""
     logger.info(f"API Geocoding request for: '{address}'")
-    # perform_geocode raises appropriate HTTPExceptions on failure
     result = await perform_geocode(address)
     return result
 
 
-# --- POST /places/ endpoint (Create Place) ---
+# --- Form Handling Endpoints ---
+
+
 @app.post("/places/", status_code=status.HTTP_303_SEE_OTHER, summary="Create New Place")
 async def create_new_place_endpoint(
     request: Request,
@@ -379,21 +390,21 @@ async def create_new_place_endpoint(
     latitude: float = Form(...),
     longitude: float = Form(...),
     category: PlaceCategory = Form(...),
-    place_status_input: PlaceStatus = Form(..., alias="status"),  # RENAMED parameter
+    place_status_input: PlaceStatus = Form(..., alias="status"),
     address: Optional[str] = Form(None),
     city: Optional[str] = Form(None),
     country: Optional[str] = Form(None),
 ):
-    """Creates a new place from form data and redirects to the map."""
+    """Creates a new place from form data and redirects."""
     logger.info(f"API Create place request (form): Name='{name}'")
-    redirect_url = request.url_for("read_root")  # Define redirect URL once
+    redirect_url = request.url_for("read_root")
     try:
         place_data = models.PlaceCreate(
             name=name,
             latitude=latitude,
             longitude=longitude,
             category=category,
-            status=place_status_input,  # Use RENAMED variable here
+            status=place_status_input,
             address=address,
             city=city,
             country=country,
@@ -403,26 +414,18 @@ async def create_new_place_endpoint(
             f"API Create place validation error: {validation_error.errors()}",
             exc_info=False,
         )
-        # TODO: Flash messages
+        # TODO: Flash message error
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
-
     created_place = await crud.create_place(place=place_data, db=db)
     if created_place is None:
         logger.error(
-            f"Failed to create place '{place_data.name}' in DB after validation."
-        )
-    # TODO: Flash message
+            f"Failed to create place '{place_data.name}' in DB."
+        )  # TODO: Flash message error
     else:
         logger.info(
-            f"Place '{created_place.name}' created successfully (ID: {created_place.id})."
-        )
-        # TODO: Flash message
-
-    # Correctly use the imported status module for the status code
+            f"Place '{created_place.name}' created (ID: {created_place.id})."
+        )  # TODO: Flash message success
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
-
-
-# --- Form Handling Endpoints (Update Status, Review, Upload Image) ---
 
 
 @app.post(
@@ -433,102 +436,217 @@ async def create_new_place_endpoint(
 async def update_place_status_from_form_endpoint(
     request: Request,
     place_id: int,
-    new_status: PlaceStatus = Form(..., alias="status"),  # RENAMED parameter
+    new_status: PlaceStatus = Form(..., alias="status"),
     db=Depends(get_db),
 ):
     """Handles status update from the map popup form and redirects."""
     logger.info(f"API Update status request for place {place_id} to {new_status.value}")
-    place_update = models.PlaceUpdate(status=new_status)  # Use RENAMED variable
+    place_update = models.PlaceUpdate(status=new_status)
     updated_place = await crud.update_place(
         place_id=place_id, place_update=place_update, db=db
     )
     if updated_place is None:
-        logger.warning(f"Failed to update status or find place ID {place_id}.")
+        logger.warning(
+            f"Failed to update status/find place ID {place_id}."
+        )  # TODO: Flash message error
     else:
-        logger.info(f"Status updated successfully for place ID {place_id}.")
-
-    # Correctly use the imported status module for the status code
+        logger.info(
+            f"Status updated for place ID {place_id}."
+        )  # TODO: Flash message success
     return RedirectResponse(
         url=request.url_for("read_root"), status_code=status.HTTP_303_SEE_OTHER
     )
 
 
 @app.post(
-    "/places/{place_id}/review",
+    "/places/{place_id}/edit",
     status_code=status.HTTP_303_SEE_OTHER,
-    summary="Add/Update Place Review",
+    summary="Handle Edit Place Form",
 )
-async def add_update_review_endpoint(
-    request: Request, place_id: int, review: str = Form(...), db=Depends(get_db)
+async def edit_place_from_form_endpoint(
+    request: Request,
+    place_id: int,
+    db=Depends(get_db),
+    name: str = Form(...),
+    latitude: float = Form(
+        ...
+    ),  # Assume coords are passed from form (potentially updated by geocoder)
+    longitude: float = Form(...),
+    category: PlaceCategory = Form(...),
+    status: PlaceStatus = Form(...),
+    address: Optional[str] = Form(None),  # Address from form
+    city: Optional[str] = Form(None),
+    country: Optional[str] = Form(None),
 ):
-    """Handles adding/updating a review from a form and redirects."""
-    logger.info(f"API Add/Update review request for place ID {place_id}")
-    place_update = models.PlaceUpdate(
-        review=review.strip(), status=PlaceStatus.VISITED
-    )  # Mark as visited
-    updated_place = await crud.update_place(
-        place_id=place_id, place_update=place_update, db=db
-    )
-    if updated_place is None:
-        logger.warning(f"Failed to update review or find place ID {place_id}.")
-    else:
-        logger.info(f"Review updated successfully for place ID {place_id}.")
-    return RedirectResponse(
-        url=request.url_for("read_root"), status_code=status.HTTP_303_SEE_OTHER
-    )
-
-
-@app.post(
-    "/places/{place_id}/upload-image/",
-    status_code=status.HTTP_303_SEE_OTHER,
-    summary="Upload Place Image",
-)
-async def upload_image_for_place_endpoint(
-    request: Request, place_id: int, file: UploadFile = File(...), db=Depends(get_db)
-):
-    """Uploads an image for a place, saves URL, and redirects."""
-    logger.info(
-        f"API Image upload request for place ID {place_id}. Filename: {file.filename}"
-    )
+    """Handles submission of the edit place form."""
+    logger.info(f"API Edit place form submission for ID {place_id}, Name='{name}'")
     redirect_url = request.url_for("read_root")
 
-    db_place = await crud.get_place_by_id(place_id=place_id, db=db)
-    if db_place is None:
-        logger.warning(f"Place ID {place_id} not found for image upload.")
-        # TODO: Flash message
-        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
-
     try:
-        image_url = await crud.upload_place_image(place_id=place_id, file=file, db=db)
-    except HTTPException as e:
-        logger.error(f"Image upload failed during storage operation: {e.detail}")
-        # TODO: Flash message
-        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+        # Create PlaceUpdate model from form data
+        place_update_data = models.PlaceUpdate(
+            name=name,
+            latitude=latitude,
+            longitude=longitude,
+            category=category,
+            status=status,
+            address=address,
+            city=city,
+            country=country,
+            # review/image fields are not part of this form
+        )
+
+        updated_place = await crud.update_place(
+            place_id=place_id, place_update=place_update_data, db=db
+        )
+
+        if updated_place is None:
+            logger.error(f"Failed to update place ID {place_id} via edit form.")
+            # TODO: Flash message error
+        else:
+            logger.info(f"Place ID {place_id} updated successfully via edit form.")
+            # TODO: Flash message success
+
+    except ValidationError as validation_error:
+        logger.error(
+            f"API Edit place validation error for ID {place_id}: {validation_error.errors()}",
+            exc_info=False,
+        )
+        # TODO: Flash message validation error
     except Exception as e:
         logger.error(
-            f"Unexpected error during image upload for place {place_id}: {e}",
+            f"API Unexpected error editing place ID {place_id}: {e}", exc_info=True
+        )
+        # TODO: Flash message generic error
+
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+@app.post(
+    "/places/{place_id}/review-image",
+    status_code=status.HTTP_303_SEE_OTHER,
+    summary="Add/Update Review and Image",
+)
+async def add_review_image_endpoint(
+    request: Request,
+    place_id: int,
+    db=Depends(get_db),
+    review_title: str = Form(""),  # Allow empty title
+    review_text: str = Form(""),  # Allow empty text
+    image_file: Optional[UploadFile] = File(None, alias="image"),  # Use alias
+):
+    """Handles review text and optional image upload from a form."""
+    logger.info(
+        f"API Review/Image submission for place ID {place_id}. Title: '{review_title[:20]}...', Has Image: {image_file is not None}"
+    )
+    redirect_url = request.url_for("read_root")
+    image_public_url = None
+
+    # 1. Upload Image if provided
+    if image_file and image_file.filename:
+        try:
+            logger.info(
+                f"Attempting image upload for place {place_id}, filename: {image_file.filename}"
+            )
+            image_public_url = await crud.upload_place_image(
+                place_id=place_id, file=image_file, db=db
+            )
+            if image_public_url:
+                logger.info(
+                    f"Image uploaded for place {place_id}, URL: {image_public_url}"
+                )
+                # TODO: Flash message image success
+            else:
+                logger.error(
+                    f"Image upload completed for place {place_id} but no URL returned."
+                )
+                # TODO: Flash message image URL failure
+        except HTTPException as e:
+            logger.error(f"Image upload failed for place {place_id}: {e.detail}")
+            # TODO: Flash message image upload error (e.detail)
+            # Decide if we should proceed without image or stop
+            # For now, let's proceed to update text fields anyway
+        except Exception as e:
+            logger.error(
+                f"Unexpected error during image upload for place {place_id}: {e}",
+                exc_info=True,
+            )
+            # TODO: Flash message generic image error
+            # Proceed with text update
+
+    # 2. Update Review Text and Image URL in DB
+    try:
+        place_update_data = models.PlaceUpdate(
+            review_title=review_title.strip() if review_title else None,
+            review=review_text.strip() if review_text else None,
+            # Only include image_url if upload was successful (or if clearing it intentionally)
+            # Here we assume we always want to set it if upload happened
+            # image_url=image_public_url # This might overwrite if upload failed but we proceeded
+        )
+        # If an image was successfully uploaded, ensure its URL is in the update data
+        if image_public_url:
+            place_update_data.image_url = image_public_url
+
+        # Also mark as visited when adding review/image
+        place_update_data.status = PlaceStatus.VISITED
+
+        logger.debug(
+            f"Updating place {place_id} with review/image data: {place_update_data.model_dump(exclude_unset=True)}"
+        )
+
+        updated_place = await crud.update_place(
+            place_id=place_id, place_update=place_update_data, db=db
+        )
+
+        if updated_place is None:
+            # This could happen if the place ID is invalid OR if the update itself failed in DB
+            logger.error(
+                f"Failed to update review/image details for place ID {place_id}."
+            )
+            # TODO: Flash message DB update error
+        else:
+            logger.info(
+                f"Review/image details updated successfully for place ID {place_id}."
+            )
+            # TODO: Flash message combined success (or separate for text/image)
+
+    except ValidationError as validation_error:
+        logger.error(
+            f"API Review/Image validation error for ID {place_id}: {validation_error.errors()}",
+            exc_info=False,
+        )
+        # TODO: Flash message validation error
+    except Exception as e:
+        logger.error(
+            f"API Unexpected error saving review/image details for ID {place_id}: {e}",
             exc_info=True,
         )
-        # TODO: Flash message
-        return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+        # TODO: Flash message generic error
 
-    if image_url:
-        success = await crud.update_place_image_url(
-            place_id=place_id, image_url=image_url, db=db
-        )
-        if not success:
-            logger.error(
-                f"Image uploaded ({image_url}), but failed to update DB for place {place_id}."
-            )
-            # TODO: Flash message
-        else:
-            logger.info(f"Image uploaded and DB updated for place {place_id}.")
-            # TODO: Flash message
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
+
+
+# --- NEW: Delete Place Form Handler ---
+@app.post(
+    "/places/{place_id}/delete",
+    status_code=status.HTTP_303_SEE_OTHER,
+    summary="Handle Delete Place Form",
+)
+async def delete_place_from_form_endpoint(
+    request: Request, place_id: int, db=Depends(get_db)
+):
+    """Handles deletion of a place triggered by a form."""
+    logger.warning(f"API Delete request (form) for place ID {place_id}")
+    redirect_url = request.url_for("read_root")
+
+    success = await crud.delete_place(place_id=place_id, db=db)
+
+    if not success:
+        logger.error(f"Failed to delete place ID {place_id} via form.")
+        # TODO: Flash message error (place not found or deletion failed)
     else:
-        logger.error(
-            f"Image upload for place {place_id} completed but no URL was returned."
-        )
-        # TODO: Flash message
+        logger.info(f"Place ID {place_id} deleted successfully via form.")
+        # TODO: Flash message success
 
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
@@ -536,12 +654,7 @@ async def upload_image_for_place_endpoint(
 # --- JSON API Endpoints ---
 
 
-@app.get(
-    "/api/places/",
-    response_model=List[models.Place],
-    summary="List Places (API)",
-    tags=["API - Places"],
-)
+@app.get("/api/places/", response_model=List[models.Place], tags=["API - Places"])
 async def list_places_api(
     category: Optional[PlaceCategory] = Query(None),
     status_filter: Optional[PlaceStatus] = Query(None, alias="status"),
@@ -549,87 +662,62 @@ async def list_places_api(
     limit: int = Query(100, ge=1, le=500),
     db=Depends(get_db),
 ):
-    """API endpoint to get a list of places (JSON response)."""
     logger.info(
-        f"API List places request: category={category}, status={status_filter}, skip={skip}, limit={limit}"
+        f"API List: category={category}, status={status_filter}, skip={skip}, limit={limit}"
     )
     places_db = await crud.get_places(
         db=db, category=category, status_filter=status_filter, skip=skip, limit=limit
     )
-    # Convert PlaceInDB (from crud) to Place (API response model) before returning
-    # model_validate ensures correct transformation based on Place model's Config
     return [models.Place.model_validate(p) for p in places_db]
 
 
-@app.get(
-    "/api/places/{place_id}",
-    response_model=models.Place,
-    summary="Get Place Details (API)",
-    tags=["API - Places"],
-)
+@app.get("/api/places/{place_id}", response_model=models.Place, tags=["API - Places"])
 async def get_place_api(place_id: int, db=Depends(get_db)):
-    """API endpoint to get details of a single place (JSON response)."""
-    logger.info(f"API Get place request for ID {place_id}")
+    logger.info(f"API Get place: ID {place_id}")
     db_place = await crud.get_place_by_id(place_id=place_id, db=db)
     if db_place is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Place not found"
         )
-    # Convert PlaceInDB (from crud) to Place (API response model)
     return models.Place.model_validate(db_place)
 
 
 @app.delete(
     "/api/places/{place_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete Place (API)",
     tags=["API - Places"],
 )
 async def delete_place_api(place_id: int, db=Depends(get_db)):
-    """API endpoint to delete a place."""
-    logger.info(f"API Delete place request for ID {place_id}")
+    logger.info(f"API Delete place: ID {place_id}")
     success = await crud.delete_place(place_id=place_id, db=db)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Place not found or could not be deleted",
+            detail="Place not found or delete failed",
         )
-    return None  # Return No Content on success
+    return Response(status_code=status.HTTP_204_NO_CONTENT)  # Explicit Response for 204
 
 
-@app.put(
-    "/api/places/{place_id}",
-    response_model=models.Place,
-    summary="Update Place (API)",
-    tags=["API - Places"],
-)
+@app.put("/api/places/{place_id}", response_model=models.Place, tags=["API - Places"])
 async def update_place_api(
     place_id: int, place_update: models.PlaceUpdate, db=Depends(get_db)
 ):
-    """API endpoint to update place details (JSON response)."""
     logger.info(
-        f"API Update place request for ID {place_id} with data: {place_update.model_dump(exclude_unset=True)}"
+        f"API Update place: ID {place_id} Data: {place_update.model_dump(exclude_unset=True)}"
     )
     updated_place = await crud.update_place(
         place_id=place_id, place_update=place_update, db=db
     )
     if updated_place is None:
         existing = await crud.get_place_by_id(place_id=place_id, db=db)
-        if not existing:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Place not found"
-            )
-        else:
-            # Log the specific error if Supabase provided one (check crud.py logs)
-            logger.error(
-                f"API Update failed for place ID {place_id} after confirming existence."
-            )
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Could not update place",
-            )
-    logger.info(f"API Place ID {place_id} updated successfully.")
-    # Convert PlaceInDB (from crud) to Place (API response model)
+        detail = "Place not found" if not existing else "Could not update place"
+        status_code = (
+            status.HTTP_404_NOT_FOUND
+            if not existing
+            else status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        raise HTTPException(status_code=status_code, detail=detail)
+    logger.info(f"API Place ID {place_id} updated.")
     return models.Place.model_validate(updated_place)
 
 
@@ -638,5 +726,4 @@ async def update_place_api(
     "/health", status_code=status.HTTP_200_OK, summary="Health Check", tags=["System"]
 )
 async def health_check():
-    """Simple health check endpoint."""
     return {"status": "ok"}

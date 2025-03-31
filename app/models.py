@@ -58,15 +58,16 @@ class PlaceUpdate(BaseModel):
     city: Optional[str] = Field(None, max_length=100)
     country: Optional[str] = Field(None, max_length=100)
     status: Optional[PlaceStatus] = None
-    review: Optional[str] = Field(
-        None, max_length=1000, description="User review (longer length allowed)"
-    )  # Increased length
-    # image_url is typically updated internally via upload endpoint
+    review_title: Optional[str] = Field(
+        None, max_length=150, description="Title for the review"
+    )
+    review: Optional[str] = Field(None, max_length=1000, description="User review text")
+    # image_url is typically updated internally via upload endpoint, not directly via PUT usually
 
-    @field_validator("review")
+    @field_validator("review", "review_title")
     @classmethod
-    def strip_review(cls, v: Optional[str]) -> Optional[str]:
-        """Remove leading/trailing whitespace from review."""
+    def strip_text_fields(cls, v: Optional[str]) -> Optional[str]:
+        """Remove leading/trailing whitespace from text fields."""
         if v is not None:
             return v.strip()
         return v
@@ -76,6 +77,7 @@ class PlaceUpdate(BaseModel):
 class PlaceInDB(PlaceBase):
     id: int
     status: PlaceStatus
+    review_title: Optional[str] = None
     review: Optional[str] = None
     image_url: Optional[HttpUrl | str] = (
         None  # Allow string for flexibility, convert on output if needed
