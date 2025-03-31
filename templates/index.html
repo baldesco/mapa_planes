@@ -314,7 +314,7 @@
                 <div>
                     <label for="category">Category:</label>
                     <select id="category" name="category" onchange="this.form.submit()">
-                        <option value="">All</option>
+                        <option value="" {% if not current_category %}selected{% endif %}>All</option>
                         {% for cat in categories %}
                         <option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{ cat|capitalize }}
                         </option>
@@ -324,7 +324,7 @@
                 <div>
                     <label for="status">Status:</label> <!-- Name matches Query param alias -->
                     <select id="status" name="status" onchange="this.form.submit()">
-                        <option value="">All</option>
+                        <option value="" {% if not current_status %}selected{% endif %}>All</option>
                         {% for stat in statuses %}
                         <option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{ stat|replace('_',
                             ' ')|capitalize }}</option>

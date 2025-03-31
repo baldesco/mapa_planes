@@ -149,20 +149,56 @@ async def perform_geocode(address: str) -> models.GeocodeResult | None:
 async def read_root(
     request: Request,
     db=Depends(get_db),
-    category: Optional[PlaceCategory] = Query(None, description="Filter by category"),
-    status_filter: Optional[PlaceStatus] = Query(
-        None, alias="status", description="Filter by status"
+    category_str: Optional[str] = Query(
+        None,
+        alias="category",
+        description="Filter by category (accepts enum value or empty)",
+    ),
+    status_str: Optional[str] = Query(
+        None,
+        alias="status",
+        description="Filter by status (accepts enum value or empty)",
     ),
 ):
     """Serves the main HTML page displaying the map and places."""
     logger.info(
-        f"Request for root page. Filters: category={category}, status={status_filter}"
+        f"Request for root page. Raw Filters: category='{category_str}', status='{status_str}'"
     )
+
+    # --- Process filter strings into Enums ---
+    category: Optional[PlaceCategory] = None
+    if category_str:  # Check if not None and not empty string
+        try:
+            category = PlaceCategory(category_str)
+        except ValueError:
+            logger.warning(
+                f"Invalid category filter value received: '{category_str}'. Ignoring filter."
+            )
+            # Optionally: Redirect or show an error message to the user
+            # For now, we just ignore the invalid filter
+
+    status_filter: Optional[PlaceStatus] = None
+    if status_str:  # Check if not None and not empty string
+        try:
+            status_filter = PlaceStatus(status_str)
+        except ValueError:
+            logger.warning(
+                f"Invalid status filter value received: '{status_str}'. Ignoring filter."
+            )
+            # Optionally: Redirect or show an error message
+            # For now, we just ignore the invalid filter
+
+    logger.info(f"Processed Filters: category={category}, status={status_filter}")
+    # --- End Filter Processing ---
+
     map_html_content = '<p style="color: red; text-align: center; padding: 20px;">Map data could not be loaded. Check server logs.</p>'
     places = []
     try:
         places = await crud.get_places(
-            db=db, category=category, status_filter=status_filter, limit=500
+            db=db,
+            category=category,
+            status_filter=status_filter,
+            limit=500,  # Use processed variables
         )
         logger.info(f"MAIN: Fetched {len(places)} validated places.")
 
@@ -173,7 +209,8 @@ async def read_root(
         )
 
         marker_count = 0
-        if places:
+        # Check if places list is not None before iterating (it should always be a list from crud)
+        if places is not None:
             for i, place in enumerate(places):
                 logger.debug(
                     f"MAIN: Processing marker {i + 1}/{len(places)} for place ID {place.id}"
@@ -182,6 +219,7 @@ async def read_root(
                     # Validate essential data for marker
                     place_lat = place.latitude
                     place_lon = place.longitude
+                    # Ensure coordinates are valid numbers
                     if not isinstance(place_lat, (int, float)) or not isinstance(
                         place_lon, (int, float)
                     ):
@@ -192,24 +230,29 @@ async def read_root(
 
                     # Prepare display data safely
                     place_name = html.escape(place.name or "Unnamed Place")
-                    place_category = html.escape(
-                        place.category.value if place.category else "N/A"
-                    )
-                    place_status = html.escape(
-                        place.status.value if place.status else "N/A"
-                    )
+                    # Use .value safely, handle potential None category/status if data is imperfect
+                    place_category_val = getattr(place.category, "value", "N/A")
+                    place_status_val = getattr(place.status, "value", "N/A")
+                    place_category = html.escape(place_category_val)
+                    place_status = html.escape(place_status_val)
+
                     review = html.escape(place.review or "")
-                    image_url = html.escape(
-                        str(place.image_url or "")
-                    )  # Ensure string for startswith
+                    # Ensure image_url is treated as string before checking startswith
+                    image_url_str = str(place.image_url or "")
+                    image_url = html.escape(image_url_str)
 
                     # Build popup HTML
                     popup_parts = [f"<h4>{place_name}</h4><p>"]
                     popup_parts.append(f"<b>Category:</b> {place_category}<br>")
                     popup_parts.append(f"<b>Status:</b> {place_status}<br>")
-                    popup_parts.append(
-                        f"<b>Coords:</b> ({place_lat:.5f}, {place_lon:.5f})<br>"
-                    )
+                    # Add check for lat/lon validity before formatting
+                    if place_lat is not None and place_lon is not None:
+                        popup_parts.append(
+                            f"<b>Coords:</b> ({place_lat:.5f}, {place_lon:.5f})<br>"
+                        )
+                    else:
+                        popup_parts.append("<b>Coords:</b> (Not available)<br>")
+
                     address_info = ", ".join(
                         filter(
                             None,
@@ -228,19 +271,26 @@ async def read_root(
                         popup_parts.append(
                             f"<p style='margin-top: 5px;'><b>Review:</b><br>{review[:150]}{'...' if len(review) > 150 else ''}</p>"
                         )
-                    if image_url and image_url.startswith(("http://", "https://")):
+                    # Check if image_url_str is a valid url before creating img tag
+                    if image_url_str and image_url_str.startswith(
+                        ("http://", "https://")
+                    ):
                         popup_parts.append(
                             f'<img src="{image_url}" alt="{place_name}" style="max-width: 200px; max-height: 150px; margin-top: 5px; display: block;">'
                         )
 
-                    # Status update form
+                    # Status update form (Check place.status exists before comparing)
+                    current_status = (
+                        place.status if place.status else PlaceStatus.PENDING
+                    )  # Default if somehow None
+
                     popup_parts.append(f"""
                     <form action="{request.url_for("update_place_status_from_form_endpoint", place_id=place.id)}" method="post" style="margin-top: 10px;">
                          <label for="status-popup-{place.id}" style="font-size: 0.9em;">Change Status:</label><br>
                          <select name="status" id="status-popup-{place.id}" onchange="this.form.submit()" style="padding: 3px;">
-                            <option value="{PlaceStatus.PENDING.value}" {"selected" if place.status == PlaceStatus.PENDING else ""}>Pending</option>
-                            <option value="{PlaceStatus.PENDING_PRIORITIZED.value}" {"selected" if place.status == PlaceStatus.PENDING_PRIORITIZED else ""}>Prioritized</option>
-                            <option value="{PlaceStatus.VISITED.value}" {"selected" if place.status == PlaceStatus.VISITED else ""}>Visited</option>
+                            <option value="{PlaceStatus.PENDING.value}" {"selected" if current_status == PlaceStatus.PENDING else ""}>Pending</option>
+                            <option value="{PlaceStatus.PENDING_PRIORITIZED.value}" {"selected" if current_status == PlaceStatus.PENDING_PRIORITIZED else ""}>Prioritized</option>
+                            <option value="{PlaceStatus.VISITED.value}" {"selected" if current_status == PlaceStatus.VISITED else ""}>Visited</option>
                          </select>
                          <noscript><button type="submit" style="margin-left: 5px;">Update</button></noscript>
                     </form>""")
@@ -251,28 +301,35 @@ async def read_root(
                         PlaceStatus.PENDING_PRIORITIZED: "orange",
                         PlaceStatus.PENDING: "blue",
                     }
-                    marker_color = color_map.get(place.status, "gray")
+                    # Use the current_status variable for color mapping
+                    marker_color = color_map.get(current_status, "gray")
 
-                    folium.Marker(
-                        location=[place_lat, place_lon],
-                        popup=folium.Popup(popup_html, max_width=300),
-                        tooltip=f"{place_name} ({place_status})",
-                        icon=folium.Icon(color=marker_color, icon="info-sign"),
-                    ).add_to(m)
-                    marker_count += 1
+                    # Final check before adding marker
+                    if place_lat is not None and place_lon is not None:
+                        folium.Marker(
+                            location=[place_lat, place_lon],
+                            popup=folium.Popup(popup_html, max_width=300),
+                            tooltip=f"{place_name} ({place_status})",
+                            icon=folium.Icon(color=marker_color, icon="info-sign"),
+                        ).add_to(m)
+                        marker_count += 1
+                    else:
+                        logger.warning(
+                            f"MAIN: Skipping marker for place ID {place.id} due to missing coordinates post-validation."
+                        )
 
                 except Exception as marker_error:
                     logger.error(
                         f"MAIN: Error processing marker for place ID {place.id}: {marker_error}",
-                        exc_info=True,
+                        exc_info=True,  # Log full traceback for marker errors
                     )
                     # Continue to next marker
 
             logger.info(f"MAIN: Successfully added {marker_count} markers to the map.")
             map_html_content = m._repr_html_()  # Render HTML only if successful
 
-        elif not places:
-            logger.info("MAIN: No places found to display on map.")
+        elif not places:  # Explicitly check for empty list
+            logger.info("MAIN: No places found matching criteria to display on map.")
             # Keep default map centered on Bogota
             map_html_content = m._repr_html_()  # Render the empty map
 
@@ -289,8 +346,9 @@ async def read_root(
         "places": places,
         "categories": [c.value for c in PlaceCategory],
         "statuses": [s.value for s in PlaceStatus],
-        "current_category": category.value if category else None,
-        "current_status": status_filter.value if status_filter else None,
+        # Pass the original string values for re-populating the dropdowns
+        "current_category": category_str if category_str else None,
+        "current_status": status_str if status_str else None,
         "attribution_html": "Geocoding by <a href='https://opencagedata.com/' target='_blank'>OpenCage</a>. Map data © <a href='https://openstreetmap.org/copyright' target='_blank'>OpenStreetMap</a> contributors & others.",
     }
     return templates.TemplateResponse("index.html", context)
@@ -498,6 +556,8 @@ async def list_places_api(
     places_db = await crud.get_places(
         db=db, category=category, status_filter=status_filter, skip=skip, limit=limit
     )
+    # Convert PlaceInDB (from crud) to Place (API response model) before returning
+    # model_validate ensures correct transformation based on Place model's Config
     return [models.Place.model_validate(p) for p in places_db]
 
 
@@ -515,6 +575,7 @@ async def get_place_api(place_id: int, db=Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Place not found"
         )
+    # Convert PlaceInDB (from crud) to Place (API response model)
     return models.Place.model_validate(db_place)
 
 
@@ -559,11 +620,16 @@ async def update_place_api(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Place not found"
             )
         else:
+            # Log the specific error if Supabase provided one (check crud.py logs)
+            logger.error(
+                f"API Update failed for place ID {place_id} after confirming existence."
+            )
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Could not update place",
             )
     logger.info(f"API Place ID {place_id} updated successfully.")
+    # Convert PlaceInDB (from crud) to Place (API response model)
     return models.Place.model_validate(updated_place)
 
 

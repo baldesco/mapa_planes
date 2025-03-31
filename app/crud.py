@@ -2,10 +2,16 @@
 
 import uuid
 import os
+import asyncio
 from datetime import datetime
 from typing import List, Optional
 from fastapi import UploadFile, HTTPException, status
 from supabase import Client as SupabaseClient, create_client
+from supabase.lib.client_options import (
+    ClientOptions,
+)
+from postgrest import APIResponse
+
 from .core.config import settings, logger
 from .models import (
     PlaceCreate,
@@ -29,7 +35,9 @@ async def create_place(place: PlaceCreate, db: SupabaseClient) -> PlaceInDB | No
         place_data.setdefault("created_at", now)
         place_data.setdefault("updated_at", now)
 
-        response = await db.table(TABLE_NAME).insert(place_data).execute()
+        query = db.table(TABLE_NAME).insert(place_data)
+        response: APIResponse = await asyncio.to_thread(query.execute)
+
         logger.debug(f"Supabase insert response data: {response.data}")
 
         if response.data:
@@ -41,11 +49,13 @@ async def create_place(place: PlaceCreate, db: SupabaseClient) -> PlaceInDB | No
             )
             return validated_place
         else:
-            error_msg = getattr(response, "error", {}).get(
-                "message", "Unknown error during insert"
+            # Attempt to log specific Supabase error if available in response structure
+            # Supabase-py v2 might structure errors differently, adjust if needed
+            error_detail = getattr(response, "error", None) or getattr(
+                response, "message", "Unknown error during insert"
             )
             logger.error(
-                f"CRUD: Failed to create place '{place.name}' in Supabase: {error_msg}"
+                f"CRUD: Failed to create place '{place.name}' in Supabase: {error_detail}"
             )
             return None
     except Exception as e:
@@ -76,7 +86,8 @@ async def get_places(
         if status_filter:
             query = query.eq("status", status_filter.value)  # Use renamed parameter
 
-        response = await query.range(skip, skip + limit - 1).execute()
+        final_query = query.range(skip, skip + limit - 1)
+        response: APIResponse = await asyncio.to_thread(final_query.execute)
 
         if hasattr(response, "data") and response.data:
             logger.debug(
@@ -91,23 +102,31 @@ async def get_places(
                     logger.error(
                         f"CRUD: Pydantic validation failed for place record #{i + 1}. Data: {p_data}. Error: {validation_error}",
                         exc_info=False,
-                    )  # Keep log concise
+                    )
                     # Optionally log full exc_info=True if needed for deep debugging
             logger.info(
                 f"CRUD: Successfully validated {len(places_validated)} place records."
             )
 
+        # Check for errors even if data is present (might be partial result?)
+        # Adapt based on how Supabase returns errors alongside data
         elif hasattr(response, "error") and response.error:
-            error_msg = getattr(response, "error", {}).get(
-                "message", "Unknown Supabase error"
+            error_detail = getattr(response, "error", None) or getattr(
+                response, "message", "Unknown Supabase error"
             )
-            logger.error(f"CRUD: Error fetching places from Supabase: {error_msg}")
-        else:
+            logger.error(f"CRUD: Error fetching places from Supabase: {error_detail}")
+        elif not response.data:
             logger.debug("CRUD: No places found matching criteria or no data returned.")
+        else:
+            # Should not happen if hasattr checks pass, but good fallback
+            logger.warning(
+                f"CRUD: Unexpected response structure from Supabase get_places: {response}"
+            )
 
         return places_validated  # Return only successfully validated places
 
     except Exception as e:
+        # This catches errors in the asyncio.to_thread call or subsequent validation loop
         logger.error(f"CRUD: Exception during get_places execution: {e}", exc_info=True)
         return []  # Return empty list on major error
 
@@ -117,23 +136,22 @@ async def get_place_by_id(place_id: int, db: SupabaseClient) -> PlaceInDB | None
     """Retrieves a single place by its ID from Supabase."""
     logger.debug(f"CRUD: Getting place by ID: {place_id}")
     try:
-        response = (
-            await db.table(TABLE_NAME)
-            .select("*")
-            .eq("id", place_id)
-            .maybe_single()
-            .execute()
-        )
+        query = db.table(TABLE_NAME).select("*").eq("id", place_id).maybe_single()
+        response: APIResponse = await asyncio.to_thread(query.execute)
 
         if response.data:
             validated_place = PlaceInDB(**response.data)
             logger.debug(f"CRUD: Found place ID {place_id}")
             return validated_place
         else:
-            error_msg = getattr(response, "error", {}).get("message")
-            if error_msg:
-                logger.error(f"CRUD: Error fetching place {place_id}: {error_msg}")
+            # Check for specific errors
+            error_detail = getattr(response, "error", None) or getattr(
+                response, "message", None
+            )
+            if error_detail:
+                logger.error(f"CRUD: Error fetching place {place_id}: {error_detail}")
             else:
+                # This is expected if maybe_single() finds nothing
                 logger.debug(f"CRUD: Place ID {place_id} not found.")
             return None
     except Exception as e:
@@ -155,13 +173,13 @@ async def update_place(
             logger.warning(
                 f"CRUD: Update requested for place {place_id} with no data. Returning current state."
             )
+            # Need to call get_place_by_id asynchronously
             return await get_place_by_id(place_id, db)
 
         update_data["updated_at"] = datetime.utcnow().isoformat()
 
-        response = (
-            await db.table(TABLE_NAME).update(update_data).eq("id", place_id).execute()
-        )
+        query = db.table(TABLE_NAME).update(update_data).eq("id", place_id)
+        response: APIResponse = await asyncio.to_thread(query.execute)
 
         if response.data:
             updated_place_data = response.data[0]
@@ -169,15 +187,18 @@ async def update_place(
             logger.info(f"CRUD: Successfully updated place ID {place_id}")
             return validated_place
         else:
-            error_msg = getattr(response, "error", {}).get("message")
-            if error_msg:
-                logger.error(f"CRUD: Error updating place {place_id}: {error_msg}")
+            error_detail = getattr(response, "error", None) or getattr(
+                response, "message", None
+            )
+            if error_detail:
+                logger.error(f"CRUD: Error updating place {place_id}: {error_detail}")
                 return None
             else:
+                # This happens if the .eq("id", place_id) didn't match any rows
                 logger.warning(
                     f"CRUD: Update for place {place_id} matched no rows (may not exist)."
                 )
-                return None
+                return None  # Place not found to update
     except Exception as e:
         logger.error(
             f"CRUD: Exception in update_place for ID {place_id}: {e}", exc_info=True
@@ -210,29 +231,36 @@ async def upload_place_image(
             file_extension = ".jpg"
         file_path_on_storage = f"places/{place_id}/{uuid.uuid4()}{file_extension}"
 
-        content = await file.read()
+        content = await file.read()  # Reading file is already async, keep await
         logger.debug(
             f"CRUD: Uploading {len(content)} bytes to bucket '{settings.SUPABASE_BUCKET_NAME}' path '{file_path_on_storage}' content-type '{file.content_type}'"
         )
 
-        upload_response = await db.storage.from_(settings.SUPABASE_BUCKET_NAME).upload(
+        storage_from = db.storage.from_(settings.SUPABASE_BUCKET_NAME)
+
+        upload_response = await asyncio.to_thread(
+            storage_from.upload,
             path=file_path_on_storage,
             file=content,
             file_options={
                 "content-type": file.content_type or "application/octet-stream"
             },
         )
+        # Note: The structure of upload_response might vary; logging status_code might need adjustment
+        # Check supabase-py docs for exact return type of storage.upload
         logger.debug(
-            f"CRUD: Supabase storage upload response status: {getattr(upload_response, 'status_code', 'N/A')}"
+            f"CRUD: Supabase storage upload completed (response type: {type(upload_response)}). Check logs or debugger for details."
+            # f"CRUD: Supabase storage upload response status: {getattr(upload_response, 'status_code', 'N/A')}" # May not have status_code
         )
 
-        public_url_response = db.storage.from_(
-            settings.SUPABASE_BUCKET_NAME
-        ).get_public_url(file_path_on_storage)
+        # Getting the public URL is typically just string manipulation, likely doesn't need await or to_thread
+        # If it *does* make a network call in some Supabase version, it would need to_thread as well.
+        # Assume it's synchronous for now.
+        public_url_response = storage_from.get_public_url(file_path_on_storage)
 
         if public_url_response:
             logger.info(
-                f"CRUD: Image uploaded successfully for place {place_id}. Public URL obtained."
+                f"CRUD: Image uploaded successfully for place {place_id}. Public URL obtained: {public_url_response}"
             )
             return public_url_response
         else:
@@ -247,6 +275,7 @@ async def upload_place_image(
             f"CRUD: Error uploading image for place {place_id} to Supabase Storage: {e}",
             exc_info=True,
         )
+        # Re-raise as HTTPException for the endpoint to handle
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Could not upload image: {e}",
@@ -264,18 +293,26 @@ async def update_place_image_url(
             "image_url": image_url,
             "updated_at": datetime.utcnow().isoformat(),
         }
-        response = (
-            await db.table(TABLE_NAME).update(update_data).eq("id", place_id).execute()
-        )
+        query = db.table(TABLE_NAME).update(update_data).eq("id", place_id)
+        # FIX: Use asyncio.to_thread for the synchronous execute() call
+        response: APIResponse = await asyncio.to_thread(query.execute)
 
         if response.data:
             logger.info(f"CRUD: Successfully updated image_url for place {place_id}")
             return True
         else:
-            error_msg = getattr(response, "error", {}).get("message", "Update failed")
-            logger.error(
-                f"CRUD: Failed to update image_url for place {place_id}. Error: {error_msg}"
+            error_detail = getattr(response, "error", None) or getattr(
+                response, "message", "Update failed"
             )
+            logger.error(
+                f"CRUD: Failed to update image_url for place {place_id}. Error: {error_detail}"
+            )
+            # Check if the error indicates the row wasn't found
+            # This logic might depend on specific Supabase error codes/messages
+            if "No rows found" in str(error_detail):  # Example check
+                logger.warning(
+                    f"CRUD: Place ID {place_id} not found during image URL update."
+                )
             return False
     except Exception as e:
         logger.error(
@@ -292,19 +329,24 @@ async def delete_place(place_id: int, db: SupabaseClient) -> bool:
         f"CRUD: Attempting to delete place ID {place_id}. Image file deletion NOT YET IMPLEMENTED."
     )
     # TODO: Implement image deletion from storage before deleting DB record
+    # This would involve listing files in the place's folder and calling storage delete, likely needing asyncio.to_thread
 
     try:
-        response = await db.table(TABLE_NAME).delete().eq("id", place_id).execute()
+        query = db.table(TABLE_NAME).delete().eq("id", place_id)
+        response: APIResponse = await asyncio.to_thread(query.execute)
 
         if response.data:
             logger.info(f"CRUD: Successfully deleted place {place_id} from database.")
             return True
         else:
-            error_msg = getattr(response, "error", {}).get("message")
-            if error_msg:
-                logger.error(f"CRUD: Error deleting place {place_id}: {error_msg}")
+            error_detail = getattr(response, "error", None) or getattr(
+                response, "message", None
+            )
+            if error_detail:
+                logger.error(f"CRUD: Error deleting place {place_id}: {error_detail}")
                 return False
             else:
+                # This likely means the .eq("id", place_id) matched no rows
                 logger.warning(
                     f"CRUD: Delete command for place {place_id} affected no rows (might not exist)."
                 )
