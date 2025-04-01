@@ -31,6 +31,9 @@
             --danger-color-hover: #c9302c;
             --warning-color-hover: #ec971f;
             --info-color-hover: #46b8da;
+            --see-review-bg: #6c757d;
+            /* Gray for See Review */
+            --see-review-hover-bg: #5a6268;
         }
 
         html {
@@ -59,6 +62,7 @@
             padding: 25px;
             box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
             border-radius: 8px;
+            position: relative;
         }
 
         h1,
@@ -81,13 +85,14 @@
         #map {
             height: 500px;
             width: 100%;
-            margin-bottom: 25px;
+            margin-bottom: 15px;
             border: 1px solid var(--border-color);
             border-radius: 5px;
         }
 
         .form-section,
-        .filter-section {
+        .filter-section,
+        .modal-section {
             margin-bottom: 25px;
             padding: 20px;
             border: 1px solid var(--border-color);
@@ -96,8 +101,14 @@
             clear: both;
         }
 
+        #add-place-wrapper-section {
+            margin-top: 25px;
+        }
+
+
         .form-section legend,
-        .form-section h2 {
+        .form-section h2,
+        .modal-section h2 {
             font-size: 1.3em;
             margin-bottom: 15px;
             font-weight: bold;
@@ -106,6 +117,37 @@
             border-bottom: none;
             padding-bottom: 0;
         }
+
+        .modal-section .modal-content {
+            max-height: 400px;
+            overflow-y: auto;
+            padding-right: 10px;
+            margin-bottom: 15px;
+        }
+
+        .modal-section .modal-content h3 {
+            font-size: 1.1em;
+            color: var(--primary-color);
+            margin-top: 0;
+            margin-bottom: 8px;
+        }
+
+        .modal-section .modal-content p {
+            margin: 0 0 10px 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .modal-section .modal-content img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            margin-top: 10px;
+            display: block;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
 
         label {
             display: block;
@@ -146,6 +188,12 @@
             cursor: pointer;
             font-size: 1em;
             transition: background-color 0.2s ease;
+            margin-right: 5px;
+        }
+
+        button:last-child,
+        input[type="submit"]:last-child {
+            margin-right: 0;
         }
 
         button:hover,
@@ -167,9 +215,19 @@
             background-color: #888;
         }
 
+        button.edit-review-btn {
+            background-color: var(--warning-color);
+        }
+
+        button.edit-review-btn:hover {
+            background-color: var(--warning-color-hover);
+        }
+
+
         #add-place-form fieldset,
         #edit-place-section fieldset,
-        #review-image-section fieldset {
+        #review-image-section fieldset,
+        #see-review-section fieldset {
             border: none;
             padding: 0;
             margin: 0;
@@ -323,13 +381,22 @@
             background-color: var(--warning-color-hover) !important;
         }
 
-        .leaflet-popup-content button[title*="Review"] {
+        .leaflet-popup-content button[title*="Add Review"] {
             background-color: var(--info-color) !important;
         }
 
-        .leaflet-popup-content button[title*="Review"]:hover {
+        .leaflet-popup-content button[title*="Add Review"]:hover {
             background-color: var(--info-color-hover) !important;
         }
+
+        .leaflet-popup-content button[title*="See Review"] {
+            background-color: var(--see-review-bg) !important;
+        }
+
+        .leaflet-popup-content button[title*="See Review"]:hover {
+            background-color: var(--see-review-hover-bg) !important;
+        }
+
 
         .leaflet-popup-content button[title*="Delete"] {
             background-color: var(--error-color) !important;
@@ -343,7 +410,7 @@
             text-align: center;
             font-size: 0.8em;
             color: #777;
-            margin-top: 15px;
+            margin-top: 5px;
         }
 
         .attribution a {
@@ -353,6 +420,14 @@
 
         .attribution a:hover {
             text-decoration: underline;
+        }
+
+        .modal-section {
+            display: none;
+        }
+
+        .modal-section fieldset {
+            padding-bottom: 15px;
         }
     </style>
 </head>
@@ -387,8 +462,8 @@
         </div>
         <div class="attribution"> {{ attribution_html|safe if attribution_html else '' }} </div>
 
-        <!-- Add Place Form -->
-        <div class="form-section">
+        <!-- Add Place Form Section Wrapper -->
+        <div id="add-place-wrapper-section" class="form-section">
             <form id="add-place-form" action="{{ request.url_for('create_new_place_endpoint') }}" method="post">
                 <fieldset>
                     <legend>Add New Place</legend>
@@ -450,7 +525,7 @@
             </form>
         </div>
 
-        <!-- Review / Image Form Section -->
+        <!-- Add/Edit Review / Image Form Section -->
         <div class="form-section" id="review-image-section" style="display: none;">
             <form id="review-image-form" action="" method="post" enctype="multipart/form-data">
                 <fieldset>
@@ -467,6 +542,24 @@
                 </fieldset>
             </form>
         </div>
+
+        <!-- See Review Modal Section -->
+        <div class="modal-section" id="see-review-section" style="display: none;">
+            <fieldset>
+                <h2>Review: <span id="see-review-place-title"></span></h2>
+                <div class="modal-content">
+                    <h3 id="see-review-display-title"></h3>
+                    <p id="see-review-display-text"></p>
+                    <img id="see-review-display-image" src="" alt="Review image" style="display: none;" />
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="see-review-edit-btn" class="edit-review-btn" data-place-json="">Edit
+                        Review</button>
+                    <button type="button" class="cancel-btn" onclick="hideSeeReviewModal()">Close</button>
+                </div>
+            </fieldset>
+        </div>
+
 
     </div> <!-- /container -->
 
@@ -516,9 +609,16 @@
             const reviewImageInput = document.getElementById('review-image');
             const reviewSubmitBtn = document.getElementById('review-image-submit-btn');
 
+            const seeReviewSection = document.getElementById('see-review-section');
+            const seeReviewPlaceTitle = document.getElementById('see-review-place-title');
+            const seeReviewDisplayTitle = document.getElementById('see-review-display-title');
+            const seeReviewDisplayText = document.getElementById('see-review-display-text');
+            const seeReviewDisplayImage = document.getElementById('see-review-display-image');
+            const seeReviewEditBtn = document.getElementById('see-review-edit-btn');
+
             console.log("DOM Loaded, JS Initializing...");
 
-            // --- Utility Functions ---
+            // --- Utility & Geocode Functions ---
             function setStatusMessage(element, message, type = 'info') {
                 if (!element) { console.warn("setStatusMessage: Target element not found."); return; }
                 element.textContent = message;
@@ -529,7 +629,6 @@
                 element.style.display = message ? 'block' : 'none';
             }
 
-            // --- Geocode Function ---
             async function findCoordinates(formType = 'add') {
                 console.log(`findCoordinates called for form type: ${formType}`);
                 const addressQueryEl = formType === 'edit' ? editAddressInput : addressInput;
@@ -546,13 +645,13 @@
                 const countryHidden = formType === 'edit' ? editCountryHidden : hiddenCountry;
                 const submitButton = formType === 'edit' ? editSubmitBtn : addSubmitBtn;
 
-                // Basic check for element existence
-                if (!addressQueryEl || !findBtn || !statusEl || !latInput || !lonInput || !addrHidden || !cityHidden || !countryHidden || (formType === 'add' && !coordsSect) || (formType === 'edit' && !editCoordsSection)) {
+                if (!addressQueryEl || !findBtn || !statusEl || !latInput || !lonInput || !addrHidden || !cityHidden || !countryHidden || (formType === 'add' && !coordsSect) || (formType === 'edit' && !editCoordsSection) || !submitButton) {
                     console.error(`Geocode Error: Missing required elements for form type '${formType}'. Cannot proceed.`);
-                    setStatusMessage(statusEl || geocodeStatus, "Internal page error. Cannot find coordinates.", "error"); // Show error on whichever status element exists
+                    if (statusEl) setStatusMessage(statusEl, "Internal page error. Cannot find coordinates.", "error");
+                    else if (geocodeStatus) setStatusMessage(geocodeStatus, "Internal page error. Cannot find coordinates.", "error");
+                    else alert("Internal page error. Cannot find coordinates.");
                     return;
                 }
-
 
                 const addressQuery = addressQueryEl.value.trim();
                 if (!addressQuery) {
@@ -561,17 +660,14 @@
                 }
                 setStatusMessage(statusEl, 'Searching...', 'loading');
                 findBtn.disabled = true;
-                if (submitButton) submitButton.disabled = true;
+                submitButton.disabled = true;
 
                 try {
                     const geocodeUrl = `{{ request.url_for('geocode_address_endpoint') }}?address=${encodeURIComponent(addressQuery)}`;
-                    console.log("Geocoding URL:", geocodeUrl);
                     const response = await fetch(geocodeUrl);
-                    console.log("Geocoding Response Status:", response.status);
 
                     if (response.ok) {
                         const result = await response.json();
-                        console.log("Geocoding Result:", result);
                         let successMsg = `Location found: ${result.display_name}`;
                         if (formType === 'edit') successMsg = `New location found: ${result.display_name}`;
                         setStatusMessage(statusEl, successMsg, 'success');
@@ -586,66 +682,89 @@
                         if (dispAddrEl) dispAddrEl.textContent = result.display_name;
 
                         if (formType === 'add' && coordsSect) coordsSect.style.display = 'block';
-                        if (submitButton) submitButton.disabled = false;
+                        submitButton.disabled = false;
                     } else {
                         let errorDetail = `Geocoding failed (${response.status}).`;
-                        try { const d = await response.json(); errorDetail = d.detail || errorDetail; } catch (e) { }
-                        console.error("Geocoding Error:", errorDetail);
+                        try { const d = await response.json(); errorDetail = d.detail || errorDetail; } catch (e) { /* ignore */ }
                         setStatusMessage(statusEl, `Error: ${errorDetail}`, 'error');
-                        if (submitButton) submitButton.disabled = true;
+                        submitButton.disabled = true;
                     }
                 } catch (error) {
                     console.error('Geocoding fetch error:', error);
                     setStatusMessage(statusEl, 'Network error during geocoding.', 'error');
-                    if (submitButton) submitButton.disabled = true;
+                    submitButton.disabled = true;
                 } finally {
                     if (findBtn) findBtn.disabled = false;
                 }
-            } // end findCoordinates
+            }
 
             // --- Event Listeners ---
             if (findCoordsBtn) findCoordsBtn.addEventListener('click', () => findCoordinates('add'));
             if (addPlaceForm) addPlaceForm.addEventListener('submit', (event) => {
-                console.log("Add Place Form Submit triggered");
                 if (!hiddenLat || !hiddenLon || !hiddenLat.value || !hiddenLon.value) {
-                    console.error("Add Place Submit Prevented: Lat/Lon hidden inputs missing or empty.");
                     event.preventDefault();
-                    setStatusMessage(geocodeStatus, 'Coordinates missing or invalid. Use "Find" button.', 'error');
+                    setStatusMessage(geocodeStatus, 'Coordinates missing. Use "Find" button first.', 'error');
+                    if (addSubmitBtn) addSubmitBtn.disabled = false;
                     return false;
                 }
-                console.log(`Add Place Submit OK: Lat=${hiddenLat.value}, Lon=${hiddenLon.value}`);
                 if (addSubmitBtn) { addSubmitBtn.disabled = true; addSubmitBtn.textContent = 'Adding...'; }
             });
 
             if (editFindCoordsBtn) editFindCoordsBtn.addEventListener('click', () => findCoordinates('edit'));
             if (editPlaceForm) editPlaceForm.addEventListener('submit', (event) => {
-                console.log("Edit Place Form Submit triggered");
                 if (!editLatitudeInput || !editLongitudeInput || !editLatitudeInput.value || !editLongitudeInput.value) {
-                    console.error("Edit Place Submit Prevented: Lat/Lon hidden inputs missing or empty.");
                     event.preventDefault();
                     setStatusMessage(editGeocodeStatus, 'Coordinates missing or invalid.', 'error');
+                    if (editSubmitBtn) editSubmitBtn.disabled = false;
                     return false;
                 }
-                if (editAddressInput && editAddressInput.value.trim() !== '' && editGeocodeStatus && (editGeocodeStatus.textContent.includes('Error') || editGeocodeStatus.textContent.includes('Searching'))) {
+                if (editAddressInput && editAddressInput.value.trim() !== '' && editGeocodeStatus && !editGeocodeStatus.classList.contains('success-message')) {
                     event.preventDefault();
-                    setStatusMessage(editGeocodeStatus, 'Resolve geocoding status before saving.', 'error');
+                    setStatusMessage(editGeocodeStatus, 'Must resolve geocoding status before saving.', 'error');
+                    if (editSubmitBtn) editSubmitBtn.disabled = false;
                     return false;
                 }
                 if (editSubmitBtn) { editSubmitBtn.disabled = true; editSubmitBtn.textContent = 'Saving...'; }
             });
 
             if (reviewImageForm) reviewImageForm.addEventListener('submit', (event) => {
-                console.log("Review/Image Form Submit triggered");
                 if (reviewSubmitBtn) { reviewSubmitBtn.disabled = true; reviewSubmitBtn.textContent = 'Saving...'; }
             });
 
-            // --- Show/Hide Form Functions (Assign to window object) ---
-            window.showEditPlaceForm = function (placeData) {
-                console.log("Global showEditPlaceForm called with:", placeData);
-                if (!editPlaceSection || !editPlaceForm || !editPlaceFormTitle || !editNameInput || !editCategorySelect || !editStatusSelect || !editAddressInput || !editDisplayLat || !editDisplayLon || !editLatitudeInput || !editLongitudeInput || !editAddressHidden || !editCityHidden || !editCountryHidden || !editGeocodeStatus || !editSubmitBtn) {
+            if (seeReviewEditBtn) {
+                seeReviewEditBtn.addEventListener('click', (event) => {
+                    console.log("Edit Review button clicked from See Review modal.");
+                    const button = event.target;
+                    const placeDataJSONString = button.getAttribute('data-place-json');
+
+                    if (placeDataJSONString) {
+                        try {
+                            const placeData = JSON.parse(placeDataJSONString);
+                            console.log("Parsed data for edit:", placeData);
+                            hideSeeReviewModal();
+                            window.showReviewForm(placeData); // Pass the object
+                        } catch (e) {
+                            console.error("Error parsing placeData JSON from button attribute:", e, "String:", placeDataJSONString);
+                            alert("Error reading data needed to edit review.");
+                        }
+                    } else {
+                        console.error("Cannot edit review, data attribute 'data-place-json' is missing or empty on the button.");
+                        alert("Error: Could not retrieve data to edit review (attribute missing).");
+                    }
+                });
+            }
+
+            // --- Show/Hide Form Functions ---
+
+            window.showEditPlaceForm = function (placeDataJSONString) {
+                console.log("Global showEditPlaceForm called.");
+                let placeData;
+                try { placeData = JSON.parse(placeDataJSONString); }
+                catch (e) { console.error("Error parsing placeData JSON for edit:", e); alert("Error reading place data."); return; }
+
+                if (!editPlaceSection || !editPlaceForm || !editPlaceFormTitle || !editNameInput || !editCategorySelect || !editStatusSelect || !editAddressInput || !editDisplayLat || !editDisplayLon || !editLatitudeInput || !editLongitudeInput || !editAddressHidden || !editCityHidden || !editCountryHidden || !editGeocodeStatus || !editSubmitBtn || !editCoordsSection) {
                     console.error("CRITICAL: One or more Edit Form elements are missing!"); alert("Error: Edit form elements missing."); return;
                 }
-                console.log("Edit Form elements checked.");
 
                 try {
                     editPlaceFormTitle.textContent = placeData.name || 'Unknown';
@@ -662,58 +781,148 @@
                     editCountryHidden.value = placeData.country || '';
                     setStatusMessage(editGeocodeStatus, '');
                     editSubmitBtn.disabled = false;
-
+                    editSubmitBtn.textContent = 'Save Changes';
                     const url = `{{ request.url_for('edit_place_from_form_endpoint', place_id=999) }}`.replace('999', placeData.id);
                     editPlaceForm.action = url;
-                    console.log("Edit form action set to:", url);
 
                     hideReviewForm();
+                    hideSeeReviewModal();
                     editPlaceSection.style.display = 'block';
-                    console.log("Edit form displayed.");
                     editPlaceSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                } catch (e) {
-                    console.error("Error in showEditPlaceForm:", e); alert("Error preparing edit form.");
-                }
+                } catch (e) { console.error("Error populating edit form:", e); alert("Error preparing edit form."); }
             }
 
             window.hideEditPlaceForm = function () {
                 if (editPlaceSection) editPlaceSection.style.display = 'none';
-                console.log("Edit form hidden.");
             }
 
+            // Expects a Javascript OBJECT now
             window.showReviewForm = function (placeData) {
-                console.log("Global showReviewForm called with:", placeData);
+                console.log("Global showReviewForm called with input type:", typeof placeData, "Value:", placeData); // Log type and value
+
+                // --- FIX: Remove the typeof check ---
+                // Rely on the try-catch below to handle errors if placeData is not usable
+                // if (typeof placeData !== 'object' || placeData === null) {
+                //    console.error("Invalid input: showReviewForm expects an object, received:", placeData);
+                //    alert("Internal error: Cannot prepare review form (Invalid Data).");
+                //    return;
+                // }
+                // ------------------------------------
+
                 if (!reviewImageSection || !reviewImageForm || !reviewFormTitle || !reviewTitleInput || !reviewTextInput || !reviewImageInput || !reviewSubmitBtn) {
-                    console.error("CRITICAL: One or more Review Form elements missing!"); alert("Error: Review form elements missing."); return;
+                    console.error("CRITICAL: One or more Review Form elements missing in DOM!");
+                    console.log("Missing elements check:", { reviewImageSection, reviewImageForm, reviewFormTitle, reviewTitleInput, reviewTextInput, reviewImageInput, reviewSubmitBtn });
+                    alert("Error: Essential review form elements are missing.");
+                    return;
                 }
-                console.log("Review Form elements checked.");
+                console.log("Review Form elements seem to exist in DOM.");
 
                 try {
-                    reviewFormTitle.textContent = placeData.name || 'Unknown';
-                    reviewTitleInput.value = placeData.review_title || '';
-                    reviewTextInput.value = placeData.review || '';
-                    reviewImageInput.value = '';
-                    reviewSubmitBtn.disabled = false;
+                    // Check if placeData is actually usable here before accessing properties
+                    if (!placeData || typeof placeData !== 'object') {
+                        throw new Error("placeData is null or not an object inside try block.");
+                    }
 
+                    console.log("Attempting to populate review form...");
+
+                    console.log("Setting reviewFormTitle.textContent");
+                    if (reviewFormTitle) reviewFormTitle.textContent = placeData.name || 'Unknown';
+
+                    console.log("Setting reviewTitleInput.value");
+                    if (reviewTitleInput) reviewTitleInput.value = placeData.review_title || '';
+
+                    console.log("Setting reviewTextInput.value");
+                    if (reviewTextInput) reviewTextInput.value = placeData.review || '';
+
+                    console.log("Setting reviewImageInput.value");
+                    if (reviewImageInput) reviewImageInput.value = '';
+
+                    console.log("Setting reviewSubmitBtn state");
+                    if (reviewSubmitBtn) {
+                        reviewSubmitBtn.disabled = false;
+                        reviewSubmitBtn.textContent = 'Save Review & Image';
+                    }
+
+                    console.log("Setting reviewImageForm.action");
                     const url = `{{ request.url_for('add_review_image_endpoint', place_id=999) }}`.replace('999', placeData.id);
-                    reviewImageForm.action = url;
+                    if (reviewImageForm) reviewImageForm.action = url;
                     console.log("Review form action set to:", url);
 
+                    console.log("Hiding other forms...");
                     hideEditPlaceForm();
-                    reviewImageSection.style.display = 'block';
-                    console.log("Review form displayed.");
-                    reviewImageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    hideSeeReviewModal();
+
+                    console.log("Showing reviewImageSection...");
+                    if (reviewImageSection) {
+                        reviewImageSection.style.display = 'block';
+                        console.log("Review form displayed.");
+                        reviewImageSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+
                 } catch (e) {
-                    console.error("Error in showReviewForm:", e); alert("Error preparing review form.");
+                    console.error("Error populating review form fields:", e);
+                    console.log("State of placeData during error:", placeData); // Log the data object itself
+                    alert("Internal error: Cannot prepare review form.");
                 }
             }
+
 
             window.hideReviewForm = function () {
                 if (reviewImageSection) reviewImageSection.style.display = 'none';
-                console.log("Review form hidden.");
             }
 
-            console.log("JS Initialization Complete.");
+            // --- Functions for "See Review" Modal ---
+            window.showSeeReviewModal = function (placeDataJSONString) {
+                console.log("Global showSeeReviewModal called.");
+                let placeData;
+                try {
+                    placeData = JSON.parse(placeDataJSONString);
+                    if (seeReviewEditBtn) {
+                        seeReviewEditBtn.setAttribute('data-place-json', placeDataJSONString); // Store the STRING
+                    } else {
+                        console.error("Could not find seeReviewEditBtn to store data.");
+                    }
+                }
+                catch (e) {
+                    console.error("Error parsing placeData JSON for see review:", e);
+                    alert("Error reading place data for review display.");
+                    if (seeReviewEditBtn) seeReviewEditBtn.removeAttribute('data-place-json');
+                    return;
+                }
+
+                if (!seeReviewSection || !seeReviewPlaceTitle || !seeReviewDisplayTitle || !seeReviewDisplayText || !seeReviewDisplayImage || !seeReviewEditBtn) {
+                    console.error("CRITICAL: One or more See Review modal elements missing!"); alert("Error: Review display elements are missing."); return;
+                }
+
+                try {
+                    seeReviewPlaceTitle.textContent = placeData.name || 'Unknown Place';
+                    seeReviewDisplayTitle.textContent = placeData.review_title || '';
+                    seeReviewDisplayText.textContent = placeData.review || (placeData.review_title ? '' : '(No review text entered)');
+                    seeReviewDisplayTitle.style.display = placeData.review_title ? 'block' : 'none';
+
+                    if (placeData.image_url && placeData.image_url.startsWith("http")) {
+                        seeReviewDisplayImage.src = placeData.image_url;
+                        seeReviewDisplayImage.alt = `Image for ${placeData.name || 'place'}`;
+                        seeReviewDisplayImage.style.display = 'block';
+                    } else {
+                        seeReviewDisplayImage.style.display = 'none';
+                        seeReviewDisplayImage.src = "";
+                    }
+
+                    hideEditPlaceForm();
+                    hideReviewForm();
+                    seeReviewSection.style.display = 'block';
+                    seeReviewSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                } catch (e) { console.error("Error populating see review modal:", e); alert("Error preparing review display."); }
+            }
+
+            window.hideSeeReviewModal = function () {
+                if (seeReviewSection) seeReviewSection.style.display = 'none';
+                if (seeReviewEditBtn) seeReviewEditBtn.removeAttribute('data-place-json');
+                console.log("See Review modal hidden.");
+            }
+
+            console.log("JS Initialization Complete. Functions attached to window.");
 
         }); // End of DOMContentLoaded listener
     </script>

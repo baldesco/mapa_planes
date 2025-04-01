@@ -209,10 +209,20 @@ async def read_root(
                     place_status_enum = place.status
                     place_category_val = place_category_enum.value
                     place_status_val = place_status_enum.value
-                    review_title = html.escape(place.review_title or "")
-                    review_text = html.escape(place.review or "")
-                    image_url_str = str(place.image_url or "")
+                    review_title_raw = place.review_title
+                    review_text_raw = place.review
+                    review_title = html.escape(review_title_raw or "")
+                    review_text = html.escape(review_text_raw or "")
+                    image_url_str = str(
+                        place.image_url or ""
+                    )  # Ensure it's a string for checks
                     image_url_display = html.escape(image_url_str)
+
+                    has_review_content = bool(review_text_raw or review_title_raw)
+                    has_image = bool(
+                        image_url_str
+                        and image_url_str.startswith(("http://", "https://"))
+                    )
 
                     # --- Popup HTML ---
                     popup_parts = [
@@ -237,24 +247,25 @@ async def read_root(
                     )
                     if address_info:
                         popup_parts.append(f"<b>Address:</b> {address_info}<br>")
-                    if review_title:
+
+                    # Display snippet in popup only if review exists OR image exists
+                    if has_review_content or has_image:
                         popup_parts.append(
-                            f"<p style='margin-top: 5px;'><b>Review Title:</b><br>{review_title}</p>"
+                            "<hr style='margin: 5px 0; border-top-color: #eee;'>"
                         )
-                    if review_text:
-                        snippet = review_text[:150] + (
-                            "..." if len(review_text) > 150 else ""
-                        )
-                        popup_parts.append(
-                            f"<p style='margin-top: 5px;'><b>Review:</b><br>{snippet}</p>"
-                        )
-                    if image_url_str and image_url_str.startswith(
-                        ("http://", "https://")
-                    ):
-                        popup_parts.append(
-                            f'<img src="{image_url_display}" alt="{place_name}" style="max-width: 200px; max-height: 150px; margin-top: 5px; display: block; border-radius: 4px;">'
-                        )
-                    popup_parts.append("</div>")
+                        if review_title:
+                            popup_parts.append(f"<b>Review:</b> {review_title}<br>")
+                        if review_text:
+                            snippet = review_text[:100] + (
+                                "..." if len(review_text) > 100 else ""
+                            )
+                            popup_parts.append(f"<i>{snippet}</i>")
+                        elif has_image:  # Show image if no text but image exists
+                            popup_parts.append(
+                                f'<img src="{image_url_display}" alt="{place_name}" style="max-width: 100px; max-height: 75px; margin-top: 5px; display: block; border-radius: 4px;">'
+                            )
+
+                    popup_parts.append("</div>")  # End info div
 
                     # --- Actions Section ---
                     popup_parts.append(
@@ -275,7 +286,7 @@ async def read_root(
                          <noscript><button type="submit">Update</button></noscript>
                     </form>""")
 
-                    # Prepare data for JS
+                    # Prepare data for JS (ensure raw values are passed where needed for JS logic)
                     place_data_for_js = {
                         "id": place.id,
                         "name": place.name,
@@ -286,9 +297,9 @@ async def read_root(
                         "address": place.address,
                         "city": place.city,
                         "country": place.country,
-                        "review_title": place.review_title,
-                        "review": place.review,
-                        "image_url": image_url_str,
+                        "review_title": review_title_raw,  # Pass raw value
+                        "review": review_text_raw,  # Pass raw value
+                        "image_url": image_url_str,  # Pass raw URL string
                         "created_at": place.created_at.isoformat()
                         if place.created_at
                         else None,
@@ -300,26 +311,35 @@ async def read_root(
                         else None,
                     }
                     js_object_string = json.dumps(place_data_for_js)
-                    escaped_js_object = html.escape(js_object_string, quote=True)
+                    escaped_js_string_for_html = html.escape(
+                        js_object_string, quote=True
+                    )
 
-                    # Edit Button
+                    # Edit Place Button
                     popup_parts.append(
-                        f'<button type="button" onclick="showEditPlaceForm({escaped_js_object})" title="Edit Place" style="/* styles */">Edit</button>'
+                        f'<button type="button" onclick="window.parent.showEditPlaceForm(\'{escaped_js_string_for_html}\')" title="Edit Place Details" style="/* styles */">Edit</button>'
                     )
-                    # Review Button
-                    popup_parts.append(
-                        f'<button type="button" onclick="showReviewForm({escaped_js_object})" title="Add/Edit Review & Image" style="/* styles */">Review</button>'
-                    )
+
+                    # Conditional Review Button
+                    if has_review_content or has_image:
+                        popup_parts.append(
+                            f'<button type="button" onclick="window.parent.showSeeReviewModal(\'{escaped_js_string_for_html}\')" title="See Review / Image" style="background-color: var(--see-review-bg) !important;">See Review</button>'
+                        )
+                    else:
+                        popup_parts.append(
+                            f'<button type="button" onclick="window.parent.showReviewForm(\'{escaped_js_string_for_html}\')" title="Add Review / Image" style="background-color: var(--info-color) !important;">Add Review</button>'
+                        )
+
                     # Delete Button
                     delete_form_url = request.url_for(
                         "delete_place_from_form_endpoint", place_id=place.id
                     )
                     popup_parts.append(f"""
-                    <form action="{delete_form_url}" method="post" target="_top" style="display: inline-block;" onsubmit="return confirm('Are you sure you want to delete \\'{html.escape(place_name)}\\'?');">
+                    <form action="{delete_form_url}" method="post" target="_top" style="display: inline-block;" onsubmit="return confirm('Are you sure you want to delete this place?');">
                         <button type="submit" title="Delete Place" style="/* styles */">Delete</button>
                     </form>""")
 
-                    popup_parts.append("</div>")
+                    popup_parts.append("</div>")  # End actions div
                     popup_html = "".join(popup_parts)
 
                     # --- Marker ---
@@ -347,7 +367,7 @@ async def read_root(
             map_html_content = m._repr_html_()
         else:
             logger.info("MAIN: No places found to display on map.")
-            map_html_content = m._repr_html_()
+            map_html_content = m._repr_html_()  # Show empty map
 
     except Exception as page_load_error:
         logger.error(
@@ -400,11 +420,11 @@ async def create_new_place_endpoint(
     logger.info(f"API Create place form received data: {dict(form_data)}")
     redirect_url = request.url_for("read_root")
     try:
-        if not latitude or not longitude:
+        if latitude is None or longitude is None:
             logger.error(
                 "API Create place error: Latitude or Longitude missing in form data."
             )
-            # TODO: Flash message
+            # TODO: Add flash message feedback
             return RedirectResponse(
                 url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
             )
@@ -435,9 +455,10 @@ async def create_new_place_endpoint(
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
     created_place = await crud.create_place(place=place_data, db=db)
+
     if created_place is None:
         logger.error(
-            f"Failed to create place '{place_data.name}' in DB (CRUD operation failed)."
+            f"Failed to create place '{place_data.name}' in DB (CRUD operation failed). Check Supabase schema and logs."
         )  # TODO: Flash error
     else:
         logger.info(
@@ -497,6 +518,7 @@ async def edit_place_from_form_endpoint(
     logger.info(f"API Edit place form submission for ID {place_id}, Name='{name}'")
     redirect_url = request.url_for("read_root")
     try:
+        # Only include fields relevant to this form in the update model
         place_update_data = models.PlaceUpdate(
             name=name,
             latitude=latitude,
@@ -506,6 +528,7 @@ async def edit_place_from_form_endpoint(
             address=address,
             city=city,
             country=country,
+            # Explicitly DO NOT include review fields here
         )
         updated_place = await crud.update_place(
             place_id=place_id, place_update=place_update_data, db=db
@@ -540,17 +563,21 @@ async def add_review_image_endpoint(
     request: Request,
     place_id: int,
     db=Depends(get_db),
-    review_title: str = Form(""),
-    review_text: str = Form(""),
+    review_title: str = Form(
+        ""
+    ),  # Use default "" which becomes None after strip if empty
+    review_text: str = Form(
+        ""
+    ),  # Use default "" which becomes None after strip if empty
     image_file: Optional[UploadFile] = File(None, alias="image"),
 ):
     logger.info(
-        f"API Review/Image form for ID {place_id}. Title: '{review_title[:20]}...', Image: {image_file is not None}"
+        f"API Review/Image form for ID {place_id}. Title: '{review_title[:20]}...', Image provided: {image_file is not None and image_file.filename}"
     )
     redirect_url = request.url_for("read_root")
-    image_public_url = None
-    update_successful = False
+    image_public_url = None  # Initialize url for this request
 
+    # 1. Handle Image Upload (if provided)
     if image_file and image_file.filename:
         try:
             logger.info(
@@ -560,47 +587,60 @@ async def add_review_image_endpoint(
                 place_id=place_id, file=image_file, db=db
             )
             if image_public_url:
-                logger.info(
-                    f"Image uploaded for place {place_id}, URL: {image_public_url}"
-                )  # TODO: Flash success
+                logger.info(f"Image uploaded successfully for place {place_id}.")
             else:
                 logger.error(
-                    f"Image upload OK but no URL for place {place_id}."
-                )  # TODO: Flash image URL failure
-        except Exception as e:
-            detail = getattr(e, "detail", str(e))
+                    f"Image upload OK but no URL returned for place {place_id}."
+                )
+        except HTTPException as http_exc:
             logger.error(
-                f"Image upload failed for place {place_id}: {detail}",
-                exc_info=(not isinstance(e, HTTPException)),
+                f"Image upload failed for place {place_id}: {http_exc.status_code} - {http_exc.detail}"
             )
-            # TODO: Flash message image upload error (detail)
-
-    try:
-        place_update_data = models.PlaceUpdate(
-            review_title=review_title.strip() if review_title else None,
-            review=review_text.strip() if review_text else None,
-            status=PlaceStatus.VISITED,
-        )
-        if image_public_url:
-            place_update_data.image_url = image_public_url
-        logger.debug(
-            f"Updating place {place_id} review/image data: {place_update_data.model_dump(exclude_unset=True)}"
-        )
-        updated_place = await crud.update_place(
-            place_id=place_id, place_update=place_update_data, db=db
-        )
-        if updated_place:
-            update_successful = True
-            logger.info(
-                f"Review/image details updated successfully for place ID {place_id}."
-            )  # TODO: Flash success
-        else:
+            # TODO: Flash message image upload error
+        except Exception as e:
             logger.error(
-                f"Failed to update review/image details in DB for place ID {place_id}."
-            )  # TODO: Flash error
+                f"Unexpected error during image upload for place {place_id}: {e}",
+                exc_info=True,
+            )
+            # TODO: Flash message generic image upload error
+
+    # 2. Prepare and Apply Updates
+    try:
+        # Prepare data for PlaceUpdate model
+        # Use strip() and handle Nones: empty strings become None
+        update_payload = {
+            "review_title": review_title.strip() if review_title else None,
+            "review": review_text.strip() if review_text else None,
+            "status": PlaceStatus.VISITED,  # Always mark as visited when submitting review/image
+        }
+        # Only add image_url to payload if upload was successful *in this request*
+        if image_public_url:
+            update_payload["image_url"] = image_public_url
+
+        # Create the Pydantic model for validation and structure
+        place_update_model = models.PlaceUpdate(**update_payload)
+        logger.debug(
+            f"Prepared update model for place {place_id}: {place_update_model.model_dump()}"
+        )
+
+        # Call CRUD operation - now it will send all fields in place_update_model
+        updated_place = await crud.update_place(
+            place_id=place_id, place_update=place_update_model, db=db
+        )
+
+        if updated_place:
+            logger.info(
+                f"Review/image/status details updated successfully for place ID {place_id}."
+            )  # TODO: Flash overall success
+        else:
+            # crud.update_place logs specific errors, just log general failure here
+            logger.error(
+                f"Failed to update review/image/status details in DB for place ID {place_id} (CRUD returned None)."
+            )  # TODO: Flash update failure
+
     except ValidationError as e:
         logger.error(
-            f"API Review/Image validation error ID {place_id}: {e.errors()}",
+            f"API Review/Image Pydantic validation error ID {place_id}: {e.errors()}",
             exc_info=False,
         )  # TODO: Flash validation error
     except Exception as e:
@@ -678,9 +718,20 @@ async def delete_place_api(place_id: int, db=Depends(get_db)):
     logger.info(f"API Soft Delete place: ID {place_id}")
     success = await crud.delete_place(place_id=place_id, db=db)
     if not success:
+        existing = await crud.get_place_by_id(
+            place_id=place_id, db=db, include_deleted=True
+        )
+        status_code = (
+            status.HTTP_404_NOT_FOUND if not existing else status.HTTP_400_BAD_REQUEST
+        )
+        detail = (
+            "Place not found"
+            if not existing
+            else "Place already deleted or delete failed"
+        )
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Place not found or soft delete failed",
+            status_code=status_code,
+            detail=detail,
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -691,8 +742,9 @@ async def update_place_api(
     place_id: int, place_update: models.PlaceUpdate, db=Depends(get_db)
 ):
     logger.info(
-        f"API Update place: ID {place_id} Data: {place_update.model_dump(exclude_unset=True)}"
+        f"API Update place: ID {place_id} Data: {place_update.model_dump(exclude_unset=True)}"  # Keep exclude_unset for API clarity
     )
+    # Use the same crud function, which now doesn't use exclude_unset internally
     updated_place = await crud.update_place(
         place_id=place_id, place_update=place_update, db=db
     )
@@ -706,11 +758,10 @@ async def update_place_api(
             else "Could not update place (possibly deleted or error)"
         )
         status_code = (
-            status.HTTP_404_NOT_FOUND
-            if not existing
-            else status.HTTP_500_INTERNAL_SERVER_ERROR
+            status.HTTP_404_NOT_FOUND if not existing else status.HTTP_400_BAD_REQUEST
         )
         raise HTTPException(status_code=status_code, detail=detail)
+
     logger.info(f"API Place ID {place_id} updated.")
     return models.Place.model_validate(updated_place)
 
