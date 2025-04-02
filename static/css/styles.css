@@ -1,0 +1,584 @@
+:root {
+    --primary-color: #4CAF50;
+    /* Green */
+    --secondary-color: #f4f4f4;
+    --border-color: #ddd;
+    --text-color: #333;
+    --white: #fff;
+    --error-color: #d9534f;
+    /* Red */
+    --warning-color: #f0ad4e;
+    /* Orange */
+    --info-color: #5bc0de;
+    /* Blue */
+    --light-blue-bg: #eef;
+    --light-blue-border: #ccf;
+    --danger-color-hover: #c9302c;
+    --warning-color-hover: #ec971f;
+    --info-color-hover: #46b8da;
+    --see-review-bg: #6c757d;
+    /* Gray for See Review */
+    --see-review-hover-bg: #5a6268;
+    --toggle-button-bg: #607D8B;
+    /* Blue Grey */
+    --toggle-button-hover-bg: #546E7A;
+}
+
+html {
+    box-sizing: border-box;
+}
+
+*,
+*:before,
+*:after {
+    box-sizing: inherit;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0 15px 15px 15px;
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    line-height: 1.6;
+    font-size: 16px;
+    /* Base font size */
+}
+
+.container {
+    max-width: 1100px;
+    margin: 20px auto;
+    background: var(--white);
+    padding: 25px;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    position: relative;
+}
+
+h1,
+h2 {
+    text-align: center;
+    color: var(--primary-color);
+    margin-bottom: 20px;
+}
+
+h1 {
+    font-size: 2.2em;
+}
+
+h2 {
+    font-size: 1.6em;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 10px;
+}
+
+#map {
+    height: 500px;
+    width: 100%;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+}
+
+.controls-section {
+    margin-bottom: 25px;
+    padding: 15px 20px;
+    border: 1px solid var(--border-color);
+    background-color: #fdfdfd;
+    border-radius: 5px;
+}
+
+
+.form-section,
+.filter-section,
+.modal-section {
+    margin-bottom: 25px;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    background-color: #fdfdfd;
+    border-radius: 5px;
+    clear: both;
+}
+
+/* Hide Add Place form by default */
+#add-place-wrapper-section {
+    display: none;
+}
+
+.form-section legend,
+.form-section h2,
+.modal-section h2 {
+    font-size: 1.3em;
+    margin-bottom: 15px;
+    font-weight: bold;
+    color: #555;
+    text-align: left;
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.modal-section .modal-content {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 10px;
+    margin-bottom: 15px;
+}
+
+.modal-section .modal-content h3 {
+    font-size: 1.1em;
+    color: var(--primary-color);
+    margin-top: 0;
+    margin-bottom: 8px;
+}
+
+.modal-section .modal-content p {
+    margin: 0 0 10px 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.modal-section .modal-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 5px;
+    margin-top: 10px;
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: bold;
+    font-size: 0.95em;
+}
+
+input[type="text"],
+input[type="number"],
+select,
+textarea,
+input[type="file"] {
+    width: 100%;
+    padding: 10px;
+    margin-bottom: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-size: 1em;
+}
+
+input[type="file"] {
+    padding: 5px;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+button,
+input[type="submit"] {
+    background-color: var(--primary-color);
+    color: white;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 1em;
+    transition: background-color 0.2s ease;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    /* Add bottom margin for wrapping */
+}
+
+button:last-child,
+input[type="submit"]:last-child {
+    margin-right: 0;
+}
+
+button:hover,
+input[type="submit"]:hover {
+    background-color: #45a049;
+}
+
+button:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+button.cancel-btn {
+    background-color: #aaa;
+    margin-left: 10px;
+}
+
+button.cancel-btn:hover {
+    background-color: #888;
+}
+
+button.edit-review-btn {
+    background-color: var(--warning-color);
+}
+
+button.edit-review-btn:hover {
+    background-color: var(--warning-color-hover);
+}
+
+button#toggle-add-place-form-btn {
+    background-color: var(--toggle-button-bg);
+    display: inline-block;
+    /* Make it appear next to filters if space allows */
+    margin-bottom: 0;
+    /* Remove bottom margin if inside controls */
+}
+
+button#toggle-add-place-form-btn:hover {
+    background-color: var(--toggle-button-hover-bg);
+}
+
+#add-place-form fieldset,
+#edit-place-section fieldset,
+#review-image-section fieldset,
+#see-review-section fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.address-input-row {
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+    /* Align items to the top */
+    margin-bottom: 12px;
+}
+
+.address-input-row input[type="text"] {
+    flex-grow: 1;
+    width: auto;
+    /* Allow shrinking */
+    margin-bottom: 0;
+}
+
+.address-input-row button {
+    flex-shrink: 0;
+    padding: 10px 15px;
+    font-size: 1em;
+    margin-bottom: 0;
+    height: 42px;
+    /* Match input height */
+}
+
+.coords-section {
+    margin-top: 15px;
+    margin-bottom: 15px;
+    padding: 12px;
+    background-color: var(--light-blue-bg);
+    border: 1px dashed var(--light-blue-border);
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.coords-section p {
+    margin: 5px 0;
+}
+
+#add-place-submit-btn,
+#edit-place-submit-btn,
+#review-image-submit-btn {
+    margin-top: 10px;
+}
+
+.filter-section form {
+    display: flex;
+    flex-wrap: wrap;
+    /* Allow wrapping on small screens */
+    gap: 15px;
+    align-items: center;
+}
+
+.filter-section label {
+    margin-bottom: 0;
+    margin-right: 5px;
+    flex-shrink: 0;
+    /* Prevent label from shrinking too much */
+}
+
+.filter-section select {
+    width: auto;
+    flex-grow: 1;
+    /* Allow select to grow */
+    min-width: 150px;
+    /* Ensure select has some base width */
+}
+
+.filter-section button {
+    width: auto;
+    padding: 8px 15px;
+    font-size: 0.9em;
+    flex-shrink: 0;
+    /* Prevent buttons shrinking */
+}
+
+.status-message {
+    min-height: 1.2em;
+    margin: 8px 0;
+    font-size: 0.9em;
+    padding: 8px 10px;
+    border-radius: 3px;
+    border: 1px solid transparent;
+    display: none;
+    /* Hidden by default */
+    word-wrap: break-word;
+    /* Ensure long messages wrap */
+}
+
+.loading-indicator {
+    font-style: italic;
+    color: #555;
+    border-color: #eee;
+    background-color: #f9f9f9;
+}
+
+.error-message {
+    color: var(--error-color);
+    background-color: #fdd;
+    border-color: var(--error-color);
+}
+
+.success-message {
+    color: #3c763d;
+    background-color: #dff0d8;
+    border-color: #d6e9c6;
+}
+
+.leaflet-popup-content h4 {
+    margin: 0 0 10px 0;
+    color: var(--primary-color);
+    font-size: 1.1em;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+.leaflet-popup-content p {
+    margin: 5px 0;
+    font-size: 0.95em;
+    word-wrap: break-word;
+}
+
+.leaflet-popup-content form {
+    margin: 0;
+    padding: 0;
+    border: none;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.leaflet-popup-content img {
+    margin-top: 8px;
+    border-radius: 4px;
+    max-width: 100%;
+    height: auto;
+}
+
+/* Reduce size of buttons/select inside popups for better fit */
+.leaflet-popup-content button[type=button],
+.leaflet-popup-content button[type=submit],
+.leaflet-popup-content select {
+    padding: 3px 6px !important;
+    font-size: 0.8em !important;
+    border-radius: 3px !important;
+    cursor: pointer !important;
+    border: none !important;
+    color: white !important;
+    margin: 1px 2px !important;
+    /* Reduce margins */
+}
+
+.leaflet-popup-content select {
+    color: var(--text-color) !important;
+    background-color: #eee !important;
+    border: 1px solid #ccc !important;
+}
+
+.leaflet-popup-content button[title*="Edit Place"] {
+    background-color: var(--warning-color) !important;
+}
+
+.leaflet-popup-content button[title*="Edit Place"]:hover {
+    background-color: var(--warning-color-hover) !important;
+}
+
+.leaflet-popup-content button[title*="Add Review"] {
+    background-color: var(--info-color) !important;
+}
+
+.leaflet-popup-content button[title*="Add Review"]:hover {
+    background-color: var(--info-color-hover) !important;
+}
+
+.leaflet-popup-content button[title*="See Review"] {
+    background-color: var(--see-review-bg) !important;
+}
+
+.leaflet-popup-content button[title*="See Review"]:hover {
+    background-color: var(--see-review-hover-bg) !important;
+}
+
+.leaflet-popup-content button[title*="Delete"] {
+    background-color: var(--error-color) !important;
+}
+
+.leaflet-popup-content button[title*="Delete"]:hover {
+    background-color: var(--danger-color-hover) !important;
+}
+
+.attribution {
+    text-align: center;
+    font-size: 0.8em;
+    color: #777;
+    margin-top: 5px;
+}
+
+.attribution a {
+    color: #555;
+    text-decoration: none;
+}
+
+.attribution a:hover {
+    text-decoration: underline;
+}
+
+/* Hide modals by default */
+.modal-section {
+    display: none;
+}
+
+.modal-section fieldset {
+    padding-bottom: 15px;
+}
+
+/* --- Responsive Design --- */
+
+/* Common styles for smaller screens */
+@media (max-width: 768px) {
+    body {
+        padding: 0 10px 10px 10px;
+        font-size: 15px;
+        /* Slightly smaller base font */
+    }
+
+    .container {
+        margin: 10px auto;
+        padding: 15px;
+    }
+
+    h1 {
+        font-size: 1.8em;
+    }
+
+    h2 {
+        font-size: 1.4em;
+    }
+
+    #map {
+        height: 400px;
+    }
+
+    /* Reduce map height */
+
+    .filter-section form {
+        flex-direction: column;
+        /* Stack filter items vertically */
+        align-items: stretch;
+        /* Make items take full width */
+    }
+
+    .filter-section div {
+        display: flex;
+        /* Align label and select nicely */
+        flex-direction: column;
+        /* Stack label on top */
+        width: 100%;
+    }
+
+    .filter-section label {
+        margin-bottom: 4px;
+        margin-right: 0;
+    }
+
+    .filter-section select {
+        min-width: 0;
+        /* Remove min-width */
+        width: 100%;
+    }
+
+    .filter-section button {
+        width: 100%;
+        /* Make buttons full width */
+        margin-top: 5px;
+    }
+
+    .address-input-row {
+        flex-direction: column;
+        /* Stack address input and button */
+        align-items: stretch;
+    }
+
+    .address-input-row input[type="text"] {
+        width: 100%;
+        margin-bottom: 8px;
+        /* Add space below input */
+    }
+
+    .address-input-row button {
+        width: 100%;
+        height: auto;
+        /* Reset height */
+    }
+
+    button,
+    input[type="submit"] {
+        padding: 12px 15px;
+        /* Slightly larger touch targets */
+        font-size: 1em;
+    }
+
+    button.cancel-btn {
+        margin-left: 0;
+        /* Remove left margin */
+        margin-top: 10px;
+        /* Add space above cancel button */
+    }
+
+    .modal-section .modal-content {
+        max-height: 300px;
+        /* Adjust modal height */
+    }
+
+    /* Adjust popup button sizes if still too cramped */
+    .leaflet-popup-content button[type=button],
+    .leaflet-popup-content button[type=submit],
+    .leaflet-popup-content select {
+        padding: 4px 8px !important;
+        /* Slightly larger */
+        font-size: 0.85em !important;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        font-size: 14px;
+    }
+
+    h1 {
+        font-size: 1.6em;
+    }
+
+    h2 {
+        font-size: 1.3em;
+    }
+
+    #map {
+        height: 350px;
+    }
+}
