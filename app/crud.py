@@ -3,14 +3,12 @@
 import uuid
 import os
 import asyncio
-from datetime import datetime, timezone  # Import timezone
+from datetime import datetime, timezone
 from typing import List, Optional
 from fastapi import UploadFile, HTTPException, status
-from supabase import Client as SupabaseClient, create_client
+from supabase import Client as SupabaseClient
 from supabase.lib.client_options import ClientOptions
-from postgrest import APIResponse, APIError  # Import APIError
-# Import storage error if available (check library specifics)
-# from supabase.lib.storage.errors import StorageApiError # Example, might differ
+from postgrest import APIResponse, APIError
 
 from .core.config import settings, logger
 from .models import (
@@ -28,13 +26,11 @@ async def create_place(place: PlaceCreate, db: SupabaseClient) -> PlaceInDB | No
     """Creates a new place record in Supabase."""
     logger.info(f"CRUD: Attempting to create place: {place.name}")
     try:
-        # Use exclude_unset=True for create as well, Pydantic defaults should handle required fields
-        place_data = place.model_dump(exclude_unset=True)
-        now_utc = datetime.now(timezone.utc).isoformat()
-        # Timestamps might not be 'set' if not provided, add manually if needed (shouldn't be for create)
-        place_data.setdefault("created_at", now_utc)
-        place_data.setdefault("updated_at", now_utc)
-        place_data["deleted_at"] = None  # Always explicitly null on create
+        place_data = place.model_dump(mode="json", exclude_unset=True)
+        now_utc_iso = datetime.now(timezone.utc).isoformat()
+        place_data.setdefault("created_at", now_utc_iso)
+        place_data.setdefault("updated_at", now_utc_iso)
+        place_data["deleted_at"] = None
 
         logger.debug(f"CRUD: Data being sent to Supabase insert: {place_data}")
         query = db.table(TABLE_NAME).insert(place_data)
@@ -202,25 +198,16 @@ async def update_place(
     """Updates an existing place in Supabase."""
     logger.info(f"CRUD: Attempting to update place ID {place_id}")
     try:
-        # --- FIX: Use exclude_unset=True to only send changed fields ---
-        # This prevents accidentally setting required fields like 'name' to None
-        update_data = place_update.model_dump(exclude_unset=True)
-        # --------------------------------------------------------------
+        update_data = place_update.model_dump(mode="json", exclude_unset=True)
 
-        # Check if there's actually anything to update after excluding unset fields
         if not update_data:
             logger.warning(
                 f"CRUD: Update requested for place {place_id} with no data fields set in the model."
             )
-            # Return current state as no update is needed/possible
             return await get_place_by_id(place_id, db)
 
-        # Always set updated_at timestamp if we are sending an update
         update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-        # Ensure we don't accidentally undelete via a normal update
-        update_data.pop(
-            "deleted_at", None
-        )  # Should not be present anyway with exclude_unset=True unless explicitly set
+        update_data.pop("deleted_at", None)
 
         logger.debug(
             f"CRUD: Data being sent to Supabase update for ID {place_id}: {update_data}"
@@ -231,18 +218,15 @@ async def update_place(
             .update(update_data)
             .eq("id", place_id)
             .is_("deleted_at", None)
-            # Removed .select()
         )
         response: APIResponse = await asyncio.to_thread(query.execute)
 
-        # Check response data (Supabase returns updated record by default if RLS allows)
         if response.data:
             updated_place_data = response.data[0]
             validated_place = PlaceInDB(**updated_place_data)
             logger.info(f"CRUD: Successfully updated place ID {place_id}")
             return validated_place
         else:
-            # Handle potential errors or no-match scenarios
             error_detail = None
             if hasattr(response, "error") and response.error:
                 error_detail = (
@@ -255,7 +239,6 @@ async def update_place(
                 logger.error(f"CRUD: Error updating place {place_id}: {error_detail}")
                 return None
             else:
-                # If no error and no data, check if the place exists
                 existing = await get_place_by_id(place_id, db, include_deleted=True)
                 if not existing:
                     logger.warning(
@@ -266,20 +249,17 @@ async def update_place(
                         f"CRUD: Update for place {place_id} failed: Place is deleted."
                     )
                 else:
-                    # This could happen if RLS prevents update without error, or data didn't change
                     logger.warning(
                         f"CRUD: Update for place {place_id} affected no rows or resulted in no change (or RLS issue)."
                     )
                 return None
     except APIError as e:
-        # Catch specific PostgREST errors
         logger.error(
             f"CRUD: PostgREST APIError in update_place for {place_id}: {e.message}",
             exc_info=False,
         )
         return None
     except Exception as e:
-        # Catch other unexpected errors
         logger.error(
             f"CRUD: General Exception in update_place for ID {place_id}: {e}",
             exc_info=True,
@@ -319,17 +299,22 @@ async def upload_place_image(
         )
 
         storage_from = db.storage.from_(settings.SUPABASE_BUCKET_NAME)
+
+        file_options = {
+            "content-type": file.content_type or "application/octet-stream",
+            "cache-control": "3600",
+            "upsert": "false",  # Set to "true" to allow overwriting
+        }
+
         try:
-            await asyncio.to_thread(
+            # Run the blocking upload call in a separate thread
+            upload_task = asyncio.to_thread(
                 storage_from.upload,
                 path=file_path_on_storage,
                 file=content,
-                file_options={
-                    "content-type": file.content_type or "application/octet-stream",
-                    "cache-control": "3600",
-                    "upsert": "false",
-                },
+                file_options=file_options,
             )
+            await upload_task
             logger.debug(
                 f"CRUD: Supabase storage upload call completed for path {file_path_on_storage}."
             )
@@ -343,14 +328,20 @@ async def upload_place_image(
                 f"CRUD: Storage APIError during upload for place {place_id}, path {file_path_on_storage}: {err_msg}",
                 exc_info=False,
             )
+
             if "security policy" in err_msg.lower():
                 detail_msg = f"Storage permission denied. Check Supabase Storage RLS policies for bucket '{settings.SUPABASE_BUCKET_NAME}'."
                 status_code = status.HTTP_403_FORBIDDEN
+            elif "exists" in err_msg.lower() and not file_options.get("upsert"):
+                detail_msg = f"File already exists at path '{file_path_on_storage}' and upsert is false."
+                status_code = status.HTTP_409_CONFLICT
             else:
                 detail_msg = f"Storage error during upload: {err_msg}"
                 status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+
             raise HTTPException(
-                status_code=status_code, detail=detail_msg
+                status_code=status_code,
+                detail=detail_msg,
             ) from storage_api_error
         except Exception as upload_err:
             logger.error(
@@ -362,14 +353,16 @@ async def upload_place_image(
                 detail="Unexpected error during image upload.",
             ) from upload_err
 
+        # --- Get Public URL ---
         public_url = None
         try:
             logger.debug(
                 f"CRUD: Attempting to get public URL for: {file_path_on_storage}"
             )
-            public_url_response = await asyncio.to_thread(
+            get_url_task = asyncio.to_thread(
                 storage_from.get_public_url, file_path_on_storage
             )
+            public_url_response = await get_url_task
             public_url = public_url_response
             logger.debug(
                 f"CRUD: get_public_url returned: {public_url} (Type: {type(public_url)})"
@@ -381,6 +374,7 @@ async def upload_place_image(
             )
             return None
 
+        # --- Validate and Return URL ---
         if public_url and isinstance(public_url, str) and public_url.startswith("http"):
             logger.info(
                 f"CRUD: Image uploaded and public URL obtained for place {place_id}: {public_url}"
@@ -410,21 +404,19 @@ async def delete_place(place_id: int, db: SupabaseClient) -> bool:
     logger.warning(f"CRUD: Soft deleting place ID {place_id}.")
 
     try:
-        delete_time = datetime.now(timezone.utc).isoformat()
-        # Use PlaceUpdate model to ensure only valid fields are sent
+        delete_time_iso = datetime.now(timezone.utc).isoformat()
         place_delete_update = PlaceUpdate(
-            deleted_at=delete_time, updated_at=delete_time
+            deleted_at=delete_time_iso, updated_at=delete_time_iso
         )
-        update_data = place_delete_update.model_dump(
-            exclude_unset=True
-        )  # Only send deleted_at and updated_at
+        update_data = place_delete_update.model_dump(mode="json", exclude_unset=True)
+
+        logger.debug(f"CRUD: Data for soft delete ID {place_id}: {update_data}")
 
         query = (
             db.table(TABLE_NAME)
             .update(update_data)
             .eq("id", place_id)
             .is_("deleted_at", None)
-            # Removed .select()
         )
         response: APIResponse = await asyncio.to_thread(query.execute)
 
@@ -436,24 +428,23 @@ async def delete_place(place_id: int, db: SupabaseClient) -> bool:
             )
             logger.error(f"CRUD: Error soft deleting place {place_id}: {error_detail}")
             return False
-        elif response.data:  # Should contain deleted record if RLS allows SELECT
+        elif response.data:
             logger.info(f"CRUD: Successfully soft deleted place {place_id}.")
             return True
         else:
-            # If no error and no data, it implies row didn't match (already deleted/not found)
             existing = await get_place_by_id(place_id, db, include_deleted=True)
             if not existing:
                 logger.warning(
                     f"CRUD: Soft delete for place {place_id} failed: Place not found."
                 )
-            elif existing.deleted_at:  # Check if it *is* now deleted
+            elif existing.deleted_at:
                 logger.info(
                     f"CRUD: Successfully soft deleted place {place_id} (confirmed via re-fetch)."
                 )
-                return True  # Count as success if it's now deleted
+                return True
             else:
                 logger.warning(
-                    f"CRUD: Soft delete for place {place_id} affected no rows (unknown reason, possibly RLS)."
+                    f"CRUD: Soft delete for place {place_id} affected no rows and record not deleted (unknown reason, possibly RLS)."
                 )
             return False
 
