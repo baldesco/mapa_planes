@@ -401,7 +401,7 @@ async def upload_place_image(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Could not upload image due to an internal error.",
+            detail="Could not upload image due to an internal error.",
         ) from e
 
 

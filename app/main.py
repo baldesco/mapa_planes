@@ -4,7 +4,6 @@ import asyncio
 import folium
 import html
 import json
-from datetime import datetime, timezone
 from fastapi import (
     FastAPI,
     Depends,
@@ -311,23 +310,25 @@ async def read_root(
                         else None,
                     }
                     js_object_string = json.dumps(place_data_for_js)
-                    escaped_js_string_for_html = html.escape(
+                    escaped_js_string_for_html_attr = html.escape(
                         js_object_string, quote=True
                     )
 
                     # Edit Place Button
                     popup_parts.append(
-                        f'<button type="button" onclick="window.parent.showEditPlaceForm(\'{escaped_js_string_for_html}\')" title="Edit Place Details" style="/* styles */">Edit</button>'
+                        f'<button type="button" onclick="window.parent.showEditPlaceForm(\'{escaped_js_string_for_html_attr}\')" title="Edit Place Details" style="/* styles */">Edit</button>'
                     )
 
                     # Conditional Review Button
                     if has_review_content or has_image:
+                        # This button shows the modal, which takes the string and parses internally. Keep as is.
                         popup_parts.append(
-                            f'<button type="button" onclick="window.parent.showSeeReviewModal(\'{escaped_js_string_for_html}\')" title="See Review / Image" style="background-color: var(--see-review-bg) !important;">See Review</button>'
+                            f'<button type="button" onclick="window.parent.showSeeReviewModal(\'{escaped_js_string_for_html_attr}\')" title="See Review / Image" style="background-color: var(--see-review-bg) !important;">See Review</button>'
                         )
                     else:
+                        # This button directly calls the form function, which now expects an object. Parse here.
                         popup_parts.append(
-                            f'<button type="button" onclick="window.parent.showReviewForm(\'{escaped_js_string_for_html}\')" title="Add Review / Image" style="background-color: var(--info-color) !important;">Add Review</button>'
+                            f'<button type="button" onclick="window.parent.showReviewForm(JSON.parse(\'{escaped_js_string_for_html_attr}\'))" title="Add Review / Image" style="background-color: var(--info-color) !important;">Add Review</button>'
                         )
 
                     # Delete Button
@@ -465,6 +466,7 @@ async def create_new_place_endpoint(
             f"Place '{created_place.name}' created (ID: {created_place.id})."
         )  # TODO: Flash success
 
+    # Use the imported status module here
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -491,6 +493,7 @@ async def update_place_status_from_form_endpoint(
         )  # TODO: Flash error
     else:
         logger.info(f"Status updated for place ID {place_id}.")  # TODO: Flash success
+    # Use the imported status module here
     return RedirectResponse(
         url=request.url_for("read_root"), status_code=status.HTTP_303_SEE_OTHER
     )
@@ -510,7 +513,7 @@ async def edit_place_from_form_endpoint(
     latitude: float = Form(...),
     longitude: float = Form(...),
     category: PlaceCategory = Form(...),
-    status: PlaceStatus = Form(...),
+    status_input: PlaceStatus = Form(..., alias="status"),
     address: Optional[str] = Form(None),
     city: Optional[str] = Form(None),
     country: Optional[str] = Form(None),
@@ -524,7 +527,7 @@ async def edit_place_from_form_endpoint(
             latitude=latitude,
             longitude=longitude,
             category=category,
-            status=status,
+            status=status_input,
             address=address,
             city=city,
             country=country,
@@ -550,6 +553,7 @@ async def edit_place_from_form_endpoint(
         logger.error(
             f"API Unexpected error editing place ID {place_id}: {e}", exc_info=True
         )  # TODO: Flash generic error
+
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -649,6 +653,7 @@ async def add_review_image_endpoint(
             exc_info=True,
         )  # TODO: Flash generic error
 
+    # Use the imported status module here
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
@@ -673,6 +678,7 @@ async def delete_place_from_form_endpoint(
         logger.info(
             f"Place ID {place_id} soft deleted via form."
         )  # TODO: Flash success
+    # Use the imported status module here
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 

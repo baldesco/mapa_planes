@@ -718,12 +718,13 @@
                     if (editSubmitBtn) editSubmitBtn.disabled = false;
                     return false;
                 }
-                if (editAddressInput && editAddressInput.value.trim() !== '' && editGeocodeStatus && !editGeocodeStatus.classList.contains('success-message')) {
-                    event.preventDefault();
-                    setStatusMessage(editGeocodeStatus, 'Must resolve geocoding status before saving.', 'error');
-                    if (editSubmitBtn) editSubmitBtn.disabled = false;
-                    return false;
-                }
+                // Allow saving even if geocoding status is not success, as user might just be editing name/category/status
+                // if (editAddressInput && editAddressInput.value.trim() !== '' && editGeocodeStatus && !editGeocodeStatus.classList.contains('success-message')) {
+                //     event.preventDefault();
+                //     setStatusMessage(editGeocodeStatus, 'Must resolve geocoding status before saving if address changed.', 'error');
+                //     if (editSubmitBtn) editSubmitBtn.disabled = false;
+                //     return false;
+                // }
                 if (editSubmitBtn) { editSubmitBtn.disabled = true; editSubmitBtn.textContent = 'Saving...'; }
             });
 
@@ -739,10 +740,10 @@
 
                     if (placeDataJSONString) {
                         try {
-                            const placeData = JSON.parse(placeDataJSONString);
-                            console.log("Parsed data for edit:", placeData);
+                            const placeDataObject = JSON.parse(placeDataJSONString); // Parse here
+                            console.log("Parsed data for edit:", placeDataObject);
                             hideSeeReviewModal();
-                            window.showReviewForm(placeData); // Pass the object
+                            window.showReviewForm(placeDataObject); // Pass the OBJECT
                         } catch (e) {
                             console.error("Error parsing placeData JSON from button attribute:", e, "String:", placeDataJSONString);
                             alert("Error reading data needed to edit review.");
@@ -759,8 +760,10 @@
             window.showEditPlaceForm = function (placeDataJSONString) {
                 console.log("Global showEditPlaceForm called.");
                 let placeData;
-                try { placeData = JSON.parse(placeDataJSONString); }
-                catch (e) { console.error("Error parsing placeData JSON for edit:", e); alert("Error reading place data."); return; }
+                try {
+                    placeData = JSON.parse(placeDataJSONString); // Parse the input string
+                }
+                catch (e) { console.error("Error parsing placeData JSON for edit:", e, "String:", placeDataJSONString); alert("Error reading place data."); return; }
 
                 if (!editPlaceSection || !editPlaceForm || !editPlaceFormTitle || !editNameInput || !editCategorySelect || !editStatusSelect || !editAddressInput || !editDisplayLat || !editDisplayLon || !editLatitudeInput || !editLongitudeInput || !editAddressHidden || !editCityHidden || !editCountryHidden || !editGeocodeStatus || !editSubmitBtn || !editCoordsSection) {
                     console.error("CRITICAL: One or more Edit Form elements are missing!"); alert("Error: Edit form elements missing."); return;
@@ -771,15 +774,15 @@
                     editNameInput.value = placeData.name || '';
                     editCategorySelect.value = placeData.category || 'other';
                     editStatusSelect.value = placeData.status || 'pending';
-                    editAddressInput.value = '';
+                    editAddressInput.value = ''; // Clear address input for re-geocoding if needed
                     editDisplayLat.textContent = placeData.latitude?.toFixed(6) ?? 'N/A';
                     editDisplayLon.textContent = placeData.longitude?.toFixed(6) ?? 'N/A';
                     editLatitudeInput.value = placeData.latitude || '';
                     editLongitudeInput.value = placeData.longitude || '';
-                    editAddressHidden.value = placeData.address || '';
+                    editAddressHidden.value = placeData.address || ''; // Keep current address details unless re-geocoded
                     editCityHidden.value = placeData.city || '';
                     editCountryHidden.value = placeData.country || '';
-                    setStatusMessage(editGeocodeStatus, '');
+                    setStatusMessage(editGeocodeStatus, ''); // Clear previous geocode status
                     editSubmitBtn.disabled = false;
                     editSubmitBtn.textContent = 'Save Changes';
                     const url = `{{ request.url_for('edit_place_from_form_endpoint', place_id=999) }}`.replace('999', placeData.id);
@@ -796,18 +799,29 @@
                 if (editPlaceSection) editPlaceSection.style.display = 'none';
             }
 
-            // Expects a Javascript OBJECT now
-            window.showReviewForm = function (placeData) {
-                console.log("Global showReviewForm called with input type:", typeof placeData, "Value:", placeData); // Log type and value
+            window.showReviewForm = function (placeDataInput) {
+                console.log("Global showReviewForm called with input type:", typeof placeDataInput, "Value:", placeDataInput);
 
-                // --- FIX: Remove the typeof check ---
-                // Rely on the try-catch below to handle errors if placeData is not usable
-                // if (typeof placeData !== 'object' || placeData === null) {
-                //    console.error("Invalid input: showReviewForm expects an object, received:", placeData);
-                //    alert("Internal error: Cannot prepare review form (Invalid Data).");
-                //    return;
-                // }
-                // ------------------------------------
+                let placeData;
+                // Check if input is already an object (likely from 'Edit Review' button)
+                // If it's a string (from popup onclick), try parsing it.
+                if (typeof placeDataInput === 'string') {
+                    try {
+                        placeData = JSON.parse(placeDataInput);
+                        console.log("Parsed string input successfully.");
+                    } catch (e) {
+                        console.error("Error parsing string input in showReviewForm:", e, "Input:", placeDataInput);
+                        alert("Internal error: Cannot prepare review form (Invalid Data String).");
+                        return;
+                    }
+                } else if (typeof placeDataInput === 'object' && placeDataInput !== null) {
+                    placeData = placeDataInput; // Assume it's the correct object
+                    console.log("Input is already an object.");
+                } else {
+                    console.error("Invalid input type for showReviewForm. Expected object or JSON string, received:", placeDataInput);
+                    alert("Internal error: Cannot prepare review form (Invalid Data Type).");
+                    return;
+                }
 
                 if (!reviewImageSection || !reviewImageForm || !reviewFormTitle || !reviewTitleInput || !reviewTextInput || !reviewImageInput || !reviewSubmitBtn) {
                     console.error("CRITICAL: One or more Review Form elements missing in DOM!");
@@ -818,41 +832,28 @@
                 console.log("Review Form elements seem to exist in DOM.");
 
                 try {
-                    // Check if placeData is actually usable here before accessing properties
-                    if (!placeData || typeof placeData !== 'object') {
-                        throw new Error("placeData is null or not an object inside try block.");
-                    }
-
                     console.log("Attempting to populate review form...");
 
-                    console.log("Setting reviewFormTitle.textContent");
+                    if (!placeData || !placeData.id) { // Basic check for valid object
+                        throw new Error("placeData object is invalid or missing ID after processing.");
+                    }
+
                     if (reviewFormTitle) reviewFormTitle.textContent = placeData.name || 'Unknown';
-
-                    console.log("Setting reviewTitleInput.value");
                     if (reviewTitleInput) reviewTitleInput.value = placeData.review_title || '';
-
-                    console.log("Setting reviewTextInput.value");
                     if (reviewTextInput) reviewTextInput.value = placeData.review || '';
-
-                    console.log("Setting reviewImageInput.value");
-                    if (reviewImageInput) reviewImageInput.value = '';
-
-                    console.log("Setting reviewSubmitBtn state");
+                    if (reviewImageInput) reviewImageInput.value = ''; // Clear file input
                     if (reviewSubmitBtn) {
                         reviewSubmitBtn.disabled = false;
                         reviewSubmitBtn.textContent = 'Save Review & Image';
                     }
 
-                    console.log("Setting reviewImageForm.action");
                     const url = `{{ request.url_for('add_review_image_endpoint', place_id=999) }}`.replace('999', placeData.id);
                     if (reviewImageForm) reviewImageForm.action = url;
                     console.log("Review form action set to:", url);
 
-                    console.log("Hiding other forms...");
                     hideEditPlaceForm();
                     hideSeeReviewModal();
 
-                    console.log("Showing reviewImageSection...");
                     if (reviewImageSection) {
                         reviewImageSection.style.display = 'block';
                         console.log("Review form displayed.");
@@ -861,11 +862,10 @@
 
                 } catch (e) {
                     console.error("Error populating review form fields:", e);
-                    console.log("State of placeData during error:", placeData); // Log the data object itself
-                    alert("Internal error: Cannot prepare review form.");
+                    console.log("State of placeData during error:", placeData);
+                    alert("Internal error: Cannot populate review form.");
                 }
             }
-
 
             window.hideReviewForm = function () {
                 if (reviewImageSection) reviewImageSection.style.display = 'none';
@@ -876,15 +876,16 @@
                 console.log("Global showSeeReviewModal called.");
                 let placeData;
                 try {
-                    placeData = JSON.parse(placeDataJSONString);
+                    placeData = JSON.parse(placeDataJSONString); // Parse the input string
                     if (seeReviewEditBtn) {
-                        seeReviewEditBtn.setAttribute('data-place-json', placeDataJSONString); // Store the STRING
+                        // Store the ORIGINAL JSON STRING for the edit button to retrieve and parse later
+                        seeReviewEditBtn.setAttribute('data-place-json', placeDataJSONString);
                     } else {
                         console.error("Could not find seeReviewEditBtn to store data.");
                     }
                 }
                 catch (e) {
-                    console.error("Error parsing placeData JSON for see review:", e);
+                    console.error("Error parsing placeData JSON for see review:", e, "String:", placeDataJSONString);
                     alert("Error reading place data for review display.");
                     if (seeReviewEditBtn) seeReviewEditBtn.removeAttribute('data-place-json');
                     return;
