@@ -4,14 +4,11 @@
  * modals, rating stars, and geocoding requests.
  */
 import apiClient from "./apiClient.js";
-import mapHandler from "./mapHandler.js"; // Still needed for flyTo
+import mapHandler from "./mapHandler.js";
 
 const ui = {
-  // --- DOM Element References ---
   elements: {
-    /* ... same as before ... */
-    // Add Place Form
-    toggleAddPlaceBtn: null,
+    /* ... cache elements ... */ toggleAddPlaceBtn: null,
     addPlaceWrapper: null,
     addPlaceForm: null,
     addPlaceCancelBtn: null,
@@ -33,8 +30,6 @@ const ui = {
     addStatusSelect: null,
     addPinOnMapBtn: null,
     addMapPinInstruction: null,
-
-    // Edit Place Form
     editPlaceSection: null,
     editPlaceForm: null,
     editPlaceFormTitle: null,
@@ -56,8 +51,6 @@ const ui = {
     editPinOnMapBtn: null,
     editMapPinInstruction: null,
     editCancelBtn: null,
-
-    // Review/Image Form
     reviewImageSection: null,
     reviewImageForm: null,
     reviewFormTitle: null,
@@ -71,8 +64,6 @@ const ui = {
     currentImageReviewThumb: null,
     reviewSubmitBtn: null,
     reviewCancelBtn: null,
-
-    // See Review Modal
     seeReviewSection: null,
     seeReviewPlaceTitle: null,
     seeReviewRatingDisplay: null,
@@ -82,49 +73,37 @@ const ui = {
     seeReviewEditBtn: null,
     seeReviewCloseBtn: null,
   },
-
-  // --- State ---
   currentPlaceDataForEdit: null,
   currentPlaceDataForReview: null,
-  pinningActiveForForm: null, // NEW STATE: null, 'add', or 'edit'
+  pinningActiveForForm: null, // State: null, 'add', or 'edit'
 
-  /** Initialize the UI module */
   init() {
     console.debug("UI Module: Initializing...");
     this.cacheDOMElements();
     this.setupEventListeners();
     this.setupRatingStars();
-
-    // Expose necessary functions globally for inline HTML handlers AND iframe communication
     window.showAddPlaceForm = this.showAddPlaceForm.bind(this);
     window.hideAddPlaceForm = this.hideAddPlaceForm.bind(this);
     window.showEditPlaceForm = this.showEditPlaceForm.bind(this);
     window.showReviewForm = this.showReviewForm.bind(this);
     window.showSeeReviewModal = this.showSeeReviewModal.bind(this);
     window.showImageOverlay = this.showImageOverlay.bind(this);
-    // Expose functions needed by the iframe script
     window.isPinningActive = this.isPinningActive.bind(this);
     window.handleMapPinClick = this.handleMapPinClick.bind(this);
-    window.ui = this; // Expose entire module for easier debugging if needed
-
-    this.hideAllSections(); // This now also resets pinningActiveForForm
+    window.ui = this;
+    this.hideAllSections();
     if (this.elements.addSubmitBtn) this.elements.addSubmitBtn.disabled = true;
     if (this.elements.editSubmitBtn)
       this.elements.editSubmitBtn.disabled = true;
-
-    // Enable pin buttons (they no longer depend on mapHandler init for pinning)
+    // Enable pin buttons by default, map click handler will check state
     if (this.elements.addPinOnMapBtn)
       this.elements.addPinOnMapBtn.disabled = false;
     if (this.elements.editPinOnMapBtn)
       this.elements.editPinOnMapBtn.disabled = false;
-
     console.log("UI Module: Initialization Complete.");
   },
 
-  /** Cache DOM elements */
   cacheDOMElements() {
-    /* ... same as before ... */
-    // Add Place Form Elements
     this.elements.toggleAddPlaceBtn = document.getElementById(
       "toggle-add-place-form-btn"
     );
@@ -158,8 +137,6 @@ const ui = {
     this.elements.addMapPinInstruction = document.getElementById(
       "map-pin-instruction"
     );
-
-    // Edit Place Form Elements (Core Details Only)
     this.elements.editPlaceSection =
       document.getElementById("edit-place-section");
     this.elements.editPlaceForm = document.getElementById("edit-place-form");
@@ -199,8 +176,6 @@ const ui = {
     );
     this.elements.editCancelBtn =
       this.elements.editPlaceSection?.querySelector("button.cancel-btn");
-
-    // Review/Image Form Elements
     this.elements.reviewImageSection = document.getElementById(
       "review-image-section"
     );
@@ -229,8 +204,6 @@ const ui = {
     );
     this.elements.reviewCancelBtn =
       this.elements.reviewImageSection?.querySelector("button.cancel-btn");
-
-    // See Review Modal Elements
     this.elements.seeReviewSection =
       document.getElementById("see-review-section");
     this.elements.seeReviewPlaceTitle = document.getElementById(
@@ -255,11 +228,8 @@ const ui = {
       this.elements.seeReviewSection?.querySelector("button.cancel-btn");
   },
 
-  /** Setup primary event listeners */
   setupEventListeners() {
-    // Toggle Add Place Form Button
-    if (this.elements.toggleAddPlaceBtn) {
-      /* ... listener same ... */
+    if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.addEventListener("click", () => {
         if (
           !this.elements.addPlaceWrapper ||
@@ -271,8 +241,6 @@ const ui = {
           this.hideAddPlaceForm();
         }
       });
-    }
-    // Add Place Form Buttons
     if (this.elements.addPlaceCancelBtn)
       this.elements.addPlaceCancelBtn.addEventListener("click", () =>
         this.hideAddPlaceForm()
@@ -284,9 +252,7 @@ const ui = {
     if (this.elements.addPinOnMapBtn)
       this.elements.addPinOnMapBtn.addEventListener("click", () =>
         this.toggleMapPinning("add")
-      ); // Calls UI toggle, not mapHandler
-
-    // Edit Place Form Buttons
+      );
     if (this.elements.editCancelBtn)
       this.elements.editCancelBtn.addEventListener("click", () =>
         this.hideEditPlaceForm()
@@ -298,21 +264,16 @@ const ui = {
     if (this.elements.editPinOnMapBtn)
       this.elements.editPinOnMapBtn.addEventListener("click", () =>
         this.toggleMapPinning("edit")
-      ); // Calls UI toggle, not mapHandler
-
-    // Review/Image Form Buttons
+      );
     if (this.elements.reviewCancelBtn)
       this.elements.reviewCancelBtn.addEventListener("click", () =>
         this.hideReviewForm()
       );
-
-    // See Review Modal Buttons
     if (this.elements.seeReviewCloseBtn)
       this.elements.seeReviewCloseBtn.addEventListener("click", () =>
         this.hideSeeReviewModal()
       );
     if (this.elements.seeReviewEditBtn) {
-      /* ... listener same ... */
       this.elements.seeReviewEditBtn.addEventListener("click", () => {
         if (this.currentPlaceDataForReview) {
           this.showReviewForm(this.currentPlaceDataForReview);
@@ -321,8 +282,6 @@ const ui = {
         }
       });
     }
-
-    // Form Submissions
     this.setupFormSubmission(
       this.elements.addPlaceForm,
       this.elements.addSubmitBtn,
@@ -341,8 +300,6 @@ const ui = {
       this.elements.reviewImageForm,
       this.elements.reviewSubmitBtn
     );
-
-    // Image overlay click listener (delegated)
     document.body.addEventListener("click", (event) => {
       if (event.target.closest(".image-overlay")) {
         this.hideImageOverlay();
@@ -352,7 +309,6 @@ const ui = {
     });
   },
 
-  /** Helper to set up common form submission logic */
   setupFormSubmission(
     form,
     submitBtn,
@@ -360,7 +316,6 @@ const ui = {
     lonInput = null,
     statusEl = null
   ) {
-    /* ... same ... */
     if (!form || !submitBtn) return;
     form.addEventListener("submit", (event) => {
       if (latInput && lonInput && (!latInput.value || !lonInput.value)) {
@@ -381,7 +336,6 @@ const ui = {
     });
   },
 
-  /** Hide all collapsible sections */
   hideAllSections() {
     if (this.elements.addPlaceWrapper)
       this.elements.addPlaceWrapper.style.display = "none";
@@ -393,23 +347,16 @@ const ui = {
       this.elements.seeReviewSection.style.display = "none";
     if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
-    // Reset pinning state when hiding sections
+    // Reset pinning state AND related UI class on body
     this.pinningActiveForForm = null;
-    // Reset pin button texts visually (though state is handled by pinningActiveForForm)
-    if (this.elements.addPinOnMapBtn)
-      this.elements.addPinOnMapBtn.textContent = "Pin Location on Map";
-    if (this.elements.editPinOnMapBtn)
-      this.elements.editPinOnMapBtn.textContent = "Pin Location on Map";
-    if (this.elements.addMapPinInstruction)
-      this.elements.addMapPinInstruction.style.display = "none";
-    if (this.elements.editMapPinInstruction)
-      this.elements.editMapPinInstruction.style.display = "none";
+    document.body.classList.remove("map-pinning-active");
+    // Update button UI (redundant if handlePinningModeChange was called, but safe)
+    this.handlePinningModeChange(false, "add");
+    this.handlePinningModeChange(false, "edit");
   },
 
-  // ... show/hide/reset form functions remain largely the same,
-  // BUT they no longer call mapHandler directly ...
   showAddPlaceForm() {
-    this.hideAllSections();
+    /* ... same ... */ this.hideAllSections();
     this.resetAddPlaceForm();
     if (this.elements.addPlaceWrapper) {
       this.elements.addPlaceWrapper.style.display = "block";
@@ -422,15 +369,15 @@ const ui = {
     }
   },
   hideAddPlaceForm() {
-    if (this.elements.addPlaceWrapper)
+    /* ... same ... */ if (this.elements.addPlaceWrapper)
       this.elements.addPlaceWrapper.style.display = "none";
     if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
-    this.pinningActiveForForm = null; /* Ensure pinning state is reset */
+    this.pinningActiveForForm = null;
+    document.body.classList.remove("map-pinning-active");
   },
   showEditPlaceForm(placeDataInput) {
-    /* ... (population logic same, removing review/rating fields) ... */
-    let placeData;
+    /* ... same ... */ let placeData;
     if (typeof placeDataInput === "string") {
       try {
         placeData = JSON.parse(placeDataInput);
@@ -490,11 +437,12 @@ const ui = {
     }
   },
   hideEditPlaceForm() {
-    if (this.elements.editPlaceSection)
+    /* ... same ... */ if (this.elements.editPlaceSection)
       this.elements.editPlaceSection.style.display = "none";
     this.currentPlaceDataForEdit = null;
     this.pinningActiveForForm = null;
-    /* Ensure pinning state is reset */ if (
+    document.body.classList.remove("map-pinning-active");
+    if (
       !this.elements.addPlaceWrapper ||
       this.elements.addPlaceWrapper.style.display === "none"
     ) {
@@ -503,8 +451,7 @@ const ui = {
     }
   },
   showReviewForm(placeDataInput) {
-    /* ... same logic ... */
-    let placeData;
+    /* ... same ... */ let placeData;
     if (typeof placeDataInput === "string") {
       try {
         placeData = JSON.parse(placeDataInput);
@@ -558,8 +505,7 @@ const ui = {
     }
   },
   hideReviewForm() {
-    /* ... same logic ... */
-    if (this.elements.reviewImageSection)
+    /* ... same ... */ if (this.elements.reviewImageSection)
       this.elements.reviewImageSection.style.display = "none";
     this.currentPlaceDataForReview = null;
     if (
@@ -571,8 +517,7 @@ const ui = {
     }
   },
   showSeeReviewModal(placeDataInput) {
-    /* ... same logic ... */
-    let placeData;
+    /* ... same ... */ let placeData;
     if (typeof placeDataInput === "string") {
       try {
         placeData = JSON.parse(placeDataInput);
@@ -633,8 +578,7 @@ const ui = {
     }
   },
   hideSeeReviewModal() {
-    /* ... same logic ... */
-    if (this.elements.seeReviewSection)
+    /* ... same ... */ if (this.elements.seeReviewSection)
       this.elements.seeReviewSection.style.display = "none";
     this.currentPlaceDataForReview = null;
     if (
@@ -646,13 +590,10 @@ const ui = {
     }
   },
 
-  /** Handle Geocode Request */
   async handleGeocodeRequest(formType = "add") {
-    /* ... same logic ... */
-    // mapHandler.stopPinningMode(); // No need to call mapHandler here
-    this.pinningActiveForForm = null; // Ensure UI state is reset
-    this.handlePinningModeChange(false, formType); // Update UI visually
-
+    /* ... same ... */
+    this.pinningActiveForForm = null;
+    this.handlePinningModeChange(false, formType);
     const isEdit = formType === "edit";
     const addressQueryEl = isEdit
       ? this.elements.editAddressInput
@@ -700,8 +641,7 @@ const ui = {
           "success"
         );
         mapHandler.flyTo(result.latitude, result.longitude);
-      } // Still use mapHandler for flyTo
-      else {
+      } else {
         let errorDetail = `Geocoding failed (${response.status}).`;
         try {
           const errorData = await response.json();
@@ -727,10 +667,8 @@ const ui = {
       if (submitButton) submitButton.disabled = !(latVal && lonVal);
     }
   },
-
-  /** Update coordinate display fields */
   updateCoordsDisplay(coordsData, formType = "add") {
-    /* ... same logic ... */
+    /* ... same ... */
     const isEdit = formType === "edit";
     const els = this.elements;
     const coordsSect = isEdit ? els.editCoordsSection : els.addCoordsSection;
@@ -797,25 +735,28 @@ const ui = {
     submitButton.disabled = false;
   },
 
-  /** Toggle map pinning mode (UI only) */
+  // --- NEW Pinning Logic (UI State Management) ---
   toggleMapPinning(formType = "add") {
     console.log(`UI: toggleMapPinning called for ${formType}`);
-    // If currently pinning for *this* form, turn it off
     if (this.pinningActiveForForm === formType) {
+      // Turn off pinning for this form
       this.pinningActiveForForm = null;
-      this.handlePinningModeChange(false, formType); // Update UI
     } else {
-      // If pinning for the *other* form, turn that off first
+      // Turn off pinning for the other form if active
       if (this.pinningActiveForForm !== null) {
         this.handlePinningModeChange(false, this.pinningActiveForForm);
       }
-      // Turn pinning on for *this* form
+      // Turn on pinning for this form
       this.pinningActiveForForm = formType;
-      this.handlePinningModeChange(true, formType); // Update UI
     }
+    // Update UI for the current form's new state
+    this.handlePinningModeChange(
+      this.pinningActiveForForm === formType,
+      formType
+    );
   },
 
-  /** Update UI based on pinning mode state */
+  // Updated UI based on pinning state
   handlePinningModeChange(isActive, formType) {
     console.debug(
       `UI: Updating UI for pinning mode change: ${isActive} for ${formType}`
@@ -850,8 +791,7 @@ const ui = {
         "Click the map to set the location.",
         "info"
       );
-      // Add a class to body perhaps? To change map cursor via CSS?
-      document.body.classList.add("map-pinning-active");
+      document.body.classList.add("map-pinning-active"); // Add class for cursor
     } else {
       addressInput.disabled = false;
       findBtn.disabled = false;
@@ -867,27 +807,26 @@ const ui = {
         ? this.elements.editSubmitBtn
         : this.elements.addSubmitBtn;
       if (submitBtn) submitBtn.disabled = !(latInput?.value && lonInput?.value);
-      document.body.classList.remove("map-pinning-active");
+      document.body.classList.remove("map-pinning-active"); // Remove class
     }
   },
 
-  /** Function called by iframe when map is clicked */
+  // Called by iframe script via window.handleMapPinClick
   handleMapPinClick(lat, lng) {
     console.log(
       `UI: Received map pin click from iframe: Lat: ${lat}, Lng: ${lng}`
     );
-    if (this.pinningActiveForForm) {
+    const activeForm = this.pinningActiveForForm; // Get which form is active
+    if (activeForm) {
       const coords = { latitude: lat, longitude: lng };
-      // Update the coordinates for the currently active form
-      this.updateCoordsDisplay(coords, this.pinningActiveForForm);
-      // Update status message
+      this.updateCoordsDisplay(coords, activeForm); // Update the correct form
       const statusEl =
-        this.pinningActiveForForm === "edit"
+        activeForm === "edit"
           ? this.elements.editGeocodeStatus
           : this.elements.addGeocodeStatus;
       this.setStatusMessage(statusEl, "Location pinned via map.", "success");
       // Automatically turn off pinning mode after successful pin
-      this.toggleMapPinning(this.pinningActiveForForm);
+      this.toggleMapPinning(activeForm);
     } else {
       console.warn(
         "UI: Map click received from iframe, but no form is in pinning mode."
@@ -895,23 +834,20 @@ const ui = {
     }
   },
 
-  /** Check if pinning is active (for iframe) */
+  // Called by iframe script via window.isPinningActive
   isPinningActive() {
-    // console.debug(`UI: isPinningActive check called, returning: ${this.pinningActiveForForm !== null}`);
     return this.pinningActiveForForm !== null;
   },
+  // --- End NEW Pinning Logic ---
 
-  // --- Rating Stars ---
   setupRatingStars() {
-    /* ... same logic ... */
-    this.setupInteractiveStars(
+    /* ... same ... */ this.setupInteractiveStars(
       this.elements.reviewRatingStarsContainer,
       this.elements.reviewRatingInput
     );
   },
   setupInteractiveStars(container, hiddenInput) {
-    /* ... same logic ... */
-    if (!container || !hiddenInput) return;
+    /* ... same ... */ if (!container || !hiddenInput) return;
     const stars = container.querySelectorAll(".star");
     stars.forEach((star) => {
       star.addEventListener("click", (e) => {
@@ -929,8 +865,7 @@ const ui = {
     this.updateRatingStars(container, hiddenInput.value);
   },
   highlightStars(container, value) {
-    /* ... same logic ... */
-    if (!container) return;
+    /* ... same ... */ if (!container) return;
     const stars = container.querySelectorAll(".star");
     const val = parseInt(value, 10);
     stars.forEach((star) => {
@@ -947,13 +882,11 @@ const ui = {
     });
   },
   updateRatingStars(container, selectedValue) {
-    /* ... same logic ... */
-    if (!container) return;
+    /* ... same ... */ if (!container) return;
     this.highlightStars(container, parseInt(selectedValue, 10) || 0);
   },
   displayStaticRatingStars(container, rating) {
-    /* ... same logic ... */
-    if (!container) return;
+    /* ... same ... */ if (!container) return;
     const numRating = parseInt(rating, 10);
     if (numRating >= 1 && numRating <= 5) {
       let html = "";
@@ -966,11 +899,8 @@ const ui = {
       container.style.display = "inline-block";
     }
   },
-
-  // --- Utilities ---
   setStatusMessage(element, message, type = "info") {
-    /* ... same logic ... */
-    if (!element) return;
+    /* ... same ... */ if (!element) return;
     element.textContent = message;
     element.className = "status-message";
     if (type === "error") element.classList.add("error-message");
@@ -980,8 +910,8 @@ const ui = {
     element.style.display = message ? "block" : "none";
   },
   resetAddPlaceForm() {
-    /* ... same logic, including resetting pin button text ... */
-    if (this.elements.addPlaceForm) this.elements.addPlaceForm.reset();
+    /* ... same ... */ if (this.elements.addPlaceForm)
+      this.elements.addPlaceForm.reset();
     if (this.elements.addCoordsSection)
       this.elements.addCoordsSection.style.display = "none";
     this.setStatusMessage(this.elements.addGeocodeStatus, "");
@@ -1000,7 +930,6 @@ const ui = {
     if (this.elements.addDisplayAddress)
       this.elements.addDisplayAddress.textContent = "";
     if (this.elements.addAddressInput) this.elements.addAddressInput.value = "";
-    // Also reset UI state for pinning button
     if (this.elements.addPinOnMapBtn)
       this.elements.addPinOnMapBtn.textContent = "Pin Location on Map";
     if (this.elements.addMapPinInstruction)
@@ -1011,8 +940,7 @@ const ui = {
       this.elements.addFindCoordsBtn.disabled = false;
   },
   showImageOverlay(event) {
-    /* ... same logic ... */
-    const clickedImage = event.target;
+    /* ... same ... */ const clickedImage = event.target;
     if (
       !clickedImage ||
       clickedImage.tagName !== "IMG" ||
@@ -1035,8 +963,9 @@ const ui = {
     setTimeout(() => overlay.classList.add("visible"), 10);
   },
   hideImageOverlay() {
-    /* ... same logic ... */
-    const overlay = document.querySelector(".image-overlay.visible");
+    /* ... same ... */ const overlay = document.querySelector(
+      ".image-overlay.visible"
+    );
     if (overlay) {
       overlay.classList.remove("visible");
       overlay.addEventListener(
