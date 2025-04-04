@@ -2,7 +2,7 @@ import folium
 import html
 import json
 import uuid
-from typing import List, Optional, Tuple  # Added Tuple for type hint
+from typing import List, Optional, Tuple
 from fastapi import Request
 
 from app.models.places import PlaceInDB, PlaceCategory, PlaceStatus
@@ -21,7 +21,7 @@ def generate_map_html(
         f"Generating map HTML for {len(places)} places. Filters: cat={category_filter}, status={status_filter}"
     )
 
-    map_center = [4.7110, -74.0721]  # Default center (Bogotá)
+    map_center = [4.7110, -74.0721]
     zoom_start = 12
     if places:
         valid_coords = [
@@ -39,9 +39,8 @@ def generate_map_html(
                 zoom_start = 11
 
     m = folium.Map(location=map_center, zoom_start=zoom_start, tiles="OpenStreetMap")
-    map_var_name = m.get_name()  # Needed for the injected script
+    map_var_name = m.get_name()
 
-    # --- Define Icon/Color Mappings ---
     category_icons = {
         PlaceCategory.RESTAURANT: "utensils",
         PlaceCategory.PARK: "tree",
@@ -58,7 +57,6 @@ def generate_map_html(
     }
     default_color = "gray"
 
-    # --- Add Markers ---
     marker_count = 0
     if places:
         for place in places:
@@ -72,8 +70,8 @@ def generate_map_html(
                     f"MAPGEN: Skipping place ID {place.id} ('{place.name}') due to missing data."
                 )
                 continue
-
             try:
+                # ... (Marker and Popup Generation Logic - ASSUMED CORRECT FROM PREVIOUS) ...
                 place_lat, place_lon = place.latitude, place.longitude
                 place_name = html.escape(place.name or "Unnamed Place")
                 place_category_enum = place.category
@@ -116,18 +114,12 @@ def generate_map_html(
                     js_object_string, quote=True
                 )
 
-                # --- Build Popup HTML ---
-                popup_parts = []
-                popup_parts.append(f"<h4 style='margin-bottom: 8px;'>{place_name}</h4>")
-                popup_parts.append(
-                    "<div style='font-size: 0.9em; max-height: 250px; overflow-y: auto;'>"
-                )
-                popup_parts.append(
-                    f"<b>Category:</b> {html.escape(place_category_enum.value.replace('_', ' ').title())}<br>"
-                )
-                popup_parts.append(
-                    f"<b>Status:</b> {html.escape(place_status_enum.value.replace('_', ' ').title())}<br>"
-                )
+                popup_parts = [
+                    f"<h4 style='margin-bottom: 8px;'>{place_name}</h4>",
+                    "<div style='font-size: 0.9em; max-height: 250px; overflow-y: auto;'>",
+                    f"<b>Category:</b> {html.escape(place_category_enum.value.replace('_', ' ').title())}<br>",
+                    f"<b>Status:</b> {html.escape(place_status_enum.value.replace('_', ' ').title())}<br>",
+                ]
                 if rating:
                     stars_html = "".join(
                         [
@@ -212,7 +204,6 @@ def generate_map_html(
                 popup_parts.append("</div>")
                 popup_html = "".join(popup_parts)
 
-                # --- Create Marker ---
                 marker_color = status_color_map.get(place_status_enum, default_color)
                 marker_icon = category_icons.get(place_category_enum, default_icon)
                 folium.Marker(
@@ -222,69 +213,62 @@ def generate_map_html(
                     icon=folium.Icon(color=marker_color, icon=marker_icon, prefix="fa"),
                 ).add_to(m)
                 marker_count += 1
-
             except Exception as marker_error:
                 logger.error(
                     f"MAPGEN: Error processing marker for place ID {place.id}: {marker_error}",
                     exc_info=True,
                 )
-        # --- End Marker Loop ---
         logger.info(f"MAPGEN: Successfully added {marker_count} markers.")
     else:
         logger.info("MAPGEN: No places found to display on map.")
 
-    # --- Inject Script into the Map HTML itself ---
-    click_listener_script = f"""
-    <script>
-        (function() {{
-            let checkAttempts = 0;
-            const maxCheckAttempts = 20; // Define max attempts
-            const checkInterval = 500; // Define check interval
-
-            function findAndInitMapListener_{map_var_name}() {{ // Unique function name per map instance
-                checkAttempts++;
-                // Check if the specific map variable exists on the window object
-                if (typeof window['{map_var_name}'] !== 'undefined' && window['{map_var_name}'] !== null) {{
-                    var mapInstance = window['{map_var_name}'];
-                    console.log('IFrame Script: Found map instance {map_var_name}. Adding click listener.');
-
-                    mapInstance.on('click', function(e) {{
-                        // Check parent window for pinning state via exposed function
-                        if (window.parent && typeof window.parent.isPinningActive === 'function' && window.parent.isPinningActive()) {{
-                            console.log('IFrame Script: Map clicked while parent pinning active. Lat:', e.latlng.lat, 'Lng:', e.latlng.lng);
-                            // Call function on parent window to handle the click
-                            if (typeof window.parent.handleMapPinClick === 'function') {{
-                                window.parent.handleMapPinClick(e.latlng.lat, e.latlng.lng);
-                            }} else {{
-                                console.error("IFrame Script: window.parent.handleMapPinClick is not defined!");
-                            }}
-                        }} else {{
-                             // console.log("IFrame Script: Map clicked, but parent not in pinning mode.");
-                        }}
-                    }});
-                }} else if (checkAttempts < maxCheckAttempts) {{ // Use defined variable
-                     // console.debug('IFrame Script: Waiting for {map_var_name}... Attempt ' + checkAttempts);
-                    setTimeout(findAndInitMapListener_{map_var_name}, checkInterval); // Use defined variable
+    # --- Inject Script More Reliably ---
+    # Use Folium's capability to add JS directly to the map object context
+    # This should execute after the map instance (map_var_name) is defined
+    js_listener_code = f"""
+        function {map_var_name}_map_click_listener(e) {{
+            // Check parent window for pinning state
+            if (window.parent && typeof window.parent.isPinningActive === 'function' && window.parent.isPinningActive()) {{
+                console.log('IFrame Script (Map Event): Map clicked while parent pinning active. Lat:', e.latlng.lat, 'Lng:', e.latlng.lng);
+                // Call function on parent window to handle the click
+                if (typeof window.parent.handleMapPinClick === 'function') {{
+                    window.parent.handleMapPinClick(e.latlng.lat, e.latlng.lng);
                 }} else {{
-                     console.error('IFrame Script: Could not find map instance {map_var_name} after ' + maxCheckAttempts + ' attempts.'); // Use defined variable
+                    console.error("IFrame Script (Map Event): window.parent.handleMapPinClick is not defined!");
                 }}
+            }} else {{
+                // console.log("IFrame Script (Map Event): Map clicked, but parent not in pinning mode.");
             }}
-             // Start the process after a brief delay
-             setTimeout(findAndInitMapListener_{map_var_name}, 100);
-        }})();
-    </script>
+        }}
+
+        // Add the listener directly to the map instance using its variable name
+        // Ensure this runs after the map variable is defined
+        try {{
+            if (typeof {map_var_name} !== 'undefined') {{
+                 console.log("Attaching click listener to {map_var_name}");
+                {map_var_name}.on('click', {map_var_name}_map_click_listener);
+            }} else {{
+                 console.error("Could not attach click listener: map variable {map_var_name} not found immediately.");
+                 // Fallback: try again after a short delay - less ideal
+                 setTimeout(function() {{
+                     if (typeof {map_var_name} !== 'undefined') {{
+                         console.log("Attaching click listener to {map_var_name} after delay.");
+                         {map_var_name}.on('click', {map_var_name}_map_click_listener);
+                     }} else {{
+                          console.error("Could not attach click listener even after delay: map variable {map_var_name} not found.");
+                     }}
+                 }}, 500);
+            }}
+        }} catch (err) {{
+             console.error("Error attaching map click listener:", err);
+        }}
     """
+    # Add the script to the map's header/script section using branca Element
+    from branca.element import Element
+
+    m.get_root().html.add_child(Element(f"<script>{js_listener_code}</script>"))
 
     # Render the map to HTML
-    map_root = m.get_root()
-    html_output = map_root.render()
+    map_html_content = m._repr_html_()
 
-    # Append the script before the closing body tag
-    if "</body>" in html_output:
-        final_html = html_output.replace(
-            "</body>", click_listener_script + "</body>", 1
-        )
-    else:
-        final_html = html_output + click_listener_script
-
-    return final_html
+    return map_html_content
