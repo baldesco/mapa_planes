@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Mapa Planes</title>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
+    <style>
+        /* Add some specific styles for login/signup pages */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: var(--secondary-color);
+        }
+
+        .auth-container {
+            background: var(--white);
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: var(--box-shadow);
+            max-width: 400px;
+            width: 100%;
+        }
+
+        .auth-container h1 {
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .auth-container label {
+            margin-bottom: 5px;
+        }
+
+        .auth-container input[type="email"],
+        .auth-container input[type="password"] {
+            margin-bottom: 20px;
+        }
+
+        .auth-container button {
+            width: 100%;
+            padding: 15px;
+            margin-top: 10px;
+        }
+
+        .auth-links {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 0.95em;
+        }
+
+        .auth-links a {
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+
+        .auth-links a:hover {
+            text-decoration: underline;
+        }
+
+        .error-message-auth {
+            color: var(--error-color);
+            background-color: #ffcdd2;
+            border: 1px solid var(--error-color);
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            display: none;
+            /* Hidden by default */
+            text-align: center;
+            font-size: 0.9em;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="auth-container">
+        <h1>Login</h1>
+        <div id="error-message" class="error-message-auth"></div>
+        <!-- Form posts to the API endpoint -->
+        <form id="login-form" method="post">
+            <label for="username">Email:</label>
+            <input type="email" id="username" name="username" required>
+
+            <label for="password">Password:</label>
+            <input type="password" id="password" name="password" required>
+
+            <button type="submit">Login</button>
+        </form>
+        <div class="auth-links">
+            <p>Don't have an account? <a href="{{ url_for('signup_page') }}">Sign Up</a></p>
+            <!-- Add password reset link if desired -->
+            <!-- <p><a href="/password-reset">Forgot Password?</a></p> -->
+        </div>
+    </div>
+
+    <script>
+        // Handle form submission via JS to call the API endpoint
+        const loginForm = document.getElementById('login-form');
+        const errorMessageDiv = document.getElementById('error-message');
+
+        loginForm.addEventListener('submit', async (event) => {
+            event.preventDefault(); // Prevent default form submission
+
+            const formData = new FormData(loginForm);
+            // Note: FastAPI's OAuth2PasswordRequestForm expects 'username' and 'password'
+            // in a www-form-urlencoded body, which FormData handles correctly.
+
+            errorMessageDiv.style.display = 'none'; // Hide previous error
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    body: formData // Send as form data
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    // Login successful, token is set in HttpOnly cookie by backend.
+                    // Redirect to the main map page.
+                    window.location.href = '/'; // Redirect to root
+                } else {
+                    // Display error message from API response
+                    errorMessageDiv.textContent = result.detail || 'Login failed. Please check your credentials.';
+                    errorMessageDiv.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Login error:', error);
+                errorMessageDiv.textContent = 'An error occurred during login. Please try again.';
+                errorMessageDiv.style.display = 'block';
+            }
+        });
+    </script>
+</body>
+
+</html>

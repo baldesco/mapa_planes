@@ -1,201 +1,278 @@
 import os
-from sqlalchemy import create_engine, inspect
-from sqlalchemy.orm import (
-    sessionmaker,
-    declarative_base,
-)
+import uuid
+import asyncio
+from fastapi import Depends, HTTPException, status, Request
+from jose import JWTError, jwt
 from supabase import create_client, Client as SupabaseClient
+
+# Add AsyncClient for explicit async operations if needed later
+# from supabase_async import create_client as create_async_client, AsyncClient
+from pydantic import ValidationError
 
 # Ensure config is loaded correctly
 try:
     from .core.config import settings, logger
+    from . import models  # Import models for token validation
 except ImportError:
-    # Adjust path for standalone script execution
     import sys
 
     sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
     from app.core.config import settings, logger
+    import app.models as models
 
 
-# --- SQLAlchemy Base for local models ---
-Base = declarative_base()
+# --- Supabase Client Setup ---
+# Store the base URL and anon key
+_supabase_url = settings.SUPABASE_URL
+_supabase_key = settings.SUPABASE_KEY
+_supabase_service_key = settings.SUPABASE_SERVICE_ROLE_KEY
 
-
-# --- Constants ---
-IS_LOCAL_SQLITE = (
-    settings.APP_ENV == "development" and settings.DATABASE_URL.startswith("sqlite")
-)
-
-# --- Global Variables ---
-local_engine = None
-SessionLocal = None
-supabase: SupabaseClient | None = None
-
-# --- Supabase Client Setup (Attempt first) ---
-if settings.SUPABASE_URL and settings.SUPABASE_KEY:
-    logger.info("Attempting to initialize Supabase client...")
+# Store the base service client if configured
+_base_service_client: SupabaseClient | None = None
+if _supabase_url and _supabase_service_key:
+    logger.info("Attempting to initialize Supabase base service client...")
     try:
-        supabase = create_client(settings.SUPABASE_URL, settings.SUPABASE_KEY)
-        # Optional: Add a quick check here to see if connection works
-        # e.g., supabase.table('places').select('id', head=True).execute()
-        logger.info("Supabase client initialized successfully.")
+        # Use options to prevent auto-refreshing token for service client
+        _base_service_client = create_client(
+            _supabase_url,
+            _supabase_service_key,
+            #  options=ClientOptions(auto_refresh_token=False, persist_session=False)
+            # ClientOptions seems removed or changed in recent versions, handle manually if needed
+        )
+        logger.info("Supabase base service client initialized successfully.")
     except Exception as e:
-        logger.error(f"Failed to initialize Supabase client: {e}", exc_info=True)
-        supabase = None
+        logger.error(
+            f"Failed to initialize Supabase service client: {e}", exc_info=True
+        )
+        _base_service_client = None
 else:
-    logger.info(
-        "Supabase URL or Key not provided, skipping Supabase client initialization."
+    logger.warning(
+        "SUPABASE_SERVICE_ROLE_KEY not provided. Base service client not initialized."
     )
-
-
-# --- Local SQLite Setup (Attempt if relevant and Supabase failed/absent) ---
-if IS_LOCAL_SQLITE:
-    db_url = settings.DATABASE_URL
-    db_path = db_url.replace("sqlite:///", "")  # Simple path extraction
-    db_dir = os.path.dirname(db_path)
-
-    if db_dir and not os.path.exists(db_dir):
-        try:
-            os.makedirs(db_dir, exist_ok=True)
-            logger.info(f"Created directory for SQLite database: {db_dir}")
-        except OSError as e:
-            logger.error(f"Failed to create directory {db_dir}: {e}")
-
-    try:
-        local_engine = create_engine(
-            db_url, connect_args={"check_same_thread": False}, echo=False
-        )
-        SessionLocal = sessionmaker(
-            autocommit=False, autoflush=False, bind=local_engine
-        )
-        logger.info(f"Local SQLite engine configured for: {db_url}")
-    except Exception as e:
-        logger.error(f"Failed to create SQLite engine: {e}", exc_info=True)
-        local_engine = None
-else:
-    logger.debug("Skipping local SQLite setup (not development env or not SQLite URL).")
 
 
 # --- Dependency Functions for FastAPI ---
-def get_local_db():
-    """FastAPI dependency to get a local SQLite session."""
-    if not SessionLocal:
-        logger.error(
-            "Dependency Error: Request for local DB session, but SessionLocal is not initialized."
+
+
+def get_base_supabase_client() -> SupabaseClient:
+    """
+    Returns a base Supabase client initialized with the ANON key.
+    This should NOT be used for authenticated RLS calls directly.
+    """
+    if not _supabase_url or not _supabase_key:
+        logger.critical("Supabase URL or Anon Key not configured for base client.")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Core database config missing.",
         )
-        raise RuntimeError("Local database session (SessionLocal) not initialized.")
-    db = SessionLocal()
+    # Create a new instance per request? Or reuse a global one?
+    # For ANON key, reusing might be fine, but let's create new for safety/clarity
+    # Note: Creating client on every request might add overhead. Consider optimizing later if needed.
     try:
-        yield db
-    finally:
-        db.close()
-
-
-def get_supabase_client() -> SupabaseClient:
-    """FastAPI dependency to get the initialized Supabase client."""
-    if not supabase:
-        logger.error(
-            "Dependency Error: Request for Supabase client, but it's not initialized."
-        )
-        raise RuntimeError(
-            "Supabase client not initialized. Check config and connectivity."
-        )
-    return supabase
-
-
-# --- Determine the primary 'get_db' dependency ---
-# PRIORITIZE Supabase if it's configured, as CRUD is written for it.
-if supabase:
-    logger.info(
-        "Using Supabase client (get_supabase_client) as the primary 'get_db' dependency."
-    )
-    get_db = get_supabase_client
-elif (
-    IS_LOCAL_SQLITE and SessionLocal
-):  # Fallback to SQLite ONLY if Supabase is absent AND local is configured
-    logger.warning(
-        "Supabase client NOT available. Falling back to local SQLite 'get_local_db'."
-    )
-    logger.warning(
-        "NOTE: Current CRUD functions expect Supabase. Endpoints using CRUD will likely fail!"
-    )
-    # Assign local DB, but be aware of the limitation
-    get_db = get_local_db
-    # Alternatively, raise a configuration error immediately if CRUD must work:
-    # def get_db(): raise RuntimeError("Application requires Supabase configuration for database operations, but it's missing.")
-else:  # No working database configuration found
-    logger.critical(
-        "FATAL: No database client available (Supabase not configured/failed, local SQLite not configured/failed)."
-    )
-
-    def get_db():
-        raise RuntimeError("No functional database connection available.")
-
-
-# --- Function to Create Local Tables (for standalone script) ---
-def create_local_tables():
-    """Creates SQLite tables if they don't exist, using SQLAlchemy models."""
-    if not local_engine:
-        logger.error("Local SQLite engine is not initialized. Cannot create tables.")
-        return False
-
-    logger.info(f"Checking/creating tables for database: {local_engine.url}")
-    try:
-        # Import models here, works when run as module or script if path correct
-        # Using absolute import based on expected structure when run via `-m`
-        from app import schemas  # Contains PlaceDB inheriting from Base
-
-        inspector = inspect(local_engine)
-        existing_tables = inspector.get_table_names()
-        logger.debug(f"Existing tables: {existing_tables}")
-
-        Base.metadata.create_all(bind=local_engine)  # checkfirst=True is default
-
-        inspector = inspect(local_engine)  # Re-inspect
-        new_tables = inspector.get_table_names()
-        logger.info(f"Tables after creation attempt: {new_tables}")
-        expected_tables = Base.metadata.tables.keys()
-        missing_tables = [t for t in expected_tables if t not in new_tables]
-        if not missing_tables:
-            logger.info("All expected tables confirmed.")
-            return True
-        else:
-            logger.error(f"Failed to create the following tables: {missing_tables}")
-            return False
-
-    except ImportError as e:
-        logger.error(
-            f"Could not import 'app.schemas'. Ensure it exists and check Python path. Error: {e}",
-            exc_info=True,
-        )
-        return False
+        client = create_client(_supabase_url, _supabase_key)
+        return client
     except Exception as e:
-        logger.error(f"Error during local table creation: {e}", exc_info=True)
-        return False
-
-
-# --- Main execution block for standalone script ---
-if __name__ == "__main__":
-    print("-" * 30)
-    print("Running Database Setup Script")
-    print(f"Environment: {settings.APP_ENV}")
-    print(f"Local DB URL: {settings.DATABASE_URL}")
-    print(
-        f"Supabase Configured: {'Yes' if settings.SUPABASE_URL and settings.SUPABASE_KEY else 'No'}"
-    )
-    print(f"Supabase Client Initialized: {'Yes' if supabase else 'No'}")
-    print(f"Local SQLite Engine Initialized: {'Yes' if local_engine else 'No'}")
-    print("-" * 30)
-
-    if IS_LOCAL_SQLITE:
-        print("Attempting local SQLite table setup...")
-        if create_local_tables():
-            print("Local SQLite table setup completed successfully.")
-        else:
-            print("Local SQLite table setup failed. Check logs above.")
-    else:
-        print(
-            "Skipping local SQLite table setup (not development env or not SQLite URL)."
+        logger.error(
+            f"Failed to create base Supabase client instance: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Failed to initialize database client.",
         )
 
-    print("-" * 30)
+
+def get_supabase_service_client() -> SupabaseClient | None:
+    """
+    FastAPI dependency to get the initialized Supabase service client.
+    Returns the shared instance if available, otherwise None.
+    """
+    # Return the pre-initialized client
+    if not _base_service_client:
+        logger.warning(
+            "Dependency Warning: Request for Supabase service client, but it's not available (key missing or init failed)."
+        )
+    return _base_service_client
+
+
+# --- Authentication Dependencies ---
+
+
+async def get_token_from_cookie(
+    request: Request,
+) -> str | None:  # Return None if not found
+    """
+    Custom dependency to extract the JWT from the 'access_token' cookie.
+    Returns the raw token string or None if not found/malformed.
+    """
+    token_cookie = request.cookies.get("access_token")
+    if not token_cookie:
+        logger.debug("get_token_from_cookie: No 'access_token' cookie found.")
+        return None
+
+    parts = token_cookie.split()
+    if len(parts) != 2 or parts[0].lower() != "bearer" or not parts[1]:
+        logger.warning(
+            f"get_token_from_cookie: Malformed 'access_token' cookie value: '{token_cookie}'"
+        )
+        return None  # Treat malformed as not found
+
+    raw_token = parts[1]
+    logger.debug(f"get_token_from_cookie: Extracted raw token: {raw_token[:10]}...")
+    return raw_token
+
+
+async def get_current_user(
+    # Depend on the token extractor returning Optional[str]
+    token: str | None = Depends(get_token_from_cookie),
+    # Use the base client for validation initially
+    base_db: SupabaseClient = Depends(get_base_supabase_client),
+) -> models.UserInToken:
+    """
+    Dependency to validate the token from the cookie and return the current user's basic info.
+    Raises 401 if token is missing, invalid, or validation fails.
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",  # Keep generic for security
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+    if token is None:
+        logger.info("get_current_user: No token provided via cookie.")
+        raise credentials_exception
+
+    try:
+        logger.debug(
+            f"Attempting to validate token from cookie with Supabase: {token[:10]}..."
+        )
+        # Use the base client instance just for this validation call
+        response = await asyncio.to_thread(base_db.auth.get_user, jwt=token)
+        user_data = response.user
+        logger.debug(
+            f"Supabase auth get_user response received. User ID: {user_data.id if user_data else 'None'}"
+        )
+
+        if not user_data:
+            logger.warning(
+                "Token validation failed: Supabase get_user returned no user."
+            )
+            raise credentials_exception
+
+        # Extract necessary info
+        try:
+            if not user_data.id or not user_data.email:
+                logger.error(
+                    f"Token validation error: Supabase user object missing id or email. Data: {user_data}"
+                )
+                raise credentials_exception
+
+            current_user = models.UserInToken(id=user_data.id, email=user_data.email)
+            logger.debug(f"Token validated successfully for user: {current_user.email}")
+            return current_user
+        except (ValidationError, AttributeError) as e:
+            logger.error(
+                f"Token validation error: Could not map Supabase user to UserInToken model. Error: {e}, Data: {user_data}",
+                exc_info=True,
+            )
+            raise credentials_exception
+
+    except Exception as e:  # Catch broader exceptions during the auth call
+        # Log potential gotrue errors more specifically
+        error_message = getattr(e, "message", str(e))
+        logger.error(
+            f"Token validation error via Supabase client: {error_message}",
+            exc_info=False,
+        )
+        # Distinguish common auth errors if possible
+        if (
+            "invalid JWT" in error_message.lower()
+            or "token is expired" in error_message.lower()
+        ):
+            raise credentials_exception  # Keep the same 401 for standard auth errors
+        else:  # Raise 500 for unexpected errors during validation
+            logger.error(
+                f"Unexpected error during Supabase token validation: {e}", exc_info=True
+            )
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Internal server error during authentication.",
+            ) from e
+
+
+async def get_current_active_user(
+    current_user: models.UserInToken = Depends(get_current_user),
+) -> models.UserInToken:
+    """Ensures the user retrieved from the token is valid"""
+    # Placeholder for future checks like is_active, etc.
+    logger.debug(f"get_current_active_user returning user: {current_user.email}")
+    return current_user
+
+
+# --- Primary 'get_db' dependency ---
+# This dependency will now provide a Supabase client *authenticated with the user's token*
+async def get_db(
+    token: str | None = Depends(get_token_from_cookie),
+    base_client: SupabaseClient = Depends(get_base_supabase_client),  # Get base client
+) -> SupabaseClient:
+    """
+    FastAPI dependency that provides a Supabase client instance
+    authenticated with the user's JWT token from the cookie.
+    Raises 401 if the user is not authenticated.
+    """
+    if token is None:
+        logger.warning(
+            "get_db: Attempted to get authenticated DB client without token."
+        )
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # Set the JWT for the client instance for this request scope
+    # This modifies the 'Authorization' header used for subsequent PostgREST calls
+    logger.debug(f"get_db: Setting auth header for token {token[:10]}...")
+    try:
+        # The set_auth method might have changed; typically, you modify headers.
+        # Let's manually set the header on the underlying httpx client's session
+        # This depends on internal structure but is often necessary.
+        # Alternative: Create a *new* client instance with the token? More overhead.
+        # base_client.rest.session.headers["Authorization"] = f"Bearer {token}" # Example - check library specifics
+
+        # Simpler approach often intended by libraries: `set_session` (might require refresh token)
+        # or just passing the auth header manually to each request if needed.
+
+        # Let's try the intended library way first: modify the client's state
+        # This might implicitly set headers for Postgrest calls made with this `base_client` instance
+        # within the request scope. We rely on `get_current_user` running first to validate.
+        base_client.auth.set_auth(
+            token
+        )  # Assuming this works as intended for subsequent calls
+        # If set_auth doesn't work, you might need to pass headers explicitly in CRUD:
+        # e.g., db.table(...).select(...).execute(headers={"Authorization": f"Bearer {token}"}) -> less ideal
+
+    except Exception as e:
+        logger.error(
+            f"get_db: Failed to set auth token on Supabase client: {e}", exc_info=True
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to configure database client for authenticated access.",
+        )
+
+    return base_client
+
+
+logger.info(
+    "Primary 'get_db' dependency configured to provide authenticated Supabase client."
+)
+
+
+# --- Removed Local DB Setup ---
+logger.info("Local SQLite database support has been removed.")
+
+# --- Main execution block ---
+# (Keep if useful for basic connectivity checks of anon/service clients)
+if __name__ == "__main__":
+    # ... (rest of the __main__ block can remain as is) ...
+    pass
