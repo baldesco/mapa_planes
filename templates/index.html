@@ -6,16 +6,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapa Planes</title>
-    <!-- External Libraries -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <!-- Font Awesome for icons (stars, etc.) -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <!-- Our Custom Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
-    <!-- Add specific styles for rating stars and pin instructions -->
     <style>
         .rating-stars {
             display: inline-block;
@@ -31,7 +27,6 @@
         .rating-stars .star:hover,
         .rating-stars .star.selected {
             color: #FFD700;
-            /* Gold */
         }
 
         .rating-stars-display .fas {
@@ -59,7 +54,6 @@
         }
 
         .status-message {
-            /* Ensure base styles are present */
             min-height: 1.2em;
             margin: 10px 0;
             font-size: 0.95em;
@@ -94,271 +88,169 @@
             background-color: #e1f5fe;
             border-color: #b3e5fc;
         }
-
-        /* Added info style */
     </style>
 </head>
 
 <body>
     <div class="container">
+        <!-- Header Section -->
         <div
             style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
             <h1>🐧 Dos en la ciudad 🦖</h1>
             {% if user_email %}
             <div style="text-align: right;">
                 <span style="font-size: 0.9em; color: var(--text-muted);">Logged in as: {{ user_email }}</span><br>
-                <!-- Button triggers JS logout via listener in auth.js -->
                 <button type="button" id="logout-btn" class="logout-btn"
                     style="padding: 5px 10px; font-size: 0.9em; margin-top: 5px;">Logout</button>
             </div>
             {% else %}
-            <div>
-                <a href="{{ url_for('serve_login_page') }}" style="margin-right: 10px;">Login</a>
-                <a href="{{ url_for('serve_signup_page') }}">Sign Up</a>
-            </div>
+            <div> <a href="{{ url_for('serve_login_page') }}" style="margin-right: 10px;">Login</a> <a
+                    href="{{ url_for('serve_signup_page') }}">Sign Up</a> </div>
             {% endif %}
         </div>
 
-        <!-- Controls Section: Filters + Add Button -->
+        <!-- Controls Section -->
         <div class="controls-section filter-section">
-            <!-- Filter Form -->
             <form method="get" action="{{ request.url_for('serve_root_page') }}">
                 <div><label for="category">Category:</label><select id="category" name="category"
                         onchange="this.form.submit()">
-                        <option value="" {% if not current_category %}selected{% endif %}>All</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{ cat|capitalize }}
-                        </option>
-                        {% endfor %}
+                        <option value="" {% if not current_category %}selected{% endif %}>All</option> {% for cat in
+                        categories %}<option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{
+                            cat|capitalize }}</option>{% endfor %}
                     </select></div>
                 <div><label for="status">Status:</label><select id="status" name="status" onchange="this.form.submit()">
-                        <option value="" {% if not current_status %}selected{% endif %}>All</option>
-                        {% for stat in statuses %}
-                        <option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{ stat|replace('_',
-                            ' ')|capitalize }}</option>
-                        {% endfor %}
+                        <option value="" {% if not current_status %}selected{% endif %}>All</option> {% for stat in
+                        statuses %}<option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{
+                            stat|replace('_', ' ')|capitalize }}</option>{% endfor %}
                     </select></div>
-                <button type="submit">Filter</button>
-                <button type="button" onclick="window.location.href='{{ request.url_for('serve_root_page') }}'">Clear
-                    Filters</button>
+                <button type="submit">Filter</button> <button type="button"
+                    onclick="window.location.href='{{ request.url_for('serve_root_page') }}'">Clear Filters</button>
             </form>
-            <!-- Toggle Add Place Button -->
             <button type="button" id="toggle-add-place-form-btn" style="margin-top: 10px;">Add New Place</button>
         </div>
 
-        <!-- Map Display -->
+        <!-- Map Display - REMOVED data-map-variable -->
         <div id="map">
             {% autoescape false %}
-            {# Map HTML generated by the mapping service #}
             {{ map_html if map_html else '<p style="text-align: center; padding: 20px; color: red;">Map could not be
-                loaded. Ensure you are logged in.</p>' }}
+                loaded.</p>' }}
             {% endautoescape %}
         </div>
-        <!-- <div class="attribution">Map data © OpenStreetMap contributors. Geocoding by OpenCage.</div> -->
 
-
-        <!-- Add Place Form Section Wrapper (Initially Hidden) -->
+        <!-- Add Place Form Section -->
         <div id="add-place-wrapper-section" class="form-section" style="display: none;">
-            <!-- Form posts to the forms router endpoint -->
             <form id="add-place-form" action="{{ request.url_for('handle_create_new_place_form') }}" method="post">
                 <fieldset>
-                    <legend>Add New Place</legend>
-                    <label for="name">Place Name:</label>
-                    <input type="text" id="name" name="name" required maxlength="100">
-
-                    <label for="address-input">Find Location:</label>
-                    <div class="address-input-row">
-                        <input type="text" id="address-input" placeholder="Enter address or place name">
-                        <!-- Button triggers JS geocode handler -->
-                        <button type="button" id="find-coords-btn">Find via Geocoding</button>
-                    </div>
-                    <!-- Button triggers JS map pinning toggle -->
-                    <button type="button" id="pin-on-map-btn"
+                    <legend>Add New Place</legend> <label for="name">Place Name:</label> <input type="text" id="name"
+                        name="name" required maxlength="100"> <label for="address-input">Find Location:</label>
+                    <div class="address-input-row"> <input type="text" id="address-input"
+                            placeholder="Enter address or place name"> <button type="button" id="find-coords-btn">Find
+                            via Geocoding</button> </div> <button type="button" id="pin-on-map-btn"
                         style="margin-bottom: 10px; background-color: var(--secondary-color); color: var(--text-color);">Pin
                         Location on Map</button>
-                    <div id="map-pin-instruction" class="map-pin-instruction">
-                        Click on the map to set the location. Click button again to cancel.
-                    </div>
-                    <div id="geocode-status" class="status-message"></div> <!-- Status message display -->
-
+                    <div id="map-pin-instruction" class="map-pin-instruction"> Click on the map to set the location.
+                        Click button again to cancel. </div>
+                    <div id="geocode-status" class="status-message"></div>
                     <div id="coords-section" class="coords-section" style="display: none;">
                         <p><strong>Selected Location:</strong> <span id="display-address">(Coordinates below)</span></p>
-                        <p>Coords: (<span id="display-lat"></span>, <span id="display-lon"></span>)</p>
-                        <input type="hidden" id="latitude" name="latitude" required>
-                        <input type="hidden" id="longitude" name="longitude" required>
-                        <input type="hidden" id="address" name="address">
-                        <input type="hidden" id="city" name="city">
-                        <input type="hidden" id="country" name="country">
-                    </div>
-
-                    <label for="add-category">Category:</label>
-                    <select id="add-category" name="category" required>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}">{{ cat|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-
-                    <label for="add-status">Initial Status:</label>
-                    <select id="add-status" name="status" required>
-                        {% for stat in statuses %}
-                        {% if stat != 'visited' %} {# Don't allow adding directly as visited #}
-                        <option value="{{ stat }}" {% if stat=='pending' %}selected{% endif %}>{{ stat|replace('_', '
-                            ')|capitalize }}</option>
-                        {% endif %}
-                        {% endfor %}
-                    </select>
-
-                    <button type="submit" id="add-place-submit-btn" disabled>Add Place</button>
-                    <!-- Button triggers JS hide handler -->
-                    <button type="button" class="cancel-btn" id="add-place-cancel-btn">Cancel</button>
+                        <p>Coords: (<span id="display-lat"></span>, <span id="display-lon"></span>)</p> <input
+                            type="hidden" id="latitude" name="latitude" required> <input type="hidden" id="longitude"
+                            name="longitude" required> <input type="hidden" id="address" name="address"> <input
+                            type="hidden" id="city" name="city"> <input type="hidden" id="country" name="country">
+                    </div> <label for="add-category">Category:</label> <select id="add-category" name="category"
+                        required> {% for cat in categories %}<option value="{{ cat }}">{{ cat|capitalize }}</option>{%
+                        endfor %} </select> <label for="add-status">Initial Status:</label> <select id="add-status"
+                        name="status" required> {% for stat in statuses %}{% if stat != 'visited' %}<option
+                            value="{{ stat }}" {% if stat=='pending' %}selected{% endif %}>{{ stat|replace('_', '
+                            ')|capitalize }}</option>{% endif %}{% endfor %} </select> <button type="submit"
+                        id="add-place-submit-btn" disabled>Add Place</button> <button type="button" class="cancel-btn"
+                        id="add-place-cancel-btn">Cancel</button>
                 </fieldset>
             </form>
         </div>
 
-        <!-- Edit Place Form Section (Initially Hidden) -->
+        <!-- Edit Place Form Section -->
         <div class="form-section" id="edit-place-section" style="display: none;">
-            <!-- Form action URL is set dynamically by JS -->
             <form id="edit-place-form" action="" method="post">
                 <fieldset>
-                    <h2>Edit Place: <span id="edit-place-form-title"></span></h2>
-                    <label for="edit-name">Place Name:</label>
-                    <input type="text" id="edit-name" name="name" required maxlength="100">
-
-                    <label for="edit-address-input">Update Location:</label>
-                    <div class="address-input-row">
-                        <input type="text" id="edit-address-input" placeholder="Enter new address to re-geocode">
-                        <button type="button" id="edit-find-coords-btn">Find New Coords</button>
-                    </div>
-                    <button type="button" id="edit-pin-on-map-btn"
+                    <h2>Edit Place: <span id="edit-place-form-title"></span></h2> <label for="edit-name">Place
+                        Name:</label> <input type="text" id="edit-name" name="name" required maxlength="100"> <label
+                        for="edit-address-input">Update Location:</label>
+                    <div class="address-input-row"> <input type="text" id="edit-address-input"
+                            placeholder="Enter new address to re-geocode"> <button type="button"
+                            id="edit-find-coords-btn">Find New Coords</button> </div> <button type="button"
+                        id="edit-pin-on-map-btn"
                         style="margin-bottom: 10px; background-color: var(--secondary-color); color: var(--text-color);">Pin
                         Location on Map</button>
-                    <div id="edit-map-pin-instruction" class="map-pin-instruction">
-                        Click the map to set a new location or drag the marker. Click button again to cancel.
-                    </div>
+                    <div id="edit-map-pin-instruction" class="map-pin-instruction"> Click the map to set a new location
+                        or drag the marker. Click button again to cancel. </div>
                     <div id="edit-geocode-status" class="status-message"></div>
-
                     <div id="edit-coords-section" class="coords-section">
                         <p>Current Coords: (<span id="edit-display-lat"></span>, <span id="edit-display-lon"></span>)
-                        </p>
-                        <input type="hidden" id="edit-latitude" name="latitude" required>
-                        <input type="hidden" id="edit-longitude" name="longitude" required>
-                        <input type="hidden" id="edit-address" name="address">
-                        <input type="hidden" id="edit-city" name="city">
-                        <input type="hidden" id="edit-country" name="country">
-                    </div>
-
-                    <label for="edit-category">Category:</label>
-                    <select id="edit-category" name="category" required>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}">{{ cat|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-
-                    <label for="edit-status">Status:</label>
-                    <select id="edit-status" name="status" required>
-                        {% for stat in statuses %}
-                        <option value="{{ stat }}">{{ stat|replace('_', ' ')|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-
-                    <label for="edit-review-title">Review Title:</label>
-                    <input type="text" id="edit-review-title" name="review_title" maxlength="150">
-                    <label for="edit-review-text">Review Text:</label>
-                    <textarea id="edit-review-text" name="review_text" rows="3" maxlength="1000"></textarea>
-                    <label for="edit-rating">Rating:</label>
-                    <div class="rating-stars" id="edit-rating-stars">
-                        <span class="star" data-value="1"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="2"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="3"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="4"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="5"><i class="far fa-star"></i></span>
-                    </div>
-                    <input type="hidden" id="edit-rating" name="rating">
-
-                    <div style="margin-top: 15px;">
-                        <input type="checkbox" id="edit-remove-image" name="remove_image" value="yes">
-                        <label for="edit-remove-image" style="display: inline-block;">Remove Current Image</label>
-                    </div>
-
-                    <button type="submit" id="edit-place-submit-btn">Save Changes</button>
-                    <button type="button" class="cancel-btn">Cancel</button> <!-- Listener set in ui.js -->
+                        </p> <input type="hidden" id="edit-latitude" name="latitude" required> <input type="hidden"
+                            id="edit-longitude" name="longitude" required> <input type="hidden" id="edit-address"
+                            name="address"> <input type="hidden" id="edit-city" name="city"> <input type="hidden"
+                            id="edit-country" name="country">
+                    </div> <label for="edit-category">Category:</label> <select id="edit-category" name="category"
+                        required> {% for cat in categories %}<option value="{{ cat }}">{{ cat|capitalize }}</option>{%
+                        endfor %} </select> <label for="edit-status">Status:</label> <select id="edit-status"
+                        name="status" required> {% for stat in statuses %}<option value="{{ stat }}">{{
+                            stat|replace('_', ' ')|capitalize }}</option>{% endfor %} </select> <button type="submit"
+                        id="edit-place-submit-btn">Save Changes</button> <button type="button"
+                        class="cancel-btn">Cancel</button>
                 </fieldset>
             </form>
         </div>
 
-        <!-- Add/Edit Review / Image Form Section (Initially Hidden) -->
+        <!-- Add/Edit Review / Image Form Section -->
         <div class="form-section" id="review-image-section" style="display: none;">
-            <!-- Form action URL set dynamically by JS -->
             <form id="review-image-form" action="" method="post" enctype="multipart/form-data">
                 <fieldset>
-                    <h2>Add/Edit Review for: <span id="review-form-title"></span></h2>
-                    <label for="review-title">Review Title:</label>
-                    <input type="text" id="review-title" name="review_title" maxlength="150">
-
-                    <label for="review-text">Review Text:</label>
-                    <textarea id="review-text" name="review_text" rows="5" maxlength="1000"></textarea>
-
-                    <label for="rating">Rating:</label>
-                    <div class="rating-stars" id="review-rating-stars">
-                        <span class="star" data-value="1"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="2"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="3"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="4"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="5"><i class="far fa-star"></i></span>
-                    </div>
-                    <input type="hidden" id="review-rating" name="rating">
-
-                    <label for="review-image" style="margin-top: 15px;">Upload/Replace Image (Optional):</label>
-                    <input type="file" id="review-image" name="image"
+                    <h2>Add/Edit Review for: <span id="review-form-title"></span></h2> <label for="review-title">Review
+                        Title:</label> <input type="text" id="review-title" name="review_title" maxlength="150"> <label
+                        for="review-text">Review Text:</label> <textarea id="review-text" name="review_text" rows="5"
+                        maxlength="1000"></textarea> <label for="rating">Rating:</label>
+                    <div class="rating-stars" id="review-rating-stars"> <span class="star" data-value="1"><i
+                                class="far fa-star"></i></span> <span class="star" data-value="2"><i
+                                class="far fa-star"></i></span> <span class="star" data-value="3"><i
+                                class="far fa-star"></i></span> <span class="star" data-value="4"><i
+                                class="far fa-star"></i></span> <span class="star" data-value="5"><i
+                                class="far fa-star"></i></span> </div> <input type="hidden" id="review-rating"
+                        name="rating"> <label for="review-image" style="margin-top: 15px;">Upload/Replace Image
+                        (Optional):</label> <input type="file" id="review-image" name="image"
                         accept="image/jpeg, image/png, image/gif, image/webp">
                     <p style="font-size: 0.85em; color: #666;">Max file size ~5MB recommended.</p>
-
-                    <div id="current-image-review-section" style="margin-bottom: 10px; display: none;">
-                        <label>Current Image:</label>
-                        <img id="current-image-review-thumb" src=""
+                    <div id="current-image-review-section" style="margin-bottom: 10px; display: none;"> <label>Current
+                            Image:</label> <img id="current-image-review-thumb" src=""
                             style="max-width: 100px; max-height: 75px; border-radius: 4px; display: block; margin-bottom: 5px;">
-                        <input type="checkbox" id="review-remove-image" name="remove_image" value="yes">
-                        <label for="review-remove-image" style="display: inline-block; font-size: 0.9em;">Remove Current
-                            Image</label>
-                    </div>
-
-                    <button type="submit" id="review-image-submit-btn">Save Review & Image</button>
-                    <button type="button" class="cancel-btn">Cancel</button> <!-- Listener set in ui.js -->
+                        <input type="checkbox" id="review-remove-image" name="remove_image" value="yes"> <label
+                            for="review-remove-image" style="display: inline-block; font-size: 0.9em;">Remove Current
+                            Image</label> </div> <button type="submit" id="review-image-submit-btn">Save Review &
+                        Image</button> <button type="button" class="cancel-btn">Cancel</button>
                 </fieldset>
             </form>
         </div>
 
-        <!-- See Review Modal Section (Initially Hidden) -->
+        <!-- See Review Modal Section -->
         <div class="modal-section" id="see-review-section" style="display: none;">
             <fieldset>
                 <h2>Review: <span id="see-review-place-title"></span></h2>
                 <div class="modal-content">
-                    <div id="see-review-rating-display" class="rating-stars-display" style="margin-bottom: 10px;">
-                        <!-- Static stars filled by JS -->
-                    </div>
+                    <div id="see-review-rating-display" class="rating-stars-display" style="margin-bottom: 10px;"></div>
                     <h3 id="see-review-display-title" style="display: none;"></h3>
-                    <p id="see-review-display-text"></p>
-                    <!-- Image click handled by event delegation in ui.js -->
-                    <img id="see-review-display-image" src="" alt="Review image" style="display: none;" />
+                    <p id="see-review-display-text"></p> <img id="see-review-display-image" src="" alt="Review image"
+                        style="display: none;" />
                 </div>
-                <div class="modal-actions">
-                    <!-- Edit button listener set in ui.js -->
-                    <button type="button" id="see-review-edit-btn" class="edit-review-btn">Edit Review</button>
-                    <!-- Close button listener set in ui.js -->
-                    <button type="button" class="cancel-btn">Close</button>
-                </div>
+                <div class="modal-actions"> <button type="button" id="see-review-edit-btn" class="edit-review-btn">Edit
+                        Review</button> <button type="button" class="cancel-btn">Close</button> </div>
             </fieldset>
         </div>
 
     </div> <!-- /container -->
 
-    <!-- External JS Libraries -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-
-    <!-- Load main JS as a module -->
     <script type="module" src="{{ url_for('static', path='/js/main.js') }}"></script>
-
 </body>
 
 </html>

@@ -17,15 +17,14 @@ from supabase import Client as SupabaseClient
 from app.crud import places as crud_places
 from app.models import places as models_places
 from app.models.auth import UserInToken
-from app.db.setup import get_db, get_supabase_service_client
-from app.auth.dependencies import get_current_active_user
+from app.auth.dependencies import get_current_active_user, get_db
+from app.db.setup import get_supabase_service_client
 from app.core.config import logger
 
 # Using APIRouter even for non-API endpoints allows for better organization
 router = APIRouter(tags=["Forms"])
 
 # TODO: Implement flash messaging for user feedback after redirects.
-# Requires session middleware and template adjustments.
 
 
 @router.post("/places/", status_code=status.HTTP_303_SEE_OTHER)
@@ -56,7 +55,6 @@ async def handle_create_new_place_form(
             address=address,
             city=city,
             country=country,
-            # Rating/Review Title are not part of the basic add form
         )
     except (ValidationError, ValueError) as e:
         logger.error(
@@ -119,13 +117,14 @@ async def handle_update_place_status_form(
 
 
 @router.post("/places/{place_id}/edit", status_code=status.HTTP_303_SEE_OTHER)
-async def handle_edit_place_form(
+async def handle_edit_place_form(  # Renamed for clarity
     request: Request,
     place_id: int,
     db: SupabaseClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
-    # Extract all fields from the edit form
+    # db_service is only needed if image handling were here, remove if not needed
+    # db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
+    # --- Core Place Fields Only ---
     name: str = Form(...),
     latitude: float = Form(...),
     longitude: float = Form(...),
@@ -134,44 +133,32 @@ async def handle_edit_place_form(
     address: Optional[str] = Form(None),
     city: Optional[str] = Form(None),
     country: Optional[str] = Form(None),
-    rating: Optional[int] = Form(None),
-    review_title: Optional[str] = Form(None),
-    review_text: Optional[str] = Form(None),
-    remove_image: Optional[str] = Form(None),  # Checkbox value is 'yes' if checked
+    # --- REMOVED review/rating/image fields ---
+    # rating: Optional[int] = Form(None),
+    # review_title: Optional[str] = Form(None),
+    # review_text: Optional[str] = Form(None),
+    # remove_image: Optional[str] = Form(None),
 ):
-    """Handles the submission of the main 'Edit Place' form."""
+    """Handles the submission of the 'Edit Place' form (core details only)."""
     logger.info(
-        f"FORM Edit place submission for ID {place_id} by user {current_user.email}"
+        f"FORM Edit CORE place details for ID {place_id} by user {current_user.email}"
     )
     redirect_url = request.url_for("serve_root_page")
 
     try:
-        # Construct the update payload carefully
+        # Construct the update payload with only core fields
         update_payload_dict = {
             "name": name,
             "latitude": latitude,
             "longitude": longitude,
             "category": category,
             "status": status_input,
-            "address": address
-            if address is not None
-            else None,  # Allow empty string? No, map to None.
+            "address": address if address is not None else None,
             "city": city if city is not None else None,
             "country": country if country is not None else None,
-            "rating": rating,  # Pydantic handles None
-            "review_title": review_title.strip() if review_title else None,
-            "review": review_text.strip() if review_text else None,
             "updated_at": datetime.now(timezone.utc),
         }
 
-        # Handle image removal intent
-        if remove_image == "yes":
-            update_payload_dict["image_url"] = (
-                None  # Explicitly set to None for removal
-            )
-            logger.debug(f"Edit form signals removal of image for place {place_id}")
-
-        # Create PlaceUpdate model, Pydantic excludes fields not explicitly set (unless None)
         place_update_data = models_places.PlaceUpdate(**update_payload_dict)
 
         updated_place = await crud_places.update_place(
@@ -179,29 +166,29 @@ async def handle_edit_place_form(
             user_id=current_user.id,
             place_update=place_update_data,
             db=db,
-            db_service=db_service,  # Needed for image deletion if remove_image is checked
+            # No db_service needed here unless image logic was re-added
         )
 
         if updated_place is None:
             logger.error(
-                f"FORM Failed to update place ID {place_id}, user {current_user.email}."
+                f"FORM Failed to update core details for place ID {place_id}, user {current_user.email}."
             )
             # TODO: Flash error: "Failed to save changes."
         else:
             logger.info(
-                f"FORM Place ID {place_id} updated by user {current_user.email}."
+                f"FORM Core details for place ID {place_id} updated by user {current_user.email}."
             )
             # TODO: Flash success: "Place details updated."
 
     except ValidationError as e:
         logger.error(
-            f"FORM Edit place validation error ID {place_id}, user {current_user.email}: {e.errors()}",
+            f"FORM Edit core details validation error ID {place_id}, user {current_user.email}: {e.errors()}",
             exc_info=False,
         )
         # TODO: Flash validation error: "Invalid data submitted."
     except Exception as e:
         logger.error(
-            f"FORM Unexpected error editing place ID {place_id}, user {current_user.email}: {e}",
+            f"FORM Unexpected error editing core details for place ID {place_id}, user {current_user.email}: {e}",
             exc_info=True,
         )
         # TODO: Flash generic error: "An unexpected error occurred."
@@ -209,6 +196,7 @@ async def handle_edit_place_form(
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
+# This endpoint remains unchanged as it already handles review/rating/image
 @router.post("/places/{place_id}/review-image", status_code=status.HTTP_303_SEE_OTHER)
 async def handle_add_review_image_form(
     request: Request,
@@ -219,7 +207,7 @@ async def handle_add_review_image_form(
     # Form fields for review/image
     review_title: str = Form(""),
     review_text: str = Form(""),
-    rating: Optional[int] = Form(None),
+    rating: Optional[int] = Form(None),  # Keep rating here
     image_file: Optional[UploadFile] = File(None, alias="image"),
     remove_image: Optional[str] = Form(None),  # Checkbox value 'yes'
 ):
@@ -237,13 +225,11 @@ async def handle_add_review_image_form(
         logger.info(
             f"Review form signals removal of existing image for place {place_id}"
         )
-        # We'll set image_url to None in the update payload later
     elif image_file and image_file.filename:
         logger.info(
             f"Processing image upload: {image_file.filename} for place {place_id}"
         )
         try:
-            # Upload first, get URL
             image_public_url = await crud_places.upload_place_image(
                 place_id=place_id, user_id=current_user.id, file=image_file, db=db
             )
@@ -252,62 +238,86 @@ async def handle_add_review_image_form(
                     f"Image uploaded successfully for place {place_id}, URL: {image_public_url}"
                 )
             else:
-                # Upload function failed internally (logged within crud)
-                # TODO: Flash error: "Image upload failed."
                 update_failed = True
         except HTTPException as http_exc:
             logger.error(
                 f"Image upload failed for place {place_id}: {http_exc.status_code} - {http_exc.detail}"
             )
-            # TODO: Flash error: f"Image upload failed: {http_exc.detail}"
             update_failed = True
         except Exception as e:
             logger.error(
                 f"Unexpected error during image upload processing for place {place_id}: {e}",
                 exc_info=True,
             )
-            # TODO: Flash error: "An unexpected error occurred during image upload."
             update_failed = True
 
-    # If upload failed, redirect immediately
     if update_failed:
+        # TODO: Add flash message: "Image upload failed. Review details not saved."
         return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
-    # 2. Prepare and Execute Database Update
+    # 2. Prepare and Execute Database Update for Review/Rating/Image URL
     try:
+        # IMPORTANT: Check if rating is empty string and convert to None
+        # FastAPI/Pydantic might handle this, but being explicit is safer
+        valid_rating = rating
+        if isinstance(rating, str) and rating.strip() == "":
+            valid_rating = None
+        elif rating is not None:
+            try:
+                # Ensure it's a valid integer if provided
+                valid_rating = int(rating)
+                if not (1 <= valid_rating <= 5):
+                    raise ValueError("Rating out of range")
+            except (ValueError, TypeError):
+                logger.warning(
+                    f"Invalid rating value '{rating}' received for place {place_id}, setting to None."
+                )
+                valid_rating = None  # Set to None if invalid conversion
+
         update_payload = {
             "review_title": review_title.strip() if review_title else None,
             "review": review_text.strip() if review_text else None,
-            "rating": rating,
-            # Adding/editing review implies place was visited
-            "status": models_places.PlaceStatus.VISITED,
+            "rating": valid_rating,  # Use validated rating
+            "status": models_places.PlaceStatus.VISITED,  # Assume visited if adding review
             "updated_at": datetime.now(timezone.utc),
         }
         if should_remove_image:
             update_payload["image_url"] = None
-        elif image_public_url:  # Only update URL if upload was successful
+        elif image_public_url:
             update_payload["image_url"] = image_public_url
 
-        # Create model only with fields that have changed or are being set
+        # Only proceed if there's actually something to update
+        # (excluding status and updated_at which are always set)
+        has_changes = any(
+            k in update_payload
+            for k in ["review_title", "review", "rating", "image_url"]
+        )
+        if not has_changes:
+            logger.info(
+                f"No review/rating/image changes submitted for place {place_id}."
+            )
+            # TODO: Flash info message: "No review details were changed."
+            return RedirectResponse(
+                url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
+            )
+
         place_update_model = models_places.PlaceUpdate(**update_payload)
 
-        # Perform the update
         updated_place = await crud_places.update_place(
             place_id=place_id,
             user_id=current_user.id,
             place_update=place_update_model,
             db=db,
-            db_service=db_service,  # Needed if should_remove_image is true
+            db_service=db_service,
         )
 
         if updated_place:
             logger.info(f"FORM Review/image details updated for place ID {place_id}.")
-            # TODO: Flash success: "Review and image updated."
+            # TODO: Flash success: "Review details updated."
         else:
             logger.error(
                 f"FORM Failed to update review/image details in DB for place ID {place_id}."
             )
-            # This is tricky - image might be uploaded but DB failed. Orphaned image?
             # TODO: Flash failure: "Failed to save review details."
 
     except ValidationError as e:

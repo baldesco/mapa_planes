@@ -2,7 +2,7 @@ import folium
 import html
 import json
 import uuid
-from typing import List, Optional
+from typing import List, Optional, Tuple  # Added Tuple for type hint
 from fastapi import Request
 
 from app.models.places import PlaceInDB, PlaceCategory, PlaceStatus
@@ -11,11 +11,12 @@ from app.core.config import logger
 
 def generate_map_html(
     places: List[PlaceInDB],
-    request: Request,  # Needed for generating form action URLs
+    request: Request,
     category_filter: Optional[PlaceCategory] = None,
     status_filter: Optional[PlaceStatus] = None,
 ) -> str:
-    """Generates the HTML representation of the Folium map with place markers."""
+    """Generates the HTML representation of the Folium map with place markers,
+    injecting a click listener for pinning mode."""
     logger.info(
         f"Generating map HTML for {len(places)} places. Filters: cat={category_filter}, status={status_filter}"
     )
@@ -32,15 +33,15 @@ def generate_map_html(
             avg_lat = sum(lat for lat, lon in valid_coords) / len(valid_coords)
             avg_lon = sum(lon for lat, lon in valid_coords) / len(valid_coords)
             map_center = [avg_lat, avg_lon]
-            # Adjust zoom based on number of points
             if len(valid_coords) > 50:
                 zoom_start = 10
             elif len(valid_coords) > 10:
                 zoom_start = 11
 
     m = folium.Map(location=map_center, zoom_start=zoom_start, tiles="OpenStreetMap")
-    map_var_name = m.get_name()  # Get the JS variable name Folium uses
+    map_var_name = m.get_name()  # Needed for the injected script
 
+    # --- Define Icon/Color Mappings ---
     category_icons = {
         PlaceCategory.RESTAURANT: "utensils",
         PlaceCategory.PARK: "tree",
@@ -57,6 +58,7 @@ def generate_map_html(
     }
     default_color = "gray"
 
+    # --- Add Markers ---
     marker_count = 0
     if places:
         for place in places:
@@ -70,6 +72,7 @@ def generate_map_html(
                     f"MAPGEN: Skipping place ID {place.id} ('{place.name}') due to missing data."
                 )
                 continue
+
             try:
                 place_lat, place_lon = place.latitude, place.longitude
                 place_name = html.escape(place.name or "Unnamed Place")
@@ -80,19 +83,22 @@ def generate_map_html(
                 image_url_str = str(place.image_url or "")
                 rating = place.rating
 
-                # Prepare data for JS functions called from popup buttons
                 place_data_for_js = {
                     "id": place.id,
-                    "name": place.name,
+                    "name": place.name or "",
                     "latitude": place.latitude,
                     "longitude": place.longitude,
-                    "category": place_category_enum.value,
-                    "status": place_status_enum.value,
-                    "address": place.address,
-                    "city": place.city,
-                    "country": place.country,
-                    "review_title": review_title_raw,
-                    "review": review_text_raw,
+                    "category": place_category_enum.value
+                    if place_category_enum
+                    else PlaceCategory.OTHER.value,
+                    "status": place_status_enum.value
+                    if place_status_enum
+                    else PlaceStatus.PENDING.value,
+                    "address": place.address or "",
+                    "city": place.city or "",
+                    "country": place.country or "",
+                    "review_title": review_title_raw or "",
+                    "review": review_text_raw or "",
                     "image_url": image_url_str,
                     "rating": rating,
                     "created_at": place.created_at.isoformat()
@@ -105,34 +111,36 @@ def generate_map_html(
                     if place.deleted_at
                     else None,
                 }
-                # Escape the JSON string for safe embedding in HTML attribute
                 js_object_string = json.dumps(place_data_for_js)
                 escaped_js_string_for_html_attr = html.escape(
                     js_object_string, quote=True
                 )
 
-                # Build Popup HTML
-                popup_parts = [
-                    f"<h4 style='margin-bottom: 8px;'>{place_name}</h4>",
-                    "<div style='font-size: 0.9em; max-height: 250px; overflow-y: auto;'>",
-                    f"<b>Category:</b> {html.escape(place_category_enum.value.replace('_', ' ').title())}<br>",
-                    f"<b>Status:</b> {html.escape(place_status_enum.value.replace('_', ' ').title())}<br>",
-                ]
+                # --- Build Popup HTML ---
+                popup_parts = []
+                popup_parts.append(f"<h4 style='margin-bottom: 8px;'>{place_name}</h4>")
+                popup_parts.append(
+                    "<div style='font-size: 0.9em; max-height: 250px; overflow-y: auto;'>"
+                )
+                popup_parts.append(
+                    f"<b>Category:</b> {html.escape(place_category_enum.value.replace('_', ' ').title())}<br>"
+                )
+                popup_parts.append(
+                    f"<b>Status:</b> {html.escape(place_status_enum.value.replace('_', ' ').title())}<br>"
+                )
                 if rating:
                     stars_html = "".join(
                         [
                             '<i class="fas fa-star" style="color: #FFD700;"></i>'
                             for _ in range(rating)
                         ]
-                    )
-                    stars_html += "".join(
+                    ) + "".join(
                         [
                             '<i class="far fa-star" style="color: #ccc;"></i>'
                             for _ in range(5 - rating)
                         ]
                     )
                     popup_parts.append(f"<b>Rating:</b> {stars_html}<br>")
-
                 address_info = ", ".join(
                     filter(
                         None,
@@ -145,10 +153,8 @@ def generate_map_html(
                 )
                 if address_info:
                     popup_parts.append(f"<b>Address:</b> {address_info}<br>")
-
                 has_review_content = bool(review_text_raw or review_title_raw or rating)
                 has_image = bool(image_url_str and image_url_str.startswith("http"))
-
                 if has_review_content or has_image:
                     popup_parts.append(
                         "<hr style='margin: 5px 0; border-top-color: #eee;'>"
@@ -163,17 +169,14 @@ def generate_map_html(
                         )
                         popup_parts.append(f"<i>{snippet}</i><br>")
                     if has_image:
-                        # Use window.parent to call function in the main page context from the iframe
+                        img_onclick = f"if(window.parent && window.parent.showImageOverlay){{window.parent.showImageOverlay(event)}}else{{console.error('showImageOverlay not found on parent')}}"
                         popup_parts.append(
-                            f'<img src="{html.escape(image_url_str)}" alt="{place_name}" style="max-width: 100px; max-height: 75px; margin-top: 5px; display: block; border-radius: 4px; cursor: pointer;" onclick="window.parent.showImageOverlay(event)">'
+                            f'<img src="{html.escape(image_url_str)}" alt="{place_name}" style="max-width: 100px; max-height: 75px; margin-top: 5px; display: block; border-radius: 4px; cursor: pointer;" onclick="{img_onclick}">'
                         )
-
-                popup_parts.append("</div>")  # End of scrollable content div
+                popup_parts.append("</div>")
                 popup_parts.append(
                     "<div style='margin-top: 10px; border-top: 1px solid #eee; padding-top: 8px; display: flex; flex-wrap: wrap; gap: 5px;'>"
-                )  # Action buttons div
-
-                # Status Update Form
+                )
                 status_form_url = request.url_for(
                     "handle_update_place_status_form", place_id=place.id
                 )
@@ -186,34 +189,30 @@ def generate_map_html(
                 popup_parts.append(
                     f'<form action="{status_form_url}" method="post" style="display: inline-block; margin-right: 5px;" target="_top"><select name="status" onchange="this.form.submit()" title="Change Status">{status_options}</select><noscript><button type="submit">Update</button></noscript></form>'
                 )
-
-                # Edit Button (calls JS function)
+                edit_onclick = f"if(window.parent && window.parent.showEditPlaceForm){{window.parent.showEditPlaceForm('{escaped_js_string_for_html_attr}')}}else{{console.error('showEditPlaceForm not found on parent')}}"
                 popup_parts.append(
-                    f'<button type="button" onclick="window.parent.showEditPlaceForm(\'{escaped_js_string_for_html_attr}\')" title="Edit Place Details">Edit</button>'
+                    f'<button type="button" onclick="{edit_onclick}" title="Edit Place Details">Edit</button>'
                 )
-
-                # Review/Image Button (calls JS function)
                 if has_review_content or has_image:
+                    see_review_onclick = f"if(window.parent && window.parent.showSeeReviewModal){{window.parent.showSeeReviewModal('{escaped_js_string_for_html_attr}')}}else{{console.error('showSeeReviewModal not found on parent')}}"
                     popup_parts.append(
-                        f'<button type="button" onclick="window.parent.showSeeReviewModal(\'{escaped_js_string_for_html_attr}\')" title="See Review / Image">See Review</button>'
+                        f'<button type="button" onclick="{see_review_onclick}" title="See Review / Image">See Review</button>'
                     )
                 else:
+                    add_review_onclick = f"if(window.parent && window.parent.showReviewForm){{window.parent.showReviewForm('{escaped_js_string_for_html_attr}')}}else{{console.error('showReviewForm not found on parent')}}"
                     popup_parts.append(
-                        f'<button type="button" onclick="window.parent.showReviewForm(\'{escaped_js_string_for_html_attr}\')" title="Add Review / Image">Add Review</button>'
+                        f'<button type="button" onclick="{add_review_onclick}" title="Add Review / Image">Add Review</button>'
                     )
-
-                # Delete Form
                 delete_form_url = request.url_for(
                     "handle_delete_place_form", place_id=place.id
                 )
                 popup_parts.append(
                     f'<form action="{delete_form_url}" method="post" target="_top" style="display: inline-block;" onsubmit="return confirm(\'Are you sure you want to delete this place?\');"><button type="submit" title="Delete Place">Delete</button></form>'
                 )
-
-                popup_parts.append("</div>")  # End of action buttons div
+                popup_parts.append("</div>")
                 popup_html = "".join(popup_parts)
 
-                # Create Marker
+                # --- Create Marker ---
                 marker_color = status_color_map.get(place_status_enum, default_color)
                 marker_icon = category_icons.get(place_category_enum, default_icon)
                 folium.Marker(
@@ -223,33 +222,69 @@ def generate_map_html(
                     icon=folium.Icon(color=marker_color, icon=marker_icon, prefix="fa"),
                 ).add_to(m)
                 marker_count += 1
+
             except Exception as marker_error:
                 logger.error(
                     f"MAPGEN: Error processing marker for place ID {place.id}: {marker_error}",
                     exc_info=True,
                 )
-
+        # --- End Marker Loop ---
         logger.info(f"MAPGEN: Successfully added {marker_count} markers.")
     else:
         logger.info("MAPGEN: No places found to display on map.")
 
-    # Inject script to expose map instance globally for JS interaction
-    map_html_content = m._repr_html_()
-    injection_script = f"""
+    # --- Inject Script into the Map HTML itself ---
+    click_listener_script = f"""
     <script>
         (function() {{
-            function checkMapVar() {{
-                if (typeof {map_var_name} !== 'undefined' && {map_var_name} !== null) {{
-                    console.log('Folium map instance ({map_var_name}) found, assigning to window.leafletMapInstance.');
-                    window.leafletMapInstance = {map_var_name};
+            let checkAttempts = 0;
+            const maxCheckAttempts = 20; // Define max attempts
+            const checkInterval = 500; // Define check interval
+
+            function findAndInitMapListener_{map_var_name}() {{ // Unique function name per map instance
+                checkAttempts++;
+                // Check if the specific map variable exists on the window object
+                if (typeof window['{map_var_name}'] !== 'undefined' && window['{map_var_name}'] !== null) {{
+                    var mapInstance = window['{map_var_name}'];
+                    console.log('IFrame Script: Found map instance {map_var_name}. Adding click listener.');
+
+                    mapInstance.on('click', function(e) {{
+                        // Check parent window for pinning state via exposed function
+                        if (window.parent && typeof window.parent.isPinningActive === 'function' && window.parent.isPinningActive()) {{
+                            console.log('IFrame Script: Map clicked while parent pinning active. Lat:', e.latlng.lat, 'Lng:', e.latlng.lng);
+                            // Call function on parent window to handle the click
+                            if (typeof window.parent.handleMapPinClick === 'function') {{
+                                window.parent.handleMapPinClick(e.latlng.lat, e.latlng.lng);
+                            }} else {{
+                                console.error("IFrame Script: window.parent.handleMapPinClick is not defined!");
+                            }}
+                        }} else {{
+                             // console.log("IFrame Script: Map clicked, but parent not in pinning mode.");
+                        }}
+                    }});
+                }} else if (checkAttempts < maxCheckAttempts) {{ // Use defined variable
+                     // console.debug('IFrame Script: Waiting for {map_var_name}... Attempt ' + checkAttempts);
+                    setTimeout(findAndInitMapListener_{map_var_name}, checkInterval); // Use defined variable
                 }} else {{
-                    setTimeout(checkMapVar, 100); // Check again shortly
+                     console.error('IFrame Script: Could not find map instance {map_var_name} after ' + maxCheckAttempts + ' attempts.'); // Use defined variable
                 }}
             }}
-            checkMapVar();
+             // Start the process after a brief delay
+             setTimeout(findAndInitMapListener_{map_var_name}, 100);
         }})();
     </script>
     """
-    map_html_content += injection_script
 
-    return map_html_content
+    # Render the map to HTML
+    map_root = m.get_root()
+    html_output = map_root.render()
+
+    # Append the script before the closing body tag
+    if "</body>" in html_output:
+        final_html = html_output.replace(
+            "</body>", click_listener_script + "</body>", 1
+        )
+    else:
+        final_html = html_output + click_listener_script
+
+    return final_html

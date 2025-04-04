@@ -1,14 +1,16 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Form
 from fastapi.security import OAuth2PasswordRequestForm
 from supabase import Client as SupabaseClient
+from datetime import datetime, timezone, timedelta  # Import timedelta
 
 from app.core.config import settings, logger
 from app.models.auth import Token, UserCreate, UserInToken, PasswordResetRequest
 from app.models.general import Msg
-from app.db.setup import get_base_supabase_client, get_db
+from app.db.setup import get_base_supabase_client
+from app.auth.dependencies import get_current_active_user, get_db
 from app.auth import utils as auth_utils
-from app.auth.dependencies import get_current_active_user
+
 
 router = APIRouter(prefix="/api/v1/auth", tags=["API - Authentication"])
 
@@ -18,7 +20,7 @@ async def login_for_access_token(
     request: Request,
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: SupabaseClient = Depends(get_base_supabase_client),  # Use base client for login
+    db: SupabaseClient = Depends(get_base_supabase_client),
 ):
     """Handles user login via API, sets HttpOnly cookie with token."""
     logger.info(f"API Login attempt for user: {form_data.username}")
@@ -50,7 +52,7 @@ async def login_for_access_token(
             max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             expires=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
             samesite="Lax",
-            secure=settings.APP_ENV != "development",  # Use secure=True in production
+            secure=settings.APP_ENV != "development",
             path="/",
         )
         logger.info(
@@ -86,14 +88,11 @@ async def login_for_access_token(
 @router.post("/signup", response_model=Msg, status_code=status.HTTP_201_CREATED)
 async def signup_user(
     user_in: UserCreate,
-    db: SupabaseClient = Depends(
-        get_base_supabase_client
-    ),  # Use base client for signup
+    db: SupabaseClient = Depends(get_base_supabase_client),
 ):
     """Handles new user registration via API."""
     logger.info(f"API Signup attempt for email: {user_in.email}")
     await auth_utils.create_supabase_user(user_data=user_in, db=db)
-    # Consider returning the User model instead of just Msg if useful for frontend
     return Msg(
         message="Signup successful. Please check your email for a confirmation link if required."
     )
@@ -102,12 +101,11 @@ async def signup_user(
 @router.post("/request-password-reset", response_model=Msg)
 async def request_password_reset(
     reset_data: PasswordResetRequest,
-    db: SupabaseClient = Depends(get_base_supabase_client),  # Use base client
+    db: SupabaseClient = Depends(get_base_supabase_client),
 ):
     """Initiates the password reset flow via API."""
     logger.info(f"API Password reset request for: {reset_data.email}")
     await auth_utils.initiate_supabase_password_reset(email=reset_data.email, db=db)
-    # Security best practice: always return the same message regardless of whether the user exists
     return Msg(
         message="If an account exists for this email, a password reset link has been sent."
     )
@@ -115,14 +113,8 @@ async def request_password_reset(
 
 @router.post("/reset-password", response_model=Msg)
 async def reset_password(
-    # This endpoint expects the user to be authenticated via the token
-    # received after clicking the password reset link and potentially exchanged
-    # for a session by the frontend (Supabase handles this redirect flow).
-    # The `get_db` dependency ensures the client is authenticated with this session.
-    new_password: str = Depends(
-        lambda request: request.form().get("new_password")
-    ),  # Example: Get from form data
-    db: SupabaseClient = Depends(get_db),  # Use authenticated client
+    new_password: str = Form(...),
+    db: SupabaseClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """Sets a new password for the authenticated user (post-reset flow) via API."""
@@ -135,18 +127,14 @@ async def reset_password(
     logger.warning(
         f"API Attempting password update for user {current_user.email} via recovery flow."
     )
-    # Use the utility function, passing the authenticated client
     success = await auth_utils.confirm_supabase_password_reset(
-        access_token="",  # Token is implicitly used by the authenticated `db` client
-        new_password=new_password,
-        db=db,
+        access_token="", new_password=new_password, db=db
     )
 
     if success:
         logger.info(f"API Password successfully updated for user: {current_user.email}")
         return Msg(message="Password updated successfully.")
     else:
-        # Catch specific errors if possible, otherwise return generic failure
         logger.error(f"API Password update failed for user {current_user.email}.")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -157,9 +145,7 @@ async def reset_password(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     response: Response,
-    auth_db: SupabaseClient = Depends(
-        get_db
-    ),  # Needs authenticated client to sign out session
+    auth_db: SupabaseClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """Logs the current user out via API by calling Supabase sign_out and clearing the cookie."""
@@ -182,18 +168,31 @@ async def logout(
                 f"Error during Supabase sign_out call for {current_user.email}: {err_msg}",
                 exc_info=True,
             )
-            # Decide if this should prevent cookie clearing. Usually, we want to clear the cookie anyway.
 
-    # Always clear the cookie on logout attempt
+    # --- Forceful Cookie Deletion ---
+    logger.info(f"Attempting to delete access_token cookie for {current_user.email}")
+    # Use FastAPI's method first
     response.delete_cookie(
-        "access_token",
+        key="access_token",
         path="/",
         httponly=True,
         samesite="Lax",
         secure=settings.APP_ENV != "development",
     )
-    logger.info(f"Access token cookie cleared for user: {current_user.email}")
-    # Return No Content response explicitly
+    # --- ADDITIONALLY set raw header for maximum browser compatibility ---
+    past_date = datetime.now(timezone.utc) - timedelta(days=1)
+    expires_formatted = past_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
+    secure_flag = "; Secure" if settings.APP_ENV != "development" else ""
+    # Ensure HttpOnly and SameSite=Lax are also set here for consistency
+    manual_cookie_header = f"access_token=deleted; Path=/; Max-Age=0; Expires={expires_formatted}; HttpOnly; SameSite=Lax{secure_flag}"
+    logger.debug(f"Setting manual Set-Cookie header: {manual_cookie_header}")
+    # Use append_header to avoid overriding other potential Set-Cookie headers
+    response.headers.append("Set-Cookie", manual_cookie_header)
+    # --------------------------------------------------------------------
+
+    logger.info(
+        f"Access token cookie cleared instruction sent for user: {current_user.email}"
+    )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

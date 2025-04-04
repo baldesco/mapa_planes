@@ -6,8 +6,12 @@ from supabase import Client as SupabaseClient
 from app.crud import places as crud_places
 from app.models import places as models_places
 from app.models.auth import UserInToken
-from app.db.setup import get_db, get_supabase_service_client
-from app.auth.dependencies import get_current_active_user
+
+# Updated import for get_db
+from app.auth.dependencies import get_current_active_user, get_db
+
+# Import service client getter separately
+from app.db.setup import get_supabase_service_client
 from app.core.config import logger
 
 router = APIRouter(prefix="/api/v1/places", tags=["API - Places"])
@@ -19,7 +23,7 @@ async def list_places_api(
     status_filter: Optional[models_places.PlaceStatus] = Query(None, alias="status"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
-    db: SupabaseClient = Depends(get_db),
+    db: SupabaseClient = Depends(get_db),  # Uses updated get_db import
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """API endpoint to list places for the authenticated user, with optional filters."""
@@ -41,7 +45,7 @@ async def list_places_api(
 @router.get("/{place_id}", response_model=models_places.Place)
 async def get_place_api(
     place_id: int,
-    db: SupabaseClient = Depends(get_db),
+    db: SupabaseClient = Depends(get_db),  # Uses updated get_db import
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """API endpoint to retrieve a specific place by ID for the authenticated user."""
@@ -64,7 +68,7 @@ async def get_place_api(
 async def update_place_api(
     place_id: int,
     place_update: models_places.PlaceUpdate,
-    db: SupabaseClient = Depends(get_db),
+    db: SupabaseClient = Depends(get_db),  # Uses updated get_db import
     current_user: UserInToken = Depends(get_current_active_user),
     db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
 ):
@@ -113,7 +117,7 @@ async def update_place_api(
 @router.delete("/{place_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_place_api(
     place_id: int,
-    db: SupabaseClient = Depends(get_db),
+    db: SupabaseClient = Depends(get_db),  # Uses updated get_db import
     current_user: UserInToken = Depends(get_current_active_user),
     db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
 ):

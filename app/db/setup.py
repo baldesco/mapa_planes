@@ -3,11 +3,6 @@ from fastapi import Depends, HTTPException, status, Request
 from supabase import create_client, Client as SupabaseClient
 
 from app.core.config import settings, logger
-from app.models.auth import UserInToken  # Import the specific model needed
-from app.auth.dependencies import (
-    get_token_from_cookie,
-    get_current_active_user,
-)  # Import auth dependencies
 
 
 # --- Supabase Client Setup ---
@@ -73,81 +68,4 @@ def get_supabase_service_client() -> SupabaseClient | None:
     return _base_service_client
 
 
-# --- Primary 'get_db' dependency ---
-async def get_db(
-    token: str | None = Depends(get_token_from_cookie),
-    request_client: SupabaseClient = Depends(get_base_supabase_client),
-    current_user: UserInToken = Depends(get_current_active_user),
-) -> SupabaseClient:
-    """
-    FastAPI dependency that provides a Supabase client instance configured
-    to use the user's JWT token for RLS-enabled API calls.
-    """
-    if token is None:
-        logger.error(
-            "get_db: Reached dependency logic but token is None. This indicates an issue in dependency chain."
-        )
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated (token missing)",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    logger.debug(
-        f"get_db: Configuring request-specific Supabase client instance with Authorization header for user {current_user.email} using token {token[:10]}..."
-    )
-    auth_header = f"Bearer {token}"
-
-    try:
-        # Modify headers for PostgREST and Storage clients
-        if hasattr(request_client, "postgrest") and hasattr(
-            request_client.postgrest, "session"
-        ):
-            request_client.postgrest.session.headers["Authorization"] = auth_header
-            logger.debug("Authorization header set for PostgREST client.")
-        else:
-            logger.warning(
-                "Could not find request_client.postgrest.session to set auth header."
-            )
-
-        if hasattr(request_client, "storage") and hasattr(
-            request_client.storage, "_client"
-        ):
-            if hasattr(request_client.storage._client, "session"):
-                request_client.storage._client.session.headers["Authorization"] = (
-                    auth_header
-                )
-                logger.debug("Authorization header set for Storage client.")
-            elif hasattr(request_client.storage._client, "headers"):
-                request_client.storage._client.headers["Authorization"] = auth_header
-                logger.debug(
-                    "Authorization header set for Storage client via .headers."
-                )
-        else:
-            logger.debug("Storage client or its session not found for header setting.")
-
-    except AttributeError as ae:
-        logger.error(
-            f"get_db: Failed to access internal session/headers to set auth token. Library structure might have changed. Error: {ae}",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to configure database client for authenticated access (internal structure error).",
-        )
-    except Exception as e:
-        logger.error(
-            f"get_db: Unexpected error setting auth token on Supabase client: {e}",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to configure database client for authenticated access (unexpected error).",
-        )
-
-    return request_client
-
-
-logger.info(
-    "DB Setup: 'get_db' dependency configured to provide request-scoped, authenticated Supabase client."
-)
+logger.info("DB Setup: Base Supabase client getters configured.")

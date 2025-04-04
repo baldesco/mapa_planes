@@ -4,6 +4,13 @@
  */
 import apiClient from "./apiClient.js"; // Use the centralized API client
 
+// Helper function to delete a cookie by name client-side
+function deleteCookie(name) {
+  // Set expiry date to the past
+  document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+  console.debug(`Attempted to delete cookie '${name}' client-side.`);
+}
+
 const auth = {
   initLoginPage() {
     const loginForm = document.getElementById("login-form");
@@ -48,7 +55,6 @@ const auth = {
       if (submitButton) submitButton.disabled = true;
 
       try {
-        // Use apiClient.postForm for FormData, mark as login attempt
         const response = await apiClient.postForm(
           "/api/v1/auth/login",
           formData,
@@ -57,28 +63,23 @@ const auth = {
         );
 
         if (response.ok) {
-          // Login successful, token is set in HttpOnly cookie by backend.
-          // Redirect to the main map page.
           console.log("Login successful, redirecting...");
           window.location.href = "/"; // Redirect to root
         } else {
-          // Display error message from API response
           let errorDetail = "Login failed. Please check your credentials.";
           try {
             const result = await response.json();
             errorDetail = result.detail || errorDetail;
           } catch (e) {
-            /* ignore if response not json */
+            /* ignore */
           }
           errorMessageDiv.textContent = errorDetail;
           errorMessageDiv.style.display = "block";
-          if (submitButton) submitButton.disabled = false; // Re-enable button on failure
+          if (submitButton) submitButton.disabled = false;
         }
       } catch (error) {
         console.error("Login error:", error);
-        // Handle specific errors like network errors if needed
         if (error.message.includes("Unauthorized")) {
-          // This case shouldn't happen if isLoginAttempt=true, but as fallback:
           errorMessageDiv.textContent =
             "Login failed. Please check your credentials.";
         } else {
@@ -86,7 +87,7 @@ const auth = {
             "An error occurred during login. Please try again.";
         }
         errorMessageDiv.style.display = "block";
-        if (submitButton) submitButton.disabled = false; // Re-enable button on error
+        if (submitButton) submitButton.disabled = false;
       }
     });
   },
@@ -105,47 +106,34 @@ const auth = {
     signupForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       messageDiv.style.display = "none";
-      messageDiv.className = "message-auth"; // Reset classes
+      messageDiv.className = "message-auth";
 
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
       const submitButton = signupForm.querySelector('button[type="submit"]');
       if (submitButton) submitButton.disabled = true;
 
-      // Basic password confirmation check (optional)
-      // const passwordConfirm = document.getElementById('password-confirm')?.value;
-      // if (passwordConfirm && password !== passwordConfirm) {
-      //     messageDiv.textContent = 'Passwords do not match.';
-      //     messageDiv.classList.add('error-message-auth');
-      //     messageDiv.style.display = 'block';
-      //     if (submitButton) submitButton.disabled = false;
-      //     return;
-      // }
-
       try {
-        // Use apiClient.post for JSON data
         const response = await apiClient.post("/api/v1/auth/signup", {
-          email: email,
-          password: password,
+          email,
+          password,
         });
-
-        const result = await response.json(); // Assume backend always returns JSON
+        const result = await response.json();
 
         if (response.ok) {
           messageDiv.textContent =
             result.message || "Signup successful. Redirecting to login...";
           messageDiv.classList.add("success-message-auth");
           messageDiv.style.display = "block";
-          // Redirect to login after a short delay
           setTimeout(() => {
             window.location.href = "/login?signup=success";
-          }, 3000); // 3 seconds delay
+          }, 3000);
         } else {
           messageDiv.textContent =
             result.detail || "Signup failed. Please try again.";
           messageDiv.classList.add("error-message-auth");
           messageDiv.style.display = "block";
-          if (submitButton) submitButton.disabled = false; // Re-enable on failure
+          if (submitButton) submitButton.disabled = false;
         }
       } catch (error) {
         console.error("Signup error:", error);
@@ -153,7 +141,7 @@ const auth = {
           "An error occurred during signup. Please try again.";
         messageDiv.classList.add("error-message-auth");
         messageDiv.style.display = "block";
-        if (submitButton) submitButton.disabled = false; // Re-enable on error
+        if (submitButton) submitButton.disabled = false;
       }
     });
   },
@@ -161,21 +149,22 @@ const auth = {
   setupLogoutButton() {
     const logoutButton = document.getElementById("logout-btn");
     if (!logoutButton) {
-      // This might be expected if the button isn't on every page
-      // console.debug("#logout-btn not found on this page.");
       return;
     }
 
     logoutButton.addEventListener("click", async () => {
       console.log("Logout button clicked");
+      logoutButton.disabled = true; // Disable button during process
+
       try {
-        // Use apiClient.post (no body needed for logout)
         const response = await apiClient.post("/api/v1/auth/logout", {});
 
-        // Logout should return 204 No Content on success
         if (response.ok || response.status === 204) {
           console.log("Logout API call successful.");
-          window.location.href = "/login?reason=logged_out"; // Force redirect
+          // --- Client-side cookie removal ---
+          deleteCookie("access_token");
+          // --- Redirect AFTER removing cookie ---
+          window.location.href = "/login?reason=logged_out";
         } else {
           console.error(
             "Logout API call failed:",
@@ -184,21 +173,24 @@ const auth = {
           );
           let errorDetail = "Logout failed. Please try again.";
           try {
-            // Attempt to get error detail if backend sends one
             const errorData = await response.json();
             errorDetail = errorData.detail || errorDetail;
           } catch {
-            /* ignore if response not json */
+            /* ignore */
           }
           alert(`Logout failed: ${errorDetail}`);
+          logoutButton.disabled = false; // Re-enable on failure
         }
       } catch (error) {
-        // Handle errors thrown by apiClient (e.g., network error, 401 redirect)
         console.error("Error during logout fetch:", error);
+        // Handle potential network errors etc.
         if (!error.message.includes("Unauthorized")) {
-          // Avoid alerting if it was just the 401 redirect
+          // Avoid double alert if apiClient already redirected
           alert("An error occurred during logout.");
         }
+        // Even if API call failed, try deleting cookie and redirecting? Or just re-enable button?
+        // Let's re-enable the button for now if API fails unexpectedly.
+        logoutButton.disabled = false;
       }
     });
     console.debug("Logout button event listener attached.");
