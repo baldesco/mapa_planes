@@ -47,6 +47,14 @@ body {
     font-weight: 400;
 }
 
+/* --- Cursor Change for Map Pinning --- */
+body.map-pinning-active #map .leaflet-container {
+    cursor: crosshair !important;
+    /* Use crosshair cursor and !important to override Leaflet defaults */
+}
+
+/* ------------------------------------- */
+
 .container {
     max-width: 1200px;
     margin: 30px auto;
@@ -458,6 +466,12 @@ button#toggle-add-place-form-btn:hover {
     border-color: #a5d6a7;
 }
 
+.info-message {
+    color: #0277bd;
+    background-color: #e1f5fe;
+    border-color: #b3e5fc;
+}
+
 .leaflet-popup-content-wrapper {
     border-radius: 8px !important;
     box-shadow: var(--box-shadow);
@@ -671,7 +685,6 @@ button#toggle-add-place-form-btn:hover {
         margin-top: 15px;
         width: 100%;
     }
-
 
     .address-input-row {
         flex-direction: column;

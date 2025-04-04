@@ -61,24 +61,27 @@
         }
 
         .message-auth {
-            padding: 10px;
+            /* Base style for messages */
+            padding: 10px 12px;
             border-radius: 6px;
             margin-bottom: 15px;
             display: none;
+            /* Hidden by default */
             text-align: center;
             font-size: 0.9em;
+            border: 1px solid transparent;
         }
 
         .error-message-auth {
             color: var(--error-color);
             background-color: #ffcdd2;
-            border: 1px solid var(--error-color);
+            border-color: var(--error-color);
         }
 
         .success-message-auth {
             color: #388e3c;
             background-color: var(--primary-color-light);
-            border: 1px solid #a5d6a7;
+            border-color: #a5d6a7;
         }
     </style>
 </head>
@@ -86,77 +89,26 @@
 <body>
     <div class="auth-container">
         <h1>Sign Up</h1>
-        <div id="message-div" class="message-auth"></div> <!-- For success/error messages -->
+        <!-- Div for success/error messages -->
+        <div id="message-div" class="message-auth"></div>
 
+        <!-- Form posts handled by JS module -->
         <form id="signup-form" method="post">
             <label for="email">Email:</label>
             <input type="email" id="email" name="email" required>
 
             <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required minlength="8"> <!-- Add minlength -->
-            <!-- Optional: Add password confirmation field -->
-            <!-- <label for="password-confirm">Confirm Password:</label> -->
-            <!-- <input type="password" id="password-confirm" name="password_confirm" required minlength="8"> -->
+            <input type="password" id="password" name="password" required minlength="8">
 
             <button type="submit">Sign Up</button>
         </form>
         <div class="auth-links">
-            <p>Already have an account? <a href="{{ url_for('login_page') }}">Login</a></p>
+            <p>Already have an account? <a href="{{ url_for('serve_login_page') }}">Login</a></p>
         </div>
     </div>
 
-    <script>
-        const signupForm = document.getElementById('signup-form');
-        const messageDiv = document.getElementById('message-div');
-
-        signupForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            messageDiv.style.display = 'none';
-            messageDiv.className = 'message-auth'; // Reset classes
-
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            // Optional: Add password confirmation check here in JS
-            // const passwordConfirm = document.getElementById('password-confirm').value;
-            // if (password !== passwordConfirm) {
-            //     messageDiv.textContent = 'Passwords do not match.';
-            //     messageDiv.classList.add('error-message-auth');
-            //     messageDiv.style.display = 'block';
-            //     return;
-            // }
-
-            try {
-                const response = await fetch('/api/auth/signup', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ email: email, password: password }),
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    messageDiv.textContent = result.message || 'Signup successful. Redirecting to login...'; // Use message from backend
-                    messageDiv.classList.add('success-message-auth');
-                    messageDiv.style.display = 'block';
-                    // Redirect to login after a short delay
-                    setTimeout(() => {
-                        window.location.href = '/login?signup=success';
-                    }, 3000); // 3 seconds delay
-                } else {
-                    messageDiv.textContent = result.detail || 'Signup failed. Please try again.';
-                    messageDiv.classList.add('error-message-auth');
-                    messageDiv.style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Signup error:', error);
-                messageDiv.textContent = 'An error occurred during signup. Please try again.';
-                messageDiv.classList.add('error-message-auth');
-                messageDiv.style.display = 'block';
-            }
-        });
-    </script>
+    <!-- Load main JS as a module -->
+    <script type="module" src="{{ url_for('static', path='/js/main.js') }}"></script>
 </body>
 
 </html>

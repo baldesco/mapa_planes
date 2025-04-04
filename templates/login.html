@@ -79,13 +79,9 @@
         }
 
         .info-message-auth {
-            /* Style for info messages */
             color: #0277bd;
-            /* Darker info blue */
             background-color: #e1f5fe;
-            /* Lighter info blue */
             border-color: #b3e5fc;
-            /* Border info blue */
         }
 
         .success-message-auth {
@@ -99,10 +95,11 @@
 <body>
     <div class="auth-container">
         <h1>Login</h1>
-        <div id="info-message" class="message-auth info-message-auth"></div> <!-- Info message div -->
-        <div id="error-message" class="message-auth error-message-auth"></div> <!-- Error message div -->
+        <!-- Divs for displaying messages -->
+        <div id="info-message" class="message-auth info-message-auth"></div>
+        <div id="error-message" class="message-auth error-message-auth"></div>
 
-        <!-- Form posts to the API endpoint -->
+        <!-- Form posts handled by JS module -->
         <form id="login-form" method="post">
             <label for="username">Email:</label>
             <input type="email" id="username" name="username" required>
@@ -113,72 +110,13 @@
             <button type="submit">Login</button>
         </form>
         <div class="auth-links">
-            <p>Don't have an account? <a href="{{ url_for('signup_page') }}">Sign Up</a></p>
-            <!-- Add password reset link if desired -->
+            <p>Don't have an account? <a href="{{ url_for('serve_signup_page') }}">Sign Up</a></p>
             <!-- <p><a href="/password-reset">Forgot Password?</a></p> -->
         </div>
     </div>
 
-    <script>
-        const loginForm = document.getElementById('login-form');
-        const errorMessageDiv = document.getElementById('error-message');
-        const infoMessageDiv = document.getElementById('info-message');
-
-        // Check for query parameters on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            const urlParams = new URLSearchParams(window.location.search);
-            const reason = urlParams.get('reason');
-            const signupStatus = urlParams.get('signup'); // Check for signup status
-
-            if (reason === 'session_expired') {
-                infoMessageDiv.textContent = 'Your session expired. Please log in again.';
-                infoMessageDiv.style.display = 'block';
-            } else if (reason === 'logged_out') {
-                infoMessageDiv.textContent = 'You have been logged out successfully.';
-                infoMessageDiv.style.display = 'block';
-            } else if (signupStatus === 'success') {
-                // Optional: Show a message confirming signup before login
-                // infoMessageDiv.textContent = 'Signup successful! Please log in.';
-                // infoMessageDiv.style.display = 'block';
-            }
-            // Clear the query parameters from URL without reloading
-            if (reason || signupStatus) {
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }
-        });
-
-
-        loginForm.addEventListener('submit', async (event) => {
-            event.preventDefault(); // Prevent default form submission
-
-            const formData = new FormData(loginForm);
-            errorMessageDiv.style.display = 'none'; // Hide previous error
-            infoMessageDiv.style.display = 'none'; // Hide info message on new attempt
-
-            try {
-                const response = await fetch('/api/auth/login', {
-                    method: 'POST',
-                    body: formData // Send as form data
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    // Login successful, token is set in HttpOnly cookie by backend.
-                    // Redirect to the main map page.
-                    window.location.href = '/'; // Redirect to root
-                } else {
-                    // Display error message from API response
-                    errorMessageDiv.textContent = result.detail || 'Login failed. Please check your credentials.';
-                    errorMessageDiv.style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Login error:', error);
-                errorMessageDiv.textContent = 'An error occurred during login. Please try again.';
-                errorMessageDiv.style.display = 'block';
-            }
-        });
-    </script>
+    <!-- Load main JS as a module -->
+    <script type="module" src="{{ url_for('static', path='/js/main.js') }}"></script>
 </body>
 
 </html>
