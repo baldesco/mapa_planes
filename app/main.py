@@ -376,7 +376,7 @@ async def read_root(
         "statuses": [s.value for s in PlaceStatus],
         "current_category": category_str or None,
         "current_status": status_str or None,
-        "attribution_html": "Geocoding by <a href='https://opencagedata.com/' target='_blank'>OpenCage</a>. Map data © <a href='https://openstreetmap.org/copyright' target='_blank'>OpenStreetMap</a> contributors.",
+        # "attribution_html": "Geocoding by <a href='https://opencagedata.com/' target='_blank'>OpenCage</a>. Map data © <a href='https://openstreetmap.org/copyright' target='_blank'>OpenStreetMap</a> contributors.",
     }
     return templates.TemplateResponse("index.html", context)
 

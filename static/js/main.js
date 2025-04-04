@@ -89,7 +89,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const coordsSect = isEdit ? editCoordsSection : coordsSection;
     const dispLatEl = isEdit ? editDisplayLat : displayLat;
     const dispLonEl = isEdit ? editDisplayLon : displayLon;
-    const dispAddrEl = isEdit ? null : displayAddress; // No display name in edit coords section
+    const dispAddrEl = isEdit ? null : displayAddress;
     const latInput = isEdit ? editLatitudeInput : hiddenLat;
     const lonInput = isEdit ? editLongitudeInput : hiddenLon;
     const addrHidden = isEdit ? editAddressHidden : hiddenAddress;
@@ -97,7 +97,6 @@ document.addEventListener("DOMContentLoaded", function () {
     const countryHidden = isEdit ? editCountryHidden : hiddenCountry;
     const submitButton = isEdit ? editSubmitBtn : addSubmitBtn;
 
-    // Simplified check
     if (
       !addressQueryEl ||
       !findBtn ||
@@ -132,12 +131,10 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     setStatusMessage(statusEl, "Searching...", "loading");
     findBtn.disabled = true;
-    if (!isEdit) submitButton.disabled = true; // Only disable Add button initially
+    if (!isEdit) submitButton.disabled = true;
 
     try {
-      // Assuming request object is available globally or passed differently
-      // In a real scenario, get this base URL from a global JS var or data attribute
-      const geocodeBaseUrl = "/geocode"; // Simpler relative URL if served by same FastAPI app
+      const geocodeBaseUrl = "/geocode";
       const geocodeUrl = `${geocodeBaseUrl}?address=${encodeURIComponent(
         addressQuery
       )}`;
@@ -146,7 +143,6 @@ document.addEventListener("DOMContentLoaded", function () {
       if (response.ok) {
         const result = await response.json();
         let successMsg = `Location found: ${result.display_name}`;
-        // For edit form, update coordinates but don't force save enable yet
         setStatusMessage(statusEl, successMsg, "success");
 
         latInput.value = result.latitude;
@@ -158,10 +154,10 @@ document.addEventListener("DOMContentLoaded", function () {
           dispLatEl.textContent = result.latitude?.toFixed(6) ?? "N/A";
         if (dispLonEl)
           dispLonEl.textContent = result.longitude?.toFixed(6) ?? "N/A";
-        if (dispAddrEl) dispAddrEl.textContent = result.display_name; // Only for add form
+        if (dispAddrEl) dispAddrEl.textContent = result.display_name;
 
-        if (!isEdit && coordsSect) coordsSect.style.display = "block"; // Show coords for add form
-        if (!isEdit) submitButton.disabled = false; // Enable Add button on success
+        if (!isEdit && coordsSect) coordsSect.style.display = "block";
+        if (!isEdit) submitButton.disabled = false;
       } else {
         let errorDetail = `Geocoding failed (${response.status}).`;
         try {
@@ -171,42 +167,41 @@ document.addEventListener("DOMContentLoaded", function () {
           /* ignore */
         }
         setStatusMessage(statusEl, `Error: ${errorDetail}`, "error");
-        if (!isEdit) submitButton.disabled = true; // Keep Add disabled on error
+        if (!isEdit) submitButton.disabled = true;
       }
     } catch (error) {
       console.error("Geocoding fetch error:", error);
       setStatusMessage(statusEl, "Network error during geocoding.", "error");
-      if (!isEdit) submitButton.disabled = true; // Keep Add disabled on error
+      if (!isEdit) submitButton.disabled = true;
     } finally {
-      if (findBtn) findBtn.disabled = false; // Always re-enable find button
+      if (findBtn) findBtn.disabled = false;
     }
   }
 
   // --- Form Display Functions ---
-
   function hideAllForms() {
     if (addPlaceWrapper) addPlaceWrapper.style.display = "none";
     if (editPlaceSection) editPlaceSection.style.display = "none";
     if (reviewImageSection) reviewImageSection.style.display = "none";
     if (seeReviewSection) seeReviewSection.style.display = "none";
-    if (toggleAddPlaceBtn) toggleAddPlaceBtn.textContent = "Add New Place"; // Reset button text
+    if (toggleAddPlaceBtn) toggleAddPlaceBtn.textContent = "Add New Place";
   }
 
   function resetAddPlaceForm() {
-    if (addPlaceForm) addPlaceForm.reset(); // Standard form reset
-    if (coordsSection) coordsSection.style.display = "none"; // Hide coords display
-    setStatusMessage(geocodeStatus, ""); // Clear status message
-    if (hiddenLat) hiddenLat.value = ""; // Clear hidden coords
+    if (addPlaceForm) addPlaceForm.reset();
+    if (coordsSection) coordsSection.style.display = "none";
+    setStatusMessage(geocodeStatus, "");
+    if (hiddenLat) hiddenLat.value = "";
     if (hiddenLon) hiddenLon.value = "";
     if (hiddenAddress) hiddenAddress.value = "";
     if (hiddenCity) hiddenCity.value = "";
     if (hiddenCountry) hiddenCountry.value = "";
-    if (addSubmitBtn) addSubmitBtn.disabled = true; // Disable submit until coords found
+    if (addSubmitBtn) addSubmitBtn.disabled = true;
   }
 
   window.showAddPlaceForm = function () {
-    hideAllForms(); // Hide others first
-    resetAddPlaceForm(); // Reset fields
+    hideAllForms();
+    resetAddPlaceForm();
     if (addPlaceWrapper) {
       addPlaceWrapper.style.display = "block";
       if (toggleAddPlaceBtn) toggleAddPlaceBtn.textContent = "Cancel Adding";
@@ -217,10 +212,9 @@ document.addEventListener("DOMContentLoaded", function () {
   window.hideAddPlaceForm = function () {
     if (addPlaceWrapper) addPlaceWrapper.style.display = "none";
     if (toggleAddPlaceBtn) toggleAddPlaceBtn.textContent = "Add New Place";
-    resetAddPlaceForm(); // Also reset when hiding
+    resetAddPlaceForm();
   };
 
-  // Make showEditPlaceForm global
   window.showEditPlaceForm = function (placeDataJSONString) {
     console.log("Global showEditPlaceForm called.");
     let placeData;
@@ -237,7 +231,6 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
-    // Check if all required elements exist
     const requiredEditElements = [
       editPlaceSection,
       editPlaceForm,
@@ -271,22 +264,21 @@ document.addEventListener("DOMContentLoaded", function () {
       editNameInput.value = placeData.name || "";
       editCategorySelect.value = placeData.category || "other";
       editStatusSelect.value = placeData.status || "pending";
-      editAddressInput.value = ""; // Clear address input for potential re-geocoding
+      editAddressInput.value = "";
       editDisplayLat.textContent = placeData.latitude?.toFixed(6) ?? "N/A";
       editDisplayLon.textContent = placeData.longitude?.toFixed(6) ?? "N/A";
       editLatitudeInput.value = placeData.latitude || "";
       editLongitudeInput.value = placeData.longitude || "";
-      editAddressHidden.value = placeData.address || ""; // Keep current address details unless re-geocoded
+      editAddressHidden.value = placeData.address || "";
       editCityHidden.value = placeData.city || "";
       editCountryHidden.value = placeData.country || "";
-      setStatusMessage(editGeocodeStatus, ""); // Clear previous geocode status
+      setStatusMessage(editGeocodeStatus, "");
       editSubmitBtn.disabled = false;
       editSubmitBtn.textContent = "Save Changes";
-      // Construct URL - Ensure endpoint name is correct
       const editUrl = `/places/${placeData.id}/edit`;
       editPlaceForm.action = editUrl;
 
-      hideAllForms(); // Hide other forms
+      hideAllForms();
       editPlaceSection.style.display = "block";
       editPlaceSection.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
@@ -297,7 +289,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   window.hideEditPlaceForm = function () {
     if (editPlaceSection) editPlaceSection.style.display = "none";
-    // Optionally show the main toggle button if nothing else is active
     if (
       addPlaceWrapper &&
       addPlaceWrapper.style.display === "none" &&
@@ -310,7 +301,6 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
-  // Make showReviewForm global
   window.showReviewForm = function (placeDataInput) {
     console.log(
       "Global showReviewForm called with input type:",
@@ -379,18 +369,17 @@ document.addEventListener("DOMContentLoaded", function () {
       if (reviewTitleInput)
         reviewTitleInput.value = placeData.review_title || "";
       if (reviewTextInput) reviewTextInput.value = placeData.review || "";
-      if (reviewImageInput) reviewImageInput.value = ""; // Clear file input
+      if (reviewImageInput) reviewImageInput.value = "";
       if (reviewSubmitBtn) {
         reviewSubmitBtn.disabled = false;
         reviewSubmitBtn.textContent = "Save Review & Image";
       }
 
-      // Construct URL - Ensure endpoint name is correct
       const reviewUrl = `/places/${placeData.id}/review-image`;
       if (reviewImageForm) reviewImageForm.action = reviewUrl;
       console.log("Review form action set to:", reviewUrl);
 
-      hideAllForms(); // Hide other forms
+      hideAllForms();
       if (reviewImageSection) {
         reviewImageSection.style.display = "block";
         console.log("Review form displayed.");
@@ -408,7 +397,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
   window.hideReviewForm = function () {
     if (reviewImageSection) reviewImageSection.style.display = "none";
-    // Optionally show the main toggle button if nothing else is active
     if (
       addPlaceWrapper &&
       addPlaceWrapper.style.display === "none" &&
@@ -421,14 +409,13 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
-  // Make showSeeReviewModal global
   window.showSeeReviewModal = function (placeDataJSONString) {
     console.log("Global showSeeReviewModal called.");
     let placeData;
     try {
       placeData = JSON.parse(placeDataJSONString);
       if (seeReviewEditBtn) {
-        seeReviewEditBtn.setAttribute("data-place-json", placeDataJSONString); // Store the STRING
+        seeReviewEditBtn.setAttribute("data-place-json", placeDataJSONString);
       } else {
         console.error("Could not find seeReviewEditBtn to store data.");
       }
@@ -471,16 +458,22 @@ document.addEventListener("DOMContentLoaded", function () {
         ? "block"
         : "none";
 
-      if (placeData.image_url && placeData.image_url.startsWith("http")) {
-        seeReviewDisplayImage.src = placeData.image_url;
-        seeReviewDisplayImage.alt = `Image for ${placeData.name || "place"}`;
-        seeReviewDisplayImage.style.display = "block";
-      } else {
-        seeReviewDisplayImage.style.display = "none";
-        seeReviewDisplayImage.src = "";
+      // Handle image display and click listener attachment
+      if (seeReviewDisplayImage) {
+        if (placeData.image_url && placeData.image_url.startsWith("http")) {
+          seeReviewDisplayImage.src = placeData.image_url;
+          seeReviewDisplayImage.alt = `Image for ${placeData.name || "place"}`;
+          seeReviewDisplayImage.style.display = "block";
+          // Add listener here after src is set
+          seeReviewDisplayImage.onclick = showImageOverlay;
+        } else {
+          seeReviewDisplayImage.style.display = "none";
+          seeReviewDisplayImage.src = "";
+          seeReviewDisplayImage.onclick = null; // Remove listener if no image
+        }
       }
 
-      hideAllForms(); // Hide other forms
+      hideAllForms();
       seeReviewSection.style.display = "block";
       seeReviewSection.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
@@ -491,9 +484,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   window.hideSeeReviewModal = function () {
     if (seeReviewSection) seeReviewSection.style.display = "none";
-    if (seeReviewEditBtn) seeReviewEditBtn.removeAttribute("data-place-json"); // Clear data when hiding
+    if (seeReviewEditBtn) seeReviewEditBtn.removeAttribute("data-place-json");
+    if (seeReviewDisplayImage) seeReviewDisplayImage.onclick = null; // Clean up listener
     console.log("See Review modal hidden.");
-    // Optionally show the main toggle button if nothing else is active
     if (
       addPlaceWrapper &&
       addPlaceWrapper.style.display === "none" &&
@@ -505,6 +498,56 @@ document.addEventListener("DOMContentLoaded", function () {
       if (toggleAddPlaceBtn) toggleAddPlaceBtn.textContent = "Add New Place";
     }
   };
+
+  // --- Image Overlay Function ---
+  function showImageOverlay(event) {
+    const clickedImage = event.target;
+    if (
+      !clickedImage ||
+      !clickedImage.src ||
+      !clickedImage.src.startsWith("http")
+    ) {
+      console.warn("Invalid image clicked for overlay.");
+      return;
+    }
+
+    // Create overlay elements
+    const overlay = document.createElement("div");
+    overlay.className = "image-overlay";
+
+    const imageInOverlay = document.createElement("img");
+    imageInOverlay.src = clickedImage.src;
+    imageInOverlay.alt = clickedImage.alt || "Enlarged review image";
+
+    // Prevent clicking the image itself from closing the overlay
+    imageInOverlay.onclick = function (e) {
+      e.stopPropagation();
+    };
+
+    overlay.appendChild(imageInOverlay);
+
+    // Add listener to close overlay when clicking background
+    overlay.onclick = function () {
+      overlay.classList.remove("visible"); // Start fade out
+      // Remove after transition completes
+      overlay.addEventListener(
+        "transitionend",
+        () => {
+          if (document.body.contains(overlay)) {
+            document.body.removeChild(overlay);
+          }
+        },
+        { once: true }
+      );
+    };
+
+    // Append to body and trigger fade-in
+    document.body.appendChild(overlay);
+    // Use a tiny timeout to allow the element to be added to the DOM before triggering transition
+    setTimeout(() => {
+      overlay.classList.add("visible");
+    }, 10);
+  }
 
   // --- Event Listeners ---
   if (toggleAddPlaceBtn && addPlaceWrapper) {
@@ -537,14 +580,13 @@ document.addEventListener("DOMContentLoaded", function () {
           'Coordinates missing. Use "Find" button first.',
           "error"
         );
-        if (addSubmitBtn) addSubmitBtn.disabled = false; // Re-enable if validation fails
+        if (addSubmitBtn) addSubmitBtn.disabled = false;
         return false;
       }
       if (addSubmitBtn) {
         addSubmitBtn.disabled = true;
         addSubmitBtn.textContent = "Adding...";
       }
-      // Form submission will cause page reload, no need to explicitly hide form here
     });
   }
 
@@ -553,7 +595,6 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   if (editPlaceForm) {
-    // Attach listener to the form itself for cancel button inside it
     editPlaceForm.addEventListener("click", function (event) {
       if (event.target && event.target.matches("button.cancel-btn")) {
         hideEditPlaceForm();
@@ -572,7 +613,7 @@ document.addEventListener("DOMContentLoaded", function () {
           "Coordinates missing or invalid.",
           "error"
         );
-        if (editSubmitBtn) editSubmitBtn.disabled = false; // Re-enable on validation fail
+        if (editSubmitBtn) editSubmitBtn.disabled = false;
         return false;
       }
       if (editSubmitBtn) {
@@ -583,7 +624,6 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   if (reviewImageForm) {
-    // Attach listener to the form itself for cancel button inside it
     reviewImageForm.addEventListener("click", function (event) {
       if (event.target && event.target.matches("button.cancel-btn")) {
         hideReviewForm();
@@ -598,11 +638,11 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   if (seeReviewSection) {
-    // Attach listener to the section for cancel button inside it
     seeReviewSection.addEventListener("click", function (event) {
       if (event.target && event.target.matches("button.cancel-btn")) {
         hideSeeReviewModal();
       }
+      // Image click is handled by direct onclick assignment in showSeeReviewModal
     });
   }
 
@@ -614,10 +654,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
       if (placeDataJSONString) {
         try {
-          const placeDataObject = JSON.parse(placeDataJSONString); // Parse here
+          const placeDataObject = JSON.parse(placeDataJSONString);
           console.log("Parsed data for edit:", placeDataObject);
-          // hideSeeReviewModal(); // showReviewForm will hide it
-          window.showReviewForm(placeDataObject); // Pass the OBJECT
+          window.showReviewForm(placeDataObject);
         } catch (e) {
           console.error(
             "Error parsing placeData JSON from button attribute:",
@@ -640,7 +679,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   // Initial state setup
   hideAllForms();
-  if (addSubmitBtn) addSubmitBtn.disabled = true; // Initially disable Add Place submit
+  if (addSubmitBtn) addSubmitBtn.disabled = true;
 
   console.log("JS Initialization Complete. Event listeners attached.");
 }); // End of DOMContentLoaded listener
