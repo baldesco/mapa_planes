@@ -4,6 +4,10 @@ document.addEventListener("DOMContentLoaded", function () {
   let mapClickHandler = null;
   let isPinningMode = false;
   let temporaryMarker = null;
+  let isEditPinningMode = false; // State for edit form pinning
+  let editMapClickHandler = null; // Handler for edit map clicks
+  const MAP_RETRY_DELAY = 300; // ms between retries
+  const MAX_MAP_RETRIES = 5; // Max attempts to find map
 
   // --- DOM Elements ---
   // (Keep all existing DOM element variables)
@@ -55,6 +59,10 @@ document.addEventListener("DOMContentLoaded", function () {
   const editRatingInput = document.getElementById("edit-rating");
   const editRemoveImageCheckbox = document.getElementById("edit-remove-image");
   const editSubmitBtn = document.getElementById("edit-place-submit-btn");
+  const editPinOnMapBtn = document.getElementById("edit-pin-on-map-btn");
+  const editMapPinInstruction = document.getElementById(
+    "edit-map-pin-instruction"
+  );
 
   const reviewImageSection = document.getElementById("review-image-section");
   const reviewImageForm = document.getElementById("review-image-form");
@@ -92,15 +100,16 @@ document.addEventListener("DOMContentLoaded", function () {
     "see-review-display-image"
   );
   const seeReviewEditBtn = document.getElementById("see-review-edit-btn");
-  const logoutForm = document.getElementById("logout-form"); // Get logout form
+  const logoutButton = document.getElementById("logout-btn");
 
   console.log("DOM Loaded, JS Initializing...");
   console.log("User logged in:", window.appConfig?.isUserLoggedIn);
 
-  // --- Initialize Leaflet Map ---
-  // More robust way to wait for Leaflet map instance from Folium
+  // --- Leaflet Map Initialization ---
   function findLeafletMapInstance(element) {
+    if (!element) return null;
     if (element._leaflet_map) {
+      // console.debug("Found map instance via _leaflet_map property");
       return element._leaflet_map;
     }
     for (let i = 0; i < element.children.length; i++) {
@@ -112,47 +121,52 @@ document.addEventListener("DOMContentLoaded", function () {
     return null;
   }
 
-  function initializeMapReference() {
+  // Function to get map instance, storing it globally if found
+  function getMapInstance() {
+    if (leafletMap) {
+      return leafletMap;
+    }
     const mapDiv = document.getElementById("map");
     if (!mapDiv) {
       console.error("Map container #map not found.");
-      return;
+      return null;
     }
-
-    // Try finding the map instance immediately
     leafletMap = findLeafletMapInstance(mapDiv);
-
     if (leafletMap) {
-      console.log("Leaflet map instance found:", leafletMap);
-      // Make sure map container doesn't capture clicks intended for overlays
-      leafletMap.getContainer().style.pointerEvents = "auto";
-    } else {
-      // If not found immediately, set up a MutationObserver to wait for it
-      console.log("Waiting for Leaflet map instance via MutationObserver...");
-      const observer = new MutationObserver((mutationsList, obs) => {
-        leafletMap = findLeafletMapInstance(mapDiv);
-        if (leafletMap) {
-          console.log(
-            "Leaflet map instance found via MutationObserver:",
-            leafletMap
-          );
-          leafletMap.getContainer().style.pointerEvents = "auto";
-          obs.disconnect(); // Stop observing once found
-        }
-      });
-      observer.observe(mapDiv, { childList: true, subtree: true });
-      // Timeout as a fallback
-      setTimeout(() => {
-        if (!leafletMap) {
-          console.warn("Leaflet map instance not found after timeout.");
-          observer.disconnect();
-        }
-      }, 3000);
+      console.log("Leaflet map instance obtained:", leafletMap);
+      try {
+        leafletMap.getContainer().style.pointerEvents = "auto";
+      } catch (e) {
+        console.warn("Could not set pointerEvents on map container:", e);
+      }
     }
+    // No warning here, happens often on initial load
+    return leafletMap;
   }
-  // Initialize only if the map container exists
+
+  // Async function to get map instance with retries
+  async function ensureMapReadyWithRetries(retryCount = 0) {
+    const currentMap = getMapInstance();
+    if (currentMap) {
+      return currentMap;
+    }
+    if (retryCount >= MAX_MAP_RETRIES) {
+      console.error(`Map instance not found after ${MAX_MAP_RETRIES} retries.`);
+      return null;
+    }
+
+    console.log(
+      `Map not ready, retrying in ${MAP_RETRY_DELAY}ms (attempt ${
+        retryCount + 1
+      })`
+    );
+    await new Promise((resolve) => setTimeout(resolve, MAP_RETRY_DELAY));
+    return ensureMapReadyWithRetries(retryCount + 1); // Recursive call
+  }
+
+  // Attempt to get map reference on initial load (best effort, no retry here)
   if (document.getElementById("map")) {
-    initializeMapReference();
+    setTimeout(getMapInstance, 500); // Slightly longer delay
   }
 
   // --- Utility Functions ---
@@ -171,7 +185,6 @@ document.addEventListener("DOMContentLoaded", function () {
   window.fetch = async (...args) => {
     try {
       const response = await originalFetch(...args);
-      // Check for 401 specifically on non-login API calls
       const isLoginAttempt = args[0].includes("/api/auth/login");
       if (
         response.status === 401 &&
@@ -181,8 +194,8 @@ document.addEventListener("DOMContentLoaded", function () {
         console.warn(
           "Received 401 Unauthorized on API call, redirecting to login."
         );
-        window.location.href = "/login?session_expired=true";
-        // Return a dummy response or throw to prevent further processing in original caller
+        // Add parameter to show message on login page
+        window.location.href = "/login?reason=session_expired";
         return new Response(
           JSON.stringify({ error: "Unauthorized - Session likely expired" }),
           { status: 401 }
@@ -191,6 +204,10 @@ document.addEventListener("DOMContentLoaded", function () {
       return response;
     } catch (error) {
       console.error("Fetch Interceptor Error:", error);
+      // Check if it's a network error potentially indicating server down
+      if (error instanceof TypeError && error.message === "Failed to fetch") {
+        console.error("Network error: Could not connect to the server.");
+      }
       throw error;
     }
   };
@@ -198,24 +215,15 @@ document.addEventListener("DOMContentLoaded", function () {
   // --- Rating Star Logic ---
   function setupRatingStars(containerElement, hiddenInputElement) {
     if (!containerElement || !hiddenInputElement) {
-      console.warn(
-        "Missing elements for setupRatingStars:",
-        containerElement,
-        hiddenInputElement
-      );
       return;
     }
     const stars = containerElement.querySelectorAll(".star");
 
     stars.forEach((star) => {
       star.addEventListener("click", (event) => {
-        event.stopPropagation(); // Prevent potential conflicts
+        event.stopPropagation();
         const value = star.getAttribute("data-value");
-        console.log(
-          `Star clicked: value=${value}, target input:`,
-          hiddenInputElement.id
-        );
-        hiddenInputElement.value = value; // Ensure this line works
+        hiddenInputElement.value = value;
         updateStarSelection(containerElement, value);
       });
 
@@ -228,8 +236,6 @@ document.addEventListener("DOMContentLoaded", function () {
         updateStarSelection(containerElement, hiddenInputElement.value);
       });
     });
-
-    // Initialize display based on current value
     updateStarSelection(containerElement, hiddenInputElement.value);
   }
 
@@ -241,12 +247,12 @@ document.addEventListener("DOMContentLoaded", function () {
     stars.forEach((star) => {
       const starValue = parseInt(star.getAttribute("data-value"), 10);
       const icon = star.querySelector("i");
-      if (!icon) return; // Skip if icon not found
+      if (!icon) return;
 
       if (starValue <= ratingValue) {
         icon.classList.remove("far");
         icon.classList.add("fas");
-        star.classList.add("selected"); // Use class for hover/selected state consistency
+        star.classList.add("selected");
       } else {
         icon.classList.remove("fas");
         icon.classList.add("far");
@@ -257,10 +263,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function updateStarSelection(containerElement, selectedValue) {
     if (!containerElement) return;
-    const currentRating = parseInt(selectedValue, 10) || 0; // Default to 0 if invalid/empty
-    console.log(
-      `Updating stars for ${containerElement.id}, selectedValue: ${selectedValue}, parsed rating: ${currentRating}`
-    );
+    const currentRating = parseInt(selectedValue, 10) || 0;
     highlightStars(containerElement, currentRating);
   }
 
@@ -274,23 +277,25 @@ document.addEventListener("DOMContentLoaded", function () {
           i <= numericRating ? "fas" : "far"
         } fa-star"></i> `;
       }
-      containerElement.innerHTML = starsHtml.trim(); // Remove trailing space
-      containerElement.style.display = "inline-block"; // Use inline-block
+      containerElement.innerHTML = starsHtml.trim();
+      containerElement.style.display = "inline-block";
     } else {
-      containerElement.innerHTML = "(No rating)"; // Indicate no rating
+      containerElement.innerHTML = "(No rating)";
       containerElement.style.display = "inline-block";
     }
   }
 
-  // Initialize star rating inputs on page load
   setupRatingStars(reviewRatingStarsContainer, reviewRatingInput);
   setupRatingStars(editRatingStarsContainer, editRatingInput);
 
   // --- Geocode & Map Pinning Functions ---
   async function findCoordinates(formType = "add") {
     console.log(`findCoordinates called for form type: ${formType}`);
-    if (isPinningMode && formType === "add") {
-      togglePinningMode(); // Turn off pinning
+
+    if (formType === "add" && isPinningMode) {
+      await togglePinningMode();
+    } else if (formType === "edit" && isEditPinningMode) {
+      await toggleEditPinningMode();
     }
 
     const isEdit = formType === "edit";
@@ -322,57 +327,50 @@ document.addEventListener("DOMContentLoaded", function () {
     }
     setStatusMessage(statusEl, "Searching...", "loading");
     findBtn.disabled = true;
-    if (!isEdit) submitButton.disabled = true;
+    submitButton.disabled = true;
 
     try {
       const geocodeBaseUrl = "/geocode";
       const geocodeUrl = `${geocodeBaseUrl}?address=${encodeURIComponent(
         addressQuery
       )}`;
-      const response = await fetch(geocodeUrl); // Uses intercepted fetch
+      const response = await fetch(geocodeUrl);
 
       if (response.ok) {
         const result = await response.json();
-        updateCoordsDisplay(result, formType); // Update display/hidden fields
+        updateCoordsDisplay(result, formType);
         setStatusMessage(
           statusEl,
           `Location found: ${result.display_name}`,
           "success"
         );
-        if (!isEdit && hiddenLat.value && hiddenLon.value) {
-          // Only enable if coords are valid
+        const latVal = isEdit ? editLatitudeInput.value : hiddenLat.value;
+        const lonVal = isEdit ? editLongitudeInput.value : hiddenLon.value;
+        if (latVal && lonVal) {
           submitButton.disabled = false;
-        } else if (
-          isEdit &&
-          editLatitudeInput.value &&
-          editLongitudeInput.value
-        ) {
-          submitButton.disabled = false;
+        } else {
+          submitButton.disabled = true;
         }
       } else {
         let errorDetail = `Geocoding failed (${response.status}).`;
         try {
           const d = await response.json();
           errorDetail = d.detail || errorDetail;
-        } catch (e) {
-          /* ignore */
-        }
+        } catch (e) {}
         setStatusMessage(statusEl, `Error: ${errorDetail}`, "error");
-        if (!isEdit) submitButton.disabled = true; // Ensure disabled on failure
+        submitButton.disabled = true;
       }
     } catch (error) {
       if (error.message?.includes("Unauthorized")) {
-        console.error("Geocoding fetch failed due to authorization error.");
         setStatusMessage(
           statusEl,
           "Authentication error. Please log in.",
           "error"
         );
       } else {
-        console.error("Geocoding fetch error:", error);
         setStatusMessage(statusEl, "Network error during geocoding.", "error");
       }
-      if (!isEdit) submitButton.disabled = true;
+      submitButton.disabled = true;
     } finally {
       if (findBtn) findBtn.disabled = false;
     }
@@ -390,6 +388,7 @@ document.addEventListener("DOMContentLoaded", function () {
     const cityHidden = isEdit ? editCityHidden : hiddenCity;
     const countryHidden = isEdit ? editCountryHidden : hiddenCountry;
     const submitButton = isEdit ? editSubmitBtn : addSubmitBtn;
+    const statusEl = isEdit ? editGeocodeStatus : geocodeStatus;
 
     if (
       !coordsSect ||
@@ -413,21 +412,25 @@ document.addEventListener("DOMContentLoaded", function () {
     const lon = parseFloat(coordsData.longitude);
 
     if (isNaN(lat) || isNaN(lon)) {
-      console.error("Invalid coordinates received:", coordsData);
-      setStatusMessage(
-        isEdit ? editGeocodeStatus : geocodeStatus,
-        "Invalid coordinate data received.",
-        "error"
-      );
+      setStatusMessage(statusEl, "Invalid coordinate data received.", "error");
       submitButton.disabled = true;
+      latInput.value = "";
+      lonInput.value = "";
+      dispLatEl.textContent = "";
+      dispLonEl.textContent = "";
       return;
     }
 
     latInput.value = lat;
     lonInput.value = lon;
-    addrHidden.value = coordsData.address || "";
-    cityHidden.value = coordsData.city || "";
-    countryHidden.value = coordsData.country || "";
+    if (
+      coordsData.display_name !== undefined ||
+      coordsData.address !== undefined
+    ) {
+      addrHidden.value = coordsData.address || "";
+      cityHidden.value = coordsData.city || "";
+      countryHidden.value = coordsData.country || "";
+    }
 
     dispLatEl.textContent = lat.toFixed(6);
     dispLonEl.textContent = lon.toFixed(6);
@@ -438,73 +441,105 @@ document.addEventListener("DOMContentLoaded", function () {
     }
 
     coordsSect.style.display = "block";
-    // Enable submit only if we have valid coords now
     submitButton.disabled = !(latInput.value && lonInput.value);
   }
 
   function handleMapClick(e) {
-    if (!isPinningMode || !leafletMap) return;
+    const currentMap = getMapInstance();
+    if (!isPinningMode || !currentMap) return;
     const { lat, lng } = e.latlng;
-    console.log("Map clicked for pinning at:", lat, lng);
+    placeTemporaryMarker(lat, lng, "add");
+    updateCoordsFromPin({ latitude: lat, longitude: lng }, "add");
+  }
+
+  function handleEditMapClick(e) {
+    const currentMap = getMapInstance();
+    if (!isEditPinningMode || !currentMap) return;
+    const { lat, lng } = e.latlng;
+    placeTemporaryMarker(lat, lng, "edit");
+    updateCoordsFromPin({ latitude: lat, longitude: lng }, "edit");
+  }
+
+  function placeTemporaryMarker(lat, lng, formType = "add") {
+    const currentMap = getMapInstance();
+    if (!currentMap) {
+      console.error(
+        `Cannot place marker (${formType}): Map instance not available.`
+      );
+      return;
+    }
 
     if (temporaryMarker) {
-      leafletMap.removeLayer(temporaryMarker);
+      currentMap.removeLayer(temporaryMarker);
     }
 
     temporaryMarker = L.marker([lat, lng], { draggable: true })
-      .addTo(leafletMap)
+      .addTo(currentMap)
       .bindPopup("Selected Location. Drag to adjust.")
       .openPopup();
 
     temporaryMarker.on("dragend", function (event) {
       const marker = event.target;
       const position = marker.getLatLng();
-      console.log("Marker dragged to:", position.lat, position.lng);
-      updateCoordsFromPin({ latitude: position.lat, longitude: position.lng });
+      updateCoordsFromPin(
+        { latitude: position.lat, longitude: position.lng, address: undefined },
+        formType
+      );
       marker
-        .setLatLng(position, { draggable: "true" })
+        .setLatLng(position)
         .bindPopup("Selected Location. Drag to adjust.")
-        .update();
+        .openPopup();
     });
-
-    updateCoordsFromPin({ latitude: lat, longitude: lng });
   }
 
-  function updateCoordsFromPin(coords) {
-    updateCoordsDisplay(coords, "add");
-    setStatusMessage(geocodeStatus, "Location pinned on map.", "success");
-    if (addressInput) addressInput.value = "";
-    if (addSubmitBtn && hiddenLat.value && hiddenLon.value) {
-      // Double check coords are set
-      addSubmitBtn.disabled = false;
-    } else if (addSubmitBtn) {
-      addSubmitBtn.disabled = true; // Disable if coords somehow became invalid
-      console.warn("Submit button disabled after pin - coordinates missing?");
+  function updateCoordsFromPin(coords, formType = "add") {
+    const isEdit = formType === "edit";
+    const statusEl = isEdit ? editGeocodeStatus : geocodeStatus;
+    const addressQueryEl = isEdit ? editAddressInput : addressInput;
+    const submitButton = isEdit ? editSubmitBtn : addSubmitBtn;
+
+    updateCoordsDisplay(coords, formType);
+    setStatusMessage(statusEl, "Location pinned on map.", "success");
+    if (addressQueryEl) addressQueryEl.value = "";
+
+    const latVal = isEdit ? editLatitudeInput.value : hiddenLat.value;
+    const lonVal = isEdit ? editLongitudeInput.value : hiddenLon.value;
+    if (submitButton) {
+      submitButton.disabled = !(latVal && lonVal);
     }
   }
 
-  function togglePinningMode() {
-    // Use the LEAFLET map instance now
-    if (!leafletMap) {
-      console.error("Leaflet map instance not available for pinning.");
+  // --- Pinning Mode Toggles ---
+  async function togglePinningMode() {
+    // Use retry mechanism specifically when toggling
+    const currentMap = await ensureMapReadyWithRetries();
+    if (!currentMap) {
       setStatusMessage(
         geocodeStatus,
-        "Map not ready, cannot pin location.",
+        "Map not ready, cannot pin location. Please wait a moment and try again.",
         "error"
       );
-      return;
+      console.error(
+        "togglePinningMode: Map instance not available after retries."
+      );
+      return; // Exit if map not ready
     }
+
+    if (isEditPinningMode) {
+      await toggleEditPinningMode(); // Turn off edit pinning first
+    }
+
     isPinningMode = !isPinningMode;
-    const mapContainer = leafletMap.getContainer();
+    const mapContainer = currentMap.getContainer();
 
     if (isPinningMode) {
-      console.log("Entering map pinning mode.");
+      console.log("Entering ADD form map pinning mode.");
       if (addressInput) addressInput.disabled = true;
       if (findCoordsBtn) findCoordsBtn.disabled = true;
       if (mapPinInstruction) mapPinInstruction.style.display = "block";
       mapContainer.style.cursor = "crosshair";
       mapClickHandler = handleMapClick;
-      leafletMap.on("click", mapClickHandler);
+      currentMap.on("click", mapClickHandler);
       if (pinOnMapBtn) pinOnMapBtn.textContent = "Cancel Pinning";
       setStatusMessage(
         geocodeStatus,
@@ -512,35 +547,117 @@ document.addEventListener("DOMContentLoaded", function () {
         "info"
       );
     } else {
-      console.log("Exiting map pinning mode.");
+      console.log("Exiting ADD form map pinning mode.");
       if (addressInput) addressInput.disabled = false;
       if (findCoordsBtn) findCoordsBtn.disabled = false;
       if (mapPinInstruction) mapPinInstruction.style.display = "none";
       mapContainer.style.cursor = "";
       if (mapClickHandler) {
-        leafletMap.off("click", mapClickHandler);
+        currentMap.off("click", mapClickHandler);
         mapClickHandler = null;
       }
       if (temporaryMarker) {
-        leafletMap.removeLayer(temporaryMarker);
+        currentMap.removeLayer(temporaryMarker);
         temporaryMarker = null;
       }
       if (pinOnMapBtn) pinOnMapBtn.textContent = "Pin Location on Map";
-      // If exiting pinning mode *without* setting coords via pin, re-disable submit
-      if (addSubmitBtn && (!hiddenLat.value || !hiddenLon.value)) {
-        addSubmitBtn.disabled = true;
+      if (addSubmitBtn) {
+        addSubmitBtn.disabled = !(hiddenLat.value && hiddenLon.value);
+      }
+    }
+  }
+
+  async function toggleEditPinningMode() {
+    // Use retry mechanism specifically when toggling
+    const currentMap = await ensureMapReadyWithRetries();
+    if (!currentMap) {
+      setStatusMessage(
+        editGeocodeStatus,
+        "Map not ready, cannot pin location. Please wait a moment and try again.",
+        "error"
+      );
+      console.error(
+        "toggleEditPinningMode: Map instance not available after retries."
+      );
+      return; // Exit if map not ready
+    }
+
+    if (isPinningMode) {
+      await togglePinningMode(); // Turn off add pinning first
+    }
+
+    isEditPinningMode = !isEditPinningMode;
+    const mapContainer = currentMap.getContainer();
+
+    if (isEditPinningMode) {
+      console.log("Entering EDIT form map pinning mode.");
+      if (editAddressInput) editAddressInput.disabled = true;
+      if (editFindCoordsBtn) editFindCoordsBtn.disabled = true;
+      if (editMapPinInstruction) editMapPinInstruction.style.display = "block";
+      mapContainer.style.cursor = "crosshair";
+      editMapClickHandler = handleEditMapClick;
+      currentMap.on("click", editMapClickHandler);
+      if (editPinOnMapBtn) editPinOnMapBtn.textContent = "Cancel Pinning";
+      setStatusMessage(
+        editGeocodeStatus,
+        "Click the map to set the new location, or drag the marker.",
+        "info"
+      );
+
+      const currentLat = parseFloat(editLatitudeInput.value);
+      const currentLon = parseFloat(editLongitudeInput.value);
+      if (!isNaN(currentLat) && !isNaN(currentLon)) {
+        placeTemporaryMarker(currentLat, currentLon, "edit");
+      } else {
+        // Optionally place marker at map center if current coords invalid?
+        // const center = currentMap.getCenter();
+        // placeTemporaryMarker(center.lat, center.lng, "edit");
+        console.warn(
+          "Cannot place initial edit marker: invalid coords. Click map to set."
+        );
+      }
+    } else {
+      console.log("Exiting EDIT form map pinning mode.");
+      if (editAddressInput) editAddressInput.disabled = false;
+      if (editFindCoordsBtn) editFindCoordsBtn.disabled = false;
+      if (editMapPinInstruction) editMapPinInstruction.style.display = "none";
+      mapContainer.style.cursor = "";
+      if (editMapClickHandler) {
+        currentMap.off("click", editMapClickHandler);
+        editMapClickHandler = null;
+      }
+      if (temporaryMarker) {
+        currentMap.removeLayer(temporaryMarker);
+        temporaryMarker = null;
+      }
+      if (editPinOnMapBtn) editPinOnMapBtn.textContent = "Pin Location on Map";
+      if (editSubmitBtn) {
+        editSubmitBtn.disabled = !(
+          editLatitudeInput.value && editLongitudeInput.value
+        );
       }
     }
   }
 
   // --- Form Display Functions ---
-  function hideAllForms() {
+  async function hideAllForms() {
+    // Made async to await toggles
     if (addPlaceWrapper) addPlaceWrapper.style.display = "none";
     if (editPlaceSection) editPlaceSection.style.display = "none";
     if (reviewImageSection) reviewImageSection.style.display = "none";
     if (seeReviewSection) seeReviewSection.style.display = "none";
     if (toggleAddPlaceBtn) toggleAddPlaceBtn.textContent = "Add New Place";
-    if (isPinningMode) togglePinningMode(); // Ensure pinning mode is off
+
+    // Ensure pinning modes are off when hiding forms
+    // Check flags before calling toggle to avoid infinite loops
+    if (isPinningMode) {
+      console.debug("Hiding forms, turning off ADD pinning mode.");
+      await togglePinningMode(); // await ensures it finishes
+    }
+    if (isEditPinningMode) {
+      console.debug("Hiding forms, turning off EDIT pinning mode.");
+      await toggleEditPinningMode(); // await ensures it finishes
+    }
   }
 
   function resetAddPlaceCoords() {
@@ -555,17 +672,18 @@ document.addEventListener("DOMContentLoaded", function () {
     if (displayLat) displayLat.textContent = "";
     if (displayLon) displayLon.textContent = "";
     if (displayAddress) displayAddress.textContent = "";
+    if (addressInput) addressInput.value = "";
   }
 
   function resetAddPlaceForm() {
     if (addPlaceForm) addPlaceForm.reset();
     resetAddPlaceCoords();
-    if (isPinningMode) togglePinningMode();
   }
 
   // --- Global Functions Exposed to Inline Event Handlers ---
-  window.showAddPlaceForm = function () {
-    hideAllForms();
+  window.showAddPlaceForm = async function () {
+    // Made async
+    await hideAllForms(); // await ensures pinning modes are off
     resetAddPlaceForm();
     if (addPlaceWrapper) {
       addPlaceWrapper.style.display = "block";
@@ -574,13 +692,19 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
-  window.hideAddPlaceForm = function () {
+  window.hideAddPlaceForm = async function () {
+    // Made async
     if (addPlaceWrapper) addPlaceWrapper.style.display = "none";
     if (toggleAddPlaceBtn) toggleAddPlaceBtn.textContent = "Add New Place";
-    resetAddPlaceForm();
+    // Ensure pinning is off
+    if (isPinningMode) {
+      await togglePinningMode();
+    }
+    // resetAddPlaceForm(); // Consider if reset is needed on explicit cancel
   };
 
-  window.showEditPlaceForm = function (placeDataJSONString) {
+  window.showEditPlaceForm = async function (placeDataJSONString) {
+    // Made async
     console.log("Global showEditPlaceForm called.");
     let placeData;
     try {
@@ -614,6 +738,8 @@ document.addEventListener("DOMContentLoaded", function () {
       editRatingStarsContainer,
       editRatingInput,
       editRemoveImageCheckbox,
+      editPinOnMapBtn,
+      editMapPinInstruction,
     ];
     if (requiredElements.some((el) => !el)) {
       console.error("CRITICAL: One or more Edit Form elements are missing!");
@@ -621,12 +747,19 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
+    await hideAllForms(); // Hide other forms and cancel their pinning modes
+
     try {
       editPlaceFormTitle.textContent = placeData.name || "Unknown";
       editNameInput.value = placeData.name || "";
       editCategorySelect.value = placeData.category || "other";
       editStatusSelect.value = placeData.status || "pending";
-      editAddressInput.value = ""; // Clear re-geocode input
+      editAddressInput.value = "";
+      editAddressInput.disabled = false;
+      editFindCoordsBtn.disabled = false;
+      editPinOnMapBtn.textContent = "Pin Location on Map";
+      editMapPinInstruction.style.display = "none";
+
       editDisplayLat.textContent = placeData.latitude?.toFixed(6) ?? "N/A";
       editDisplayLon.textContent = placeData.longitude?.toFixed(6) ?? "N/A";
       editLatitudeInput.value = placeData.latitude || "";
@@ -637,7 +770,7 @@ document.addEventListener("DOMContentLoaded", function () {
       setStatusMessage(editGeocodeStatus, "");
       editSubmitBtn.disabled = !(
         editLatitudeInput.value && editLongitudeInput.value
-      ); // Enable only if coords valid
+      );
       editSubmitBtn.textContent = "Save Changes";
       editPlaceForm.action = `/places/${placeData.id}/edit`;
 
@@ -647,7 +780,6 @@ document.addEventListener("DOMContentLoaded", function () {
       updateStarSelection(editRatingStarsContainer, placeData.rating);
       editRemoveImageCheckbox.checked = false;
 
-      hideAllForms();
       editPlaceSection.style.display = "block";
       editPlaceSection.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
@@ -656,8 +788,13 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
-  window.hideEditPlaceForm = function () {
+  window.hideEditPlaceForm = async function () {
+    // Made async
     if (editPlaceSection) editPlaceSection.style.display = "none";
+    if (isEditPinningMode) {
+      console.debug("Hiding Edit form, turning off EDIT pinning mode.");
+      await toggleEditPinningMode(); // await ensures it finishes
+    }
     if (
       !addPlaceWrapper?.style.display ||
       addPlaceWrapper.style.display === "none"
@@ -666,7 +803,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
-  window.showReviewForm = function (placeDataInput) {
+  window.showReviewForm = async function (placeDataInput) {
+    // Made async
     console.log("Global showReviewForm called.");
     let placeData;
     if (typeof placeDataInput === "string") {
@@ -705,6 +843,8 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
+    await hideAllForms(); // Hide other forms first
+
     try {
       if (!placeData || !placeData.id) {
         throw new Error("placeData object is invalid or missing ID.");
@@ -713,8 +853,8 @@ document.addEventListener("DOMContentLoaded", function () {
       reviewFormTitle.textContent = placeData.name || "Unknown";
       reviewTitleInput.value = placeData.review_title || "";
       reviewTextInput.value = placeData.review || "";
-      reviewRatingInput.value = placeData.rating || ""; // Set hidden input
-      updateStarSelection(reviewRatingStarsContainer, placeData.rating); // Update visual stars
+      reviewRatingInput.value = placeData.rating || "";
+      updateStarSelection(reviewRatingStarsContainer, placeData.rating);
       reviewImageInput.value = "";
       reviewRemoveImageCheckbox.checked = false;
 
@@ -730,7 +870,6 @@ document.addEventListener("DOMContentLoaded", function () {
       reviewSubmitBtn.textContent = "Save Review & Image";
       reviewImageForm.action = `/places/${placeData.id}/review-image`;
 
-      hideAllForms();
       reviewImageSection.style.display = "block";
       reviewImageSection.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
@@ -749,7 +888,8 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   };
 
-  window.showSeeReviewModal = function (placeDataJSONString) {
+  window.showSeeReviewModal = async function (placeDataJSONString) {
+    // Made async
     console.log("Global showSeeReviewModal called.");
     let placeData;
     try {
@@ -781,6 +921,8 @@ document.addEventListener("DOMContentLoaded", function () {
       return;
     }
 
+    await hideAllForms(); // Hide other forms first
+
     try {
       seeReviewPlaceTitle.textContent = placeData.name || "Unknown Place";
       displayRatingStars(seeReviewRatingDisplay, placeData.rating);
@@ -807,7 +949,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
       }
 
-      hideAllForms();
       seeReviewSection.style.display = "block";
       seeReviewSection.scrollIntoView({ behavior: "smooth", block: "start" });
     } catch (e) {
@@ -837,27 +978,31 @@ document.addEventListener("DOMContentLoaded", function () {
       !clickedImage.src.startsWith("http")
     )
       return;
-    const overlay = document.createElement("div");
-    overlay.className = "image-overlay";
-    const imageInOverlay = document.createElement("img");
-    imageInOverlay.src = clickedImage.src;
-    imageInOverlay.alt = clickedImage.alt || "Enlarged review image";
-    imageInOverlay.onclick = function (e) {
-      e.stopPropagation();
-    };
-    overlay.appendChild(imageInOverlay);
-    overlay.onclick = function () {
-      overlay.classList.remove("visible");
-      overlay.addEventListener(
-        "transitionend",
-        () => {
-          if (document.body.contains(overlay))
-            document.body.removeChild(overlay);
-        },
-        { once: true }
-      );
-    };
-    document.body.appendChild(overlay);
+    let overlay = document.querySelector(".image-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "image-overlay";
+      const imageInOverlay = document.createElement("img");
+      imageInOverlay.alt = clickedImage.alt || "Enlarged review image";
+      imageInOverlay.onclick = function (e) {
+        e.stopPropagation();
+      };
+      overlay.appendChild(imageInOverlay);
+      overlay.onclick = function () {
+        overlay.classList.remove("visible");
+        overlay.addEventListener(
+          "transitionend",
+          () => {
+            if (document.body.contains(overlay))
+              document.body.removeChild(overlay);
+          },
+          { once: true }
+        );
+      };
+      document.body.appendChild(overlay);
+    }
+    const imageInOverlay = overlay.querySelector("img");
+    if (imageInOverlay) imageInOverlay.src = clickedImage.src; // Always set src
     setTimeout(() => overlay.classList.add("visible"), 10);
   }
 
@@ -883,7 +1028,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
   if (pinOnMapBtn) {
     pinOnMapBtn.addEventListener("click", togglePinningMode);
-  } // Attach listener
+  }
 
   if (addPlaceForm) {
     addPlaceForm.addEventListener("submit", (event) => {
@@ -894,19 +1039,21 @@ document.addEventListener("DOMContentLoaded", function () {
           'Location coordinates missing. Use "Find" or "Pin" button first.',
           "error"
         );
-        if (addSubmitBtn) addSubmitBtn.disabled = true; // Keep disabled if invalid
+        if (addSubmitBtn) addSubmitBtn.disabled = true;
         return false;
       }
       if (addSubmitBtn) {
         addSubmitBtn.disabled = true;
         addSubmitBtn.textContent = "Adding...";
       }
-      if (isPinningMode) togglePinningMode(); // Exit pinning on submit
     });
   }
 
   if (editFindCoordsBtn) {
     editFindCoordsBtn.addEventListener("click", () => findCoordinates("edit"));
+  }
+  if (editPinOnMapBtn) {
+    editPinOnMapBtn.addEventListener("click", toggleEditPinningMode);
   }
 
   if (editPlaceForm) {
@@ -923,10 +1070,9 @@ document.addEventListener("DOMContentLoaded", function () {
           "Coordinates missing or invalid.",
           "error"
         );
-        if (editSubmitBtn) editSubmitBtn.disabled = true; // Keep disabled
+        if (editSubmitBtn) editSubmitBtn.disabled = true;
         return false;
       }
-      // Convert empty rating string to null before submitting potentially? No, backend handles Optional[int]
       if (editSubmitBtn) {
         editSubmitBtn.disabled = true;
         editSubmitBtn.textContent = "Saving...";
@@ -941,17 +1087,16 @@ document.addEventListener("DOMContentLoaded", function () {
       }
     });
     reviewImageForm.addEventListener("submit", (event) => {
-      // Ensure rating is set if stars were clicked
-      if (!reviewRatingInput.value) {
-        // Optional: Set to empty or handle as needed, Pydantic Optional[int] should handle None
-        console.log("Submitting review form with no rating selected.");
-      } else if (
-        parseInt(reviewRatingInput.value) < 1 ||
-        parseInt(reviewRatingInput.value) > 5
-      ) {
-        event.preventDefault(); // Prevent submit
-        alert("Please select a valid rating between 1 and 5 stars."); // Simple feedback
-        return false;
+      const ratingValue = reviewRatingInput.value;
+      if (ratingValue) {
+        const ratingNum = parseInt(ratingValue, 10);
+        if (isNaN(ratingNum) || ratingNum < 1 || ratingNum > 5) {
+          event.preventDefault();
+          alert(
+            "Please select a valid rating between 1 and 5 stars, or leave it blank."
+          );
+          return false;
+        }
       }
       if (reviewSubmitBtn) {
         reviewSubmitBtn.disabled = true;
@@ -974,60 +1119,53 @@ document.addEventListener("DOMContentLoaded", function () {
       const placeDataJSONString = button.getAttribute("data-place-json");
       if (placeDataJSONString) {
         try {
-          const placeDataObject = JSON.parse(placeDataJSONString);
-          window.showReviewForm(placeDataObject); // Show review form for editing
+          window.showReviewForm(placeDataJSONString);
         } catch (e) {
-          console.error(
-            "Error parsing placeData JSON from button attribute:",
-            e
-          );
           alert("Error reading data needed to edit review.");
         }
       } else {
-        console.error("Cannot edit review, data attribute missing.");
         alert("Error: Could not retrieve data to edit review.");
       }
     });
   }
 
-  // Handle Logout Form Submission with JS
-  if (logoutForm) {
-    logoutForm.addEventListener("submit", async (event) => {
-      event.preventDefault(); // Prevent standard form submission
-      console.log("Logout form submitted via JS");
+  // Logout Button Listener
+  if (logoutButton) {
+    logoutButton.addEventListener("click", async () => {
+      console.log("Logout button clicked");
       try {
-        // Call the API endpoint
-        const response = await fetch(logoutForm.action, {
-          // Use form action URL
+        const response = await fetch("/api/auth/logout", {
           method: "POST",
-          // No body needed, auth determined by cookie
         });
-
-        if (response.ok || response.status === 303) {
-          // Handle redirect status as ok here
-          // API call succeeded (cookie deleted on backend)
+        if (response.ok || response.status === 204) {
           console.log("Logout API call successful.");
-          // Redirect to login page on client-side
-          window.location.href = "/login?logged_out=true";
+          window.location.href = "/login?reason=logged_out"; // Force redirect
         } else {
-          // Handle potential errors from API call
           console.error(
             "Logout API call failed:",
             response.status,
             response.statusText
           );
-          alert("Logout failed. Please try again.");
+          try {
+            const errorData = await response.json();
+            alert(`Logout failed: ${errorData.detail || "Unknown error"}`);
+          } catch {
+            alert("Logout failed. Please try again.");
+          }
         }
       } catch (error) {
         console.error("Error during logout fetch:", error);
         alert("An error occurred during logout.");
       }
     });
+  } else {
+    console.warn("#logout-btn not found");
   }
 
   // Initial state setup
-  hideAllForms();
+  hideAllForms(); // Call initially to set state and cancel any pinning
   if (addSubmitBtn) addSubmitBtn.disabled = true;
+  if (editSubmitBtn) editSubmitBtn.disabled = true;
 
   console.log("JS Initialization Complete. Event listeners attached.");
-}); // End of DOMContentLoaded listener
+});

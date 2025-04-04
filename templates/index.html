@@ -15,7 +15,7 @@
         crossorigin="anonymous" referrerpolicy="no-referrer" />
     <!-- Our Custom Stylesheet -->
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
-    <!-- Add specific styles for rating stars -->
+    <!-- Add specific styles for rating stars and pin instructions -->
     <style>
         .rating-stars {
             display: inline-block;
@@ -42,7 +42,8 @@
             color: #ccc;
         }
 
-        #map-pin-instruction {
+        .map-pin-instruction {
+            /* Shared style for pin instructions */
             display: none;
             margin-top: 10px;
             font-style: italic;
@@ -58,6 +59,18 @@
         .logout-btn:hover {
             background-color: #5a6268;
         }
+
+        .login-message {
+            /* Style for messages on login page */
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 0.9em;
+            background-color: #e3f2fd;
+            border: 1px solid #bbdefb;
+            color: #0d47a1;
+        }
     </style>
 </head>
 
@@ -69,7 +82,7 @@
             {% if user_email %}
             <div style="text-align: right;">
                 <span style="font-size: 0.9em; color: var(--text-muted);">Logged in as: {{ user_email }}</span><br>
-                <!-- Changed form to button calling JS function -->
+                <!-- Button triggers JS logout -->
                 <button type="button" id="logout-btn" class="logout-btn"
                     style="padding: 5px 10px; font-size: 0.9em; margin-top: 5px;">Logout</button>
             </div>
@@ -137,7 +150,9 @@
                     <button type="button" id="pin-on-map-btn"
                         style="margin-bottom: 10px; background-color: var(--secondary-color); color: var(--text-color);">Pin
                         Location on Map</button>
-                    <div id="map-pin-instruction">Click on the map to set the location. Click button again to cancel.
+                    <!-- Add instruction div -->
+                    <div id="map-pin-instruction" class="map-pin-instruction">
+                        Click on the map to set the location. Click button again to cancel.
                     </div>
                     <div id="geocode-status" class="status-message"></div>
 
@@ -182,19 +197,24 @@
                     <label for="edit-name">Place Name:</label>
                     <input type="text" id="edit-name" name="name" required maxlength="100">
 
-                    <label for="edit-address-input">Find New Location:</label>
+                    <label for="edit-address-input">Update Location:</label>
                     <div class="address-input-row">
                         <input type="text" id="edit-address-input" placeholder="Enter new address to re-geocode">
                         <button type="button" id="edit-find-coords-btn">Find New Coords</button>
                     </div>
-                    <!-- Add map pinning option for edit too? Maybe later -->
+                    <!-- Edit Pin Button -->
+                    <button type="button" id="edit-pin-on-map-btn"
+                        style="margin-bottom: 10px; background-color: var(--secondary-color); color: var(--text-color);">Pin
+                        Location on Map</button>
+                    <!-- Edit Instruction Div -->
+                    <div id="edit-map-pin-instruction" class="map-pin-instruction">
+                        Click the map to set a new location or drag the marker. Click button again to cancel.
+                    </div>
                     <div id="edit-geocode-status" class="status-message"></div>
 
                     <div id="edit-coords-section" class="coords-section">
                         <p>Current Coords: (<span id="edit-display-lat"></span>, <span id="edit-display-lon"></span>)
                         </p>
-                        <p style="font-size: 0.85em;">(Only click "Find" if changing location. Cannot pin on map in edit
-                            mode yet.)</p>
                         <input type="hidden" id="edit-latitude" name="latitude" required>
                         <input type="hidden" id="edit-longitude" name="longitude" required>
                         <input type="hidden" id="edit-address" name="address">
@@ -216,7 +236,6 @@
                         {% endfor %}
                     </select>
 
-                    <!-- Consider adding full review edit fields here OR keep review separate -->
                     <label for="edit-review-title">Review Title:</label>
                     <input type="text" id="edit-review-title" name="review_title" maxlength="150">
                     <label for="edit-review-text">Review Text:</label>

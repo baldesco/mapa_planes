@@ -60,17 +60,38 @@
             text-decoration: underline;
         }
 
-        .error-message-auth {
-            color: var(--error-color);
-            background-color: #ffcdd2;
-            border: 1px solid var(--error-color);
-            padding: 10px;
+        .message-auth {
+            /* Base style for messages */
+            padding: 10px 12px;
             border-radius: 6px;
             margin-bottom: 15px;
             display: none;
             /* Hidden by default */
             text-align: center;
             font-size: 0.9em;
+            border: 1px solid transparent;
+        }
+
+        .error-message-auth {
+            color: var(--error-color);
+            background-color: #ffcdd2;
+            border-color: var(--error-color);
+        }
+
+        .info-message-auth {
+            /* Style for info messages */
+            color: #0277bd;
+            /* Darker info blue */
+            background-color: #e1f5fe;
+            /* Lighter info blue */
+            border-color: #b3e5fc;
+            /* Border info blue */
+        }
+
+        .success-message-auth {
+            color: #388e3c;
+            background-color: var(--primary-color-light);
+            border-color: #a5d6a7;
         }
     </style>
 </head>
@@ -78,7 +99,9 @@
 <body>
     <div class="auth-container">
         <h1>Login</h1>
-        <div id="error-message" class="error-message-auth"></div>
+        <div id="info-message" class="message-auth info-message-auth"></div> <!-- Info message div -->
+        <div id="error-message" class="message-auth error-message-auth"></div> <!-- Error message div -->
+
         <!-- Form posts to the API endpoint -->
         <form id="login-form" method="post">
             <label for="username">Email:</label>
@@ -97,18 +120,40 @@
     </div>
 
     <script>
-        // Handle form submission via JS to call the API endpoint
         const loginForm = document.getElementById('login-form');
         const errorMessageDiv = document.getElementById('error-message');
+        const infoMessageDiv = document.getElementById('info-message');
+
+        // Check for query parameters on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            const urlParams = new URLSearchParams(window.location.search);
+            const reason = urlParams.get('reason');
+            const signupStatus = urlParams.get('signup'); // Check for signup status
+
+            if (reason === 'session_expired') {
+                infoMessageDiv.textContent = 'Your session expired. Please log in again.';
+                infoMessageDiv.style.display = 'block';
+            } else if (reason === 'logged_out') {
+                infoMessageDiv.textContent = 'You have been logged out successfully.';
+                infoMessageDiv.style.display = 'block';
+            } else if (signupStatus === 'success') {
+                // Optional: Show a message confirming signup before login
+                // infoMessageDiv.textContent = 'Signup successful! Please log in.';
+                // infoMessageDiv.style.display = 'block';
+            }
+            // Clear the query parameters from URL without reloading
+            if (reason || signupStatus) {
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }
+        });
+
 
         loginForm.addEventListener('submit', async (event) => {
             event.preventDefault(); // Prevent default form submission
 
             const formData = new FormData(loginForm);
-            // Note: FastAPI's OAuth2PasswordRequestForm expects 'username' and 'password'
-            // in a www-form-urlencoded body, which FormData handles correctly.
-
             errorMessageDiv.style.display = 'none'; // Hide previous error
+            infoMessageDiv.style.display = 'none'; // Hide info message on new attempt
 
             try {
                 const response = await fetch('/api/auth/login', {
