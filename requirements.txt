@@ -1,18 +1,19 @@
---- FastAPI Core & Extensions ---
+#--- FastAPI Core & Extensions ---
 fastapi[all]>=0.100.0 # Includes uvicorn, jinja2, python-multipart, etc.
 pydantic-settings>=2.0.0 # For loading settings from .env
 
---- Database & Storage (Supabase) ---
+#--- Database & Storage (Supabase) ---
 supabase>=2.0.0
 
---- Mapping & Geocoding ---
+#--- Mapping & Geocoding ---
 folium>=0.14.0
 opencage>=2.0.0
 
---- Authentication & Security ---
+#--- Authentication & Security ---
 python-jose[cryptography]>=3.3.0 # For JWT handling (even if validating via Supabase)
 passlib[bcrypt]>=1.7.4 # For password hashing context (used by FastAPI security utils)
 email-validator>=2.0.0 # For Pydantic EmailStr validation
 
---- Environment Loading ---
+#--- Environment Loading ---
 python-dotenv>=1.0.0 # For loading .env files
+gunicorn>=20.1.0,<22.0.0 # Production ASGI server process manager
