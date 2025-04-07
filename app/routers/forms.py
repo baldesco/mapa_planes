@@ -207,7 +207,8 @@ async def handle_add_review_image_form(
     # Form fields for review/image
     review_title: str = Form(""),
     review_text: str = Form(""),
-    rating: Optional[int] = Form(None),  # Keep rating here
+    # Changed type hint to accept str, will handle conversion below
+    rating: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None, alias="image"),
     remove_image: Optional[str] = Form(None),  # Checkbox value 'yes'
 ):
@@ -238,18 +239,25 @@ async def handle_add_review_image_form(
                     f"Image uploaded successfully for place {place_id}, URL: {image_public_url}"
                 )
             else:
+                # If upload returns None but no exception, treat as failure to proceed
                 update_failed = True
+                logger.warning(
+                    f"Image upload function returned None for place {place_id}."
+                )
+
         except HTTPException as http_exc:
             logger.error(
                 f"Image upload failed for place {place_id}: {http_exc.status_code} - {http_exc.detail}"
             )
             update_failed = True
+            # TODO: Flash message with http_exc.detail
         except Exception as e:
             logger.error(
                 f"Unexpected error during image upload processing for place {place_id}: {e}",
                 exc_info=True,
             )
             update_failed = True
+            # TODO: Flash generic error message
 
     if update_failed:
         # TODO: Add flash message: "Image upload failed. Review details not saved."
@@ -257,41 +265,48 @@ async def handle_add_review_image_form(
 
     # 2. Prepare and Execute Database Update for Review/Rating/Image URL
     try:
-        # IMPORTANT: Check if rating is empty string and convert to None
-        # FastAPI/Pydantic might handle this, but being explicit is safer
-        valid_rating = rating
-        if isinstance(rating, str) and rating.strip() == "":
-            valid_rating = None
-        elif rating is not None:
+        valid_rating: Optional[int] = None
+        if rating is not None and rating.strip() != "":
             try:
                 # Ensure it's a valid integer if provided
-                valid_rating = int(rating)
-                if not (1 <= valid_rating <= 5):
-                    raise ValueError("Rating out of range")
+                parsed_rating = int(rating)
+                if 1 <= parsed_rating <= 5:
+                    valid_rating = parsed_rating
+                else:
+                    logger.warning(
+                        f"Invalid rating value '{rating}' (out of range 1-5) received for place {place_id}, setting to None."
+                    )
             except (ValueError, TypeError):
                 logger.warning(
-                    f"Invalid rating value '{rating}' received for place {place_id}, setting to None."
+                    f"Invalid rating value '{rating}' (not an integer) received for place {place_id}, setting to None."
                 )
-                valid_rating = None  # Set to None if invalid conversion
+        # If rating is None or empty string, valid_rating remains None
 
         update_payload = {
             "review_title": review_title.strip() if review_title else None,
             "review": review_text.strip() if review_text else None,
             "rating": valid_rating,  # Use validated rating
-            "status": models_places.PlaceStatus.VISITED,  # Assume visited if adding review
+            # Only update status to visited if review/rating/image implies it
+            "status": models_places.PlaceStatus.VISITED
+            if (valid_rating or review_title or review_text or image_public_url)
+            else None,
             "updated_at": datetime.now(timezone.utc),
         }
+        # Remove status if it resolved to None (meaning no review content was added)
+        if update_payload["status"] is None:
+            del update_payload["status"]
+
         if should_remove_image:
             update_payload["image_url"] = None
         elif image_public_url:
             update_payload["image_url"] = image_public_url
+        # If no new image and not removing, image_url is not included, preserving existing
 
         # Only proceed if there's actually something to update
-        # (excluding status and updated_at which are always set)
-        has_changes = any(
-            k in update_payload
-            for k in ["review_title", "review", "rating", "image_url"]
-        )
+        # (excluding updated_at)
+        keys_to_check = ["review_title", "review", "rating", "image_url", "status"]
+        has_changes = any(k in update_payload for k in keys_to_check)
+
         if not has_changes:
             logger.info(
                 f"No review/rating/image changes submitted for place {place_id}."
@@ -301,7 +316,14 @@ async def handle_add_review_image_form(
                 url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
             )
 
-        place_update_model = models_places.PlaceUpdate(**update_payload)
+        # Use exclude_none=True to avoid sending nulls unless explicitly set (like image_url=None)
+        place_update_model = models_places.PlaceUpdate(
+            **{
+                k: v
+                for k, v in update_payload.items()
+                if v is not None or k == "image_url"
+            }  # Keep image_url even if None
+        )
 
         updated_place = await crud_places.update_place(
             place_id=place_id,
@@ -321,6 +343,7 @@ async def handle_add_review_image_form(
             # TODO: Flash failure: "Failed to save review details."
 
     except ValidationError as e:
+        # This shouldn't happen now for rating "" vs None, but good to keep
         logger.error(
             f"FORM Review/Image Pydantic validation error ID {place_id}: {e.errors()}",
             exc_info=False,

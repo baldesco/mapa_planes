@@ -6,6 +6,9 @@
     --primary-color-light: #C8E6C9;
     --primary-color-dark: #1B5E20;
     --secondary-color: #f8f9fa;
+    /* Light grey background */
+    --tertiary-color: #e9ecef;
+    /* Slightly darker grey */
     --border-color: #dee2e6;
     --text-color: #212529;
     --text-muted: #6c757d;
@@ -22,8 +25,9 @@
     --see-review-hover-bg: #455a64;
     --toggle-button-bg: #546e7a;
     --toggle-button-hover-bg: #37474f;
-    --box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    --box-shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.07);
+    --box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    /* Slightly softer shadow */
+    --box-shadow-sm: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
 html {
@@ -45,15 +49,15 @@ body {
     line-height: 1.7;
     font-size: 16px;
     font-weight: 400;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
 }
 
-/* --- Cursor Change for Map Pinning --- */
-body.map-pinning-active #map .leaflet-container {
-    cursor: crosshair !important;
-    /* Use crosshair cursor and !important to override Leaflet defaults */
+body.auth-page {
+    justify-content: center;
+    align-items: center;
 }
-
-/* ------------------------------------- */
 
 .container {
     max-width: 1200px;
@@ -63,7 +67,126 @@ body.map-pinning-active #map .leaflet-container {
     box-shadow: var(--box-shadow);
     border-radius: 12px;
     position: relative;
+    width: 100%;
+    flex-grow: 1;
 }
+
+/* --- Auth Page Specific Styles --- */
+.auth-container {
+    background: var(--white);
+    padding: 40px 35px;
+    border-radius: 12px;
+    box-shadow: var(--box-shadow);
+    max-width: 420px;
+    width: 90%;
+    margin: 20px;
+    text-align: center;
+}
+
+.auth-container h1 {
+    margin-top: 0;
+    margin-bottom: 35px;
+    font-size: 2.1em;
+    color: var(--primary-color);
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.auth-container label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: left;
+    font-size: 0.95em;
+}
+
+.auth-container input[type="email"],
+.auth-container input[type="password"] {
+    width: 100%;
+    padding: 14px 16px;
+    margin-bottom: 22px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1em;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-container input[type="email"]:focus,
+.auth-container input[type="password"]:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-color-light);
+    outline: none;
+}
+
+
+.auth-container button[type="submit"] {
+    width: 100%;
+    padding: 14px;
+    margin-top: 15px;
+    font-size: 1.1em;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.auth-container button[type="submit"]:hover {
+    background-color: var(--primary-color-dark);
+    transform: translateY(-1px);
+}
+
+.auth-links {
+    text-align: center;
+    margin-top: 25px;
+    font-size: 0.95em;
+    color: var(--text-muted);
+}
+
+.auth-links a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+    color: var(--primary-color-dark);
+}
+
+.message-auth {
+    padding: 12px 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    display: none;
+    text-align: center;
+    font-size: 0.95em;
+    border: 1px solid transparent;
+}
+
+.error-message-auth {
+    color: var(--error-color);
+    background-color: #ffcdd2;
+    border-color: #ef9a9a;
+}
+
+.info-message-auth {
+    color: #0d47a1;
+    background-color: #bbdefb;
+    border-color: #90caf9;
+}
+
+.success-message-auth {
+    color: var(--primary-color-dark);
+    background-color: var(--primary-color-light);
+    border-color: #a5d6a7;
+}
+
+/* --- End Auth Page Styles --- */
+
 
 h1,
 h2 {
@@ -89,6 +212,7 @@ h2 {
     font-weight: 500;
 }
 
+/* Main Map (Folium) */
 #map {
     height: 550px;
     width: 100%;
@@ -121,6 +245,58 @@ h2 {
 .leaflet-control-container {
     z-index: 800 !important;
 }
+
+/* --- Pinning Map Styles --- */
+#pinning-map-container {
+    margin-top: 15px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--box-shadow-sm);
+    /* Initially hidden */
+    display: none;
+}
+
+#pinning-map {
+    /* *** ADD EXPLICIT HEIGHT *** */
+    height: 350px;
+    width: 100%;
+    background-color: var(--tertiary-color);
+    /* Placeholder bg */
+}
+
+#pinning-map-controls {
+    padding: 10px;
+    background-color: var(--tertiary-color);
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+}
+
+#pinning-map-controls button {
+    margin: 0 5px;
+    padding: 8px 15px;
+    font-size: 0.95em;
+}
+
+#pinning-map-controls #confirm-pin-btn {
+    background-color: var(--primary-color);
+}
+
+#pinning-map-controls #confirm-pin-btn:hover {
+    background-color: var(--primary-color-dark);
+}
+
+#pinning-map-controls #cancel-pin-btn {
+    background-color: var(--error-color);
+}
+
+#pinning-map-controls #cancel-pin-btn:hover {
+    background-color: var(--danger-color-hover);
+}
+
+/* --- End Pinning Map Styles --- */
+
 
 .controls-section,
 .form-section,
@@ -215,7 +391,9 @@ input[type="file"] {
     font-size: 1em;
     font-family: inherit;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    background-color: #fff;
 }
+
 
 input[type="text"]:focus,
 input[type="number"]:focus,
@@ -628,18 +806,40 @@ button#toggle-add-place-form-btn:hover {
     cursor: default;
 }
 
+.map-pin-instruction {
+    display: none;
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-style: italic;
+    color: var(--info-color);
+    padding: 8px;
+    background-color: var(--light-blue-bg);
+    border: 1px dashed var(--light-blue-border);
+    border-radius: 4px;
+}
+
 @media (max-width: 768px) {
-    body {
+    body:not(.auth-page) {
         font-size: 15px;
     }
 
-    .container {
+    .container:not(.auth-container) {
         margin: 15px auto;
         padding: 20px;
     }
 
+    .auth-container {
+        padding: 30px 25px;
+        max-width: 90%;
+    }
+
     h1 {
         font-size: 2em;
+    }
+
+    .auth-container h1 {
+        font-size: 1.8em;
+        margin-bottom: 25px;
     }
 
     h2 {
@@ -648,6 +848,10 @@ button#toggle-add-place-form-btn:hover {
 
     #map {
         height: 450px;
+    }
+
+    #pinning-map {
+        height: 300px;
     }
 
     .controls-section {
@@ -721,16 +925,45 @@ button#toggle-add-place-form-btn:hover {
         padding: 5px 10px !important;
         font-size: 0.9em !important;
     }
+
+    #pinning-map-controls {
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    #pinning-map-controls button {
+        width: 100%;
+        margin: 0;
+    }
 }
 
 @media (max-width: 480px) {
-    body {
+    body:not(.auth-page) {
         font-size: 14px;
     }
 
-    .container {
+    .container:not(.auth-container) {
         margin: 10px auto;
         padding: 15px;
+    }
+
+    .auth-container {
+        padding: 25px 20px;
+    }
+
+    .auth-container h1 {
+        font-size: 1.6em;
+    }
+
+    .auth-container input[type="email"],
+    .auth-container input[type="password"] {
+        padding: 12px 14px;
+        margin-bottom: 18px;
+    }
+
+    .auth-container button[type="submit"] {
+        padding: 12px;
+        font-size: 1em;
     }
 
     h1 {
@@ -743,6 +976,10 @@ button#toggle-add-place-form-btn:hover {
 
     #map {
         height: 380px;
+    }
+
+    #pinning-map {
+        height: 250px;
     }
 
     .form-section,

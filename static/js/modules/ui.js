@@ -1,14 +1,16 @@
 /**
  * ui.js
  * Module for handling general UI interactions, form display, DOM updates,
- * modals, rating stars, and geocoding requests.
+ * modals, rating stars, geocoding requests, and draggable map pinning
+ * using a dedicated pinning map instance.
  */
 import apiClient from "./apiClient.js";
 import mapHandler from "./mapHandler.js";
 
 const ui = {
   elements: {
-    /* ... cache elements ... */ toggleAddPlaceBtn: null,
+    /* ... same elements ... */
+    toggleAddPlaceBtn: null,
     addPlaceWrapper: null,
     addPlaceForm: null,
     addPlaceCancelBtn: null,
@@ -72,12 +74,18 @@ const ui = {
     seeReviewDisplayImage: null,
     seeReviewEditBtn: null,
     seeReviewCloseBtn: null,
+    pinningMapContainer: null,
+    pinningMapDiv: null,
+    pinningMapControls: null,
+    confirmPinBtn: null,
+    cancelPinBtn: null,
   },
   currentPlaceDataForEdit: null,
   currentPlaceDataForReview: null,
   pinningActiveForForm: null, // State: null, 'add', or 'edit'
 
   init() {
+    /* ... same ... */
     console.debug("UI Module: Initializing...");
     this.cacheDOMElements();
     this.setupEventListeners();
@@ -88,22 +96,19 @@ const ui = {
     window.showReviewForm = this.showReviewForm.bind(this);
     window.showSeeReviewModal = this.showSeeReviewModal.bind(this);
     window.showImageOverlay = this.showImageOverlay.bind(this);
-    window.isPinningActive = this.isPinningActive.bind(this);
-    window.handleMapPinClick = this.handleMapPinClick.bind(this);
     window.ui = this;
     this.hideAllSections();
     if (this.elements.addSubmitBtn) this.elements.addSubmitBtn.disabled = true;
     if (this.elements.editSubmitBtn)
       this.elements.editSubmitBtn.disabled = true;
-    // Enable pin buttons by default, map click handler will check state
     if (this.elements.addPinOnMapBtn)
       this.elements.addPinOnMapBtn.disabled = false;
     if (this.elements.editPinOnMapBtn)
       this.elements.editPinOnMapBtn.disabled = false;
     console.log("UI Module: Initialization Complete.");
   },
-
   cacheDOMElements() {
+    /* ... same ... */
     this.elements.toggleAddPlaceBtn = document.getElementById(
       "toggle-add-place-form-btn"
     );
@@ -226,15 +231,23 @@ const ui = {
     );
     this.elements.seeReviewCloseBtn =
       this.elements.seeReviewSection?.querySelector("button.cancel-btn");
+    this.elements.pinningMapContainer = document.getElementById(
+      "pinning-map-container"
+    );
+    this.elements.pinningMapDiv = document.getElementById("pinning-map");
+    this.elements.pinningMapControls = document.getElementById(
+      "pinning-map-controls"
+    );
+    this.elements.confirmPinBtn = document.getElementById("confirm-pin-btn");
+    this.elements.cancelPinBtn = document.getElementById("cancel-pin-btn");
   },
-
   setupEventListeners() {
+    /* ... same ... */
     if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.addEventListener("click", () => {
         if (
-          !this.elements.addPlaceWrapper ||
-          this.elements.addPlaceWrapper.style.display === "none" ||
-          this.elements.addPlaceWrapper.style.display === ""
+          this.elements.addPlaceWrapper?.style.display === "none" ||
+          this.elements.addPlaceWrapper?.style.display === ""
         ) {
           this.showAddPlaceForm();
         } else {
@@ -282,6 +295,18 @@ const ui = {
         }
       });
     }
+    if (this.elements.confirmPinBtn) {
+      this.elements.confirmPinBtn.addEventListener("click", () =>
+        this.confirmPinLocation()
+      );
+    }
+    if (this.elements.cancelPinBtn) {
+      this.elements.cancelPinBtn.addEventListener("click", () => {
+        if (this.pinningActiveForForm) {
+          this.toggleMapPinning(this.pinningActiveForForm);
+        }
+      });
+    }
     this.setupFormSubmission(
       this.elements.addPlaceForm,
       this.elements.addSubmitBtn,
@@ -301,14 +326,11 @@ const ui = {
       this.elements.reviewSubmitBtn
     );
     document.body.addEventListener("click", (event) => {
-      if (event.target.closest(".image-overlay")) {
-        this.hideImageOverlay();
-      } else if (event.target.matches("#see-review-display-image")) {
+      if (event.target.closest(".image-overlay")) this.hideImageOverlay();
+      else if (event.target.matches("#see-review-display-image"))
         this.showImageOverlay(event);
-      }
     });
   },
-
   setupFormSubmission(
     form,
     submitBtn,
@@ -316,27 +338,40 @@ const ui = {
     lonInput = null,
     statusEl = null
   ) {
+    /* ... same ... */
     if (!form || !submitBtn) return;
     form.addEventListener("submit", (event) => {
-      if (latInput && lonInput && (!latInput.value || !lonInput.value)) {
-        event.preventDefault();
-        this.setStatusMessage(
-          statusEl || null,
-          "Location coordinates missing.",
-          "error"
-        );
-        submitBtn.disabled = true;
-        return false;
+      if (latInput && lonInput) {
+        const latVal = parseFloat(latInput.value);
+        const lonVal = parseFloat(lonInput.value);
+        if (
+          isNaN(latVal) ||
+          isNaN(lonVal) ||
+          latVal < -90 ||
+          latVal > 90 ||
+          lonVal < -180 ||
+          lonVal > 180
+        ) {
+          event.preventDefault();
+          this.setStatusMessage(
+            statusEl || null,
+            "Valid location coordinates are required to save.",
+            "error"
+          );
+          submitBtn.disabled = true;
+          return false;
+        }
       }
       submitBtn.disabled = true;
-      submitBtn.textContent = submitBtn.textContent.replace(
-        /^(Add|Save|Update)/,
-        "$1ing..."
+      const originalText = submitBtn.textContent.replace(
+        /^(Adding|Saving|Updating)...$/,
+        "$1"
       );
+      submitBtn.textContent = `${originalText}...`;
     });
   },
-
   hideAllSections() {
+    /* ... same ... */
     if (this.elements.addPlaceWrapper)
       this.elements.addPlaceWrapper.style.display = "none";
     if (this.elements.editPlaceSection)
@@ -345,18 +380,20 @@ const ui = {
       this.elements.reviewImageSection.style.display = "none";
     if (this.elements.seeReviewSection)
       this.elements.seeReviewSection.style.display = "none";
+    if (this.pinningActiveForForm) {
+      this.handlePinningModeChange(false, this.pinningActiveForForm);
+      mapHandler.destroyPinningMap();
+      this.pinningActiveForForm = null;
+    }
+    if (this.elements.pinningMapContainer) {
+      this.elements.pinningMapContainer.style.display = "none";
+    }
     if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
-    // Reset pinning state AND related UI class on body
-    this.pinningActiveForForm = null;
-    document.body.classList.remove("map-pinning-active");
-    // Update button UI (redundant if handlePinningModeChange was called, but safe)
-    this.handlePinningModeChange(false, "add");
-    this.handlePinningModeChange(false, "edit");
   },
-
   showAddPlaceForm() {
-    /* ... same ... */ this.hideAllSections();
+    /* ... same ... */
+    this.hideAllSections();
     this.resetAddPlaceForm();
     if (this.elements.addPlaceWrapper) {
       this.elements.addPlaceWrapper.style.display = "block";
@@ -369,15 +406,18 @@ const ui = {
     }
   },
   hideAddPlaceForm() {
-    /* ... same ... */ if (this.elements.addPlaceWrapper)
+    /* ... same ... */
+    if (this.elements.addPlaceWrapper)
       this.elements.addPlaceWrapper.style.display = "none";
     if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
-    this.pinningActiveForForm = null;
-    document.body.classList.remove("map-pinning-active");
+    if (this.pinningActiveForForm === "add") {
+      this.toggleMapPinning("add");
+    }
   },
   showEditPlaceForm(placeDataInput) {
-    /* ... same ... */ let placeData;
+    /* ... same ... */
+    let placeData;
     if (typeof placeDataInput === "string") {
       try {
         placeData = JSON.parse(placeDataInput);
@@ -402,7 +442,7 @@ const ui = {
       const els = this.elements;
       if (!els.editPlaceSection || !els.editPlaceForm)
         throw new Error("Edit form elements missing");
-      els.editPlaceFormTitle.textContent = placeData.name || "Unknown";
+      els.editPlaceFormTitle.textContent = `"${placeData.name || "Unknown"}"`;
       els.editNameInput.value = placeData.name || "";
       els.editCategorySelect.value = placeData.category || "other";
       els.editStatusSelect.value = placeData.status || "pending";
@@ -420,7 +460,7 @@ const ui = {
       );
       els.editSubmitBtn.textContent = "Save Changes";
       els.editPlaceForm.action = `/places/${placeData.id}/edit`;
-      els.editPinOnMapBtn.textContent = "Pin Location on Map";
+      els.editPinOnMapBtn.textContent = "Pin New Location";
       els.editMapPinInstruction.style.display = "none";
       els.editAddressInput.disabled = false;
       els.editFindCoordsBtn.disabled = false;
@@ -437,11 +477,13 @@ const ui = {
     }
   },
   hideEditPlaceForm() {
-    /* ... same ... */ if (this.elements.editPlaceSection)
+    /* ... same ... */
+    if (this.elements.editPlaceSection)
       this.elements.editPlaceSection.style.display = "none";
     this.currentPlaceDataForEdit = null;
-    this.pinningActiveForForm = null;
-    document.body.classList.remove("map-pinning-active");
+    if (this.pinningActiveForForm === "edit") {
+      this.toggleMapPinning("edit");
+    }
     if (
       !this.elements.addPlaceWrapper ||
       this.elements.addPlaceWrapper.style.display === "none"
@@ -451,7 +493,8 @@ const ui = {
     }
   },
   showReviewForm(placeDataInput) {
-    /* ... same ... */ let placeData;
+    /* ... same ... */
+    let placeData;
     if (typeof placeDataInput === "string") {
       try {
         placeData = JSON.parse(placeDataInput);
@@ -475,11 +518,15 @@ const ui = {
         throw new Error("Review form elements missing");
       if (!placeData || !placeData.id)
         throw new Error("placeData object is invalid or missing ID.");
-      els.reviewFormTitle.textContent = placeData.name || "Unknown";
+      els.reviewFormTitle.textContent = `"${placeData.name || "Unknown"}"`;
       els.reviewTitleInput.value = placeData.review_title || "";
       els.reviewTextInput.value = placeData.review || "";
-      els.reviewRatingInput.value = placeData.rating || "";
-      this.updateRatingStars(els.reviewRatingStarsContainer, placeData.rating);
+      const currentRating =
+        placeData.rating !== null && placeData.rating !== undefined
+          ? String(placeData.rating)
+          : "";
+      els.reviewRatingInput.value = currentRating;
+      this.updateRatingStars(els.reviewRatingStarsContainer, currentRating);
       els.reviewImageInput.value = "";
       els.reviewRemoveImageCheckbox.checked = false;
       if (placeData.image_url && placeData.image_url.startsWith("http")) {
@@ -505,19 +552,23 @@ const ui = {
     }
   },
   hideReviewForm() {
-    /* ... same ... */ if (this.elements.reviewImageSection)
+    /* ... same ... */
+    if (this.elements.reviewImageSection)
       this.elements.reviewImageSection.style.display = "none";
     this.currentPlaceDataForReview = null;
     if (
-      !this.elements.addPlaceWrapper ||
-      this.elements.addPlaceWrapper.style.display === "none"
+      (!this.elements.addPlaceWrapper ||
+        this.elements.addPlaceWrapper.style.display === "none") &&
+      (!this.elements.editPlaceSection ||
+        this.elements.editPlaceSection.style.display === "none")
     ) {
       if (this.elements.toggleAddPlaceBtn)
         this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
     }
   },
   showSeeReviewModal(placeDataInput) {
-    /* ... same ... */ let placeData;
+    /* ... same ... */
+    let placeData;
     if (typeof placeDataInput === "string") {
       try {
         placeData = JSON.parse(placeDataInput);
@@ -539,7 +590,9 @@ const ui = {
       const els = this.elements;
       if (!els.seeReviewSection)
         throw new Error("See Review modal elements missing");
-      els.seeReviewPlaceTitle.textContent = placeData.name || "Unknown Place";
+      els.seeReviewPlaceTitle.textContent = `"${
+        placeData.name || "Unknown Place"
+      }"`;
       this.displayStaticRatingStars(
         els.seeReviewRatingDisplay,
         placeData.rating
@@ -578,22 +631,27 @@ const ui = {
     }
   },
   hideSeeReviewModal() {
-    /* ... same ... */ if (this.elements.seeReviewSection)
+    /* ... same ... */
+    if (this.elements.seeReviewSection)
       this.elements.seeReviewSection.style.display = "none";
     this.currentPlaceDataForReview = null;
     if (
-      !this.elements.addPlaceWrapper ||
-      this.elements.addPlaceWrapper.style.display === "none"
+      (!this.elements.addPlaceWrapper ||
+        this.elements.addPlaceWrapper.style.display === "none") &&
+      (!this.elements.editPlaceSection ||
+        this.elements.editPlaceSection.style.display === "none") &&
+      (!this.elements.reviewImageSection ||
+        this.elements.reviewImageSection.style.display === "none")
     ) {
       if (this.elements.toggleAddPlaceBtn)
         this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
     }
   },
-
   async handleGeocodeRequest(formType = "add") {
     /* ... same ... */
-    this.pinningActiveForForm = null;
-    this.handlePinningModeChange(false, formType);
+    if (this.pinningActiveForForm === formType) {
+      this.toggleMapPinning(formType);
+    }
     const isEdit = formType === "edit";
     const addressQueryEl = isEdit
       ? this.elements.editAddressInput
@@ -610,7 +668,7 @@ const ui = {
     if (!addressQueryEl || !findBtn || !statusEl || !submitButton) {
       this.setStatusMessage(
         statusEl || this.elements.addGeocodeStatus,
-        "Internal page error.",
+        "Internal page error: UI elements missing.",
         "error"
       );
       return;
@@ -624,7 +682,7 @@ const ui = {
       );
       return;
     }
-    this.setStatusMessage(statusEl, "Searching...", "loading");
+    this.setStatusMessage(statusEl, "Searching for location...", "loading");
     findBtn.disabled = true;
     submitButton.disabled = true;
     try {
@@ -640,13 +698,16 @@ const ui = {
           `Location found: ${result.display_name}`,
           "success"
         );
-        mapHandler.flyTo(result.latitude, result.longitude);
+        mapHandler.flyTo(result.latitude, result.longitude); // Fly main map
+        submitButton.disabled = false;
       } else {
         let errorDetail = `Geocoding failed (${response.status}).`;
         try {
           const errorData = await response.json();
           errorDetail = errorData.detail || errorDetail;
-        } catch (e) {}
+        } catch (e) {
+          /* ignore */
+        }
         this.setStatusMessage(statusEl, `Error: ${errorDetail}`, "error");
       }
     } catch (error) {
@@ -658,13 +719,17 @@ const ui = {
       );
     } finally {
       if (findBtn) findBtn.disabled = false;
-      const latVal = isEdit
-        ? this.elements.editLatitudeInput.value
-        : this.elements.addHiddenLat.value;
-      const lonVal = isEdit
-        ? this.elements.editLongitudeInput.value
-        : this.elements.addHiddenLon.value;
-      if (submitButton) submitButton.disabled = !(latVal && lonVal);
+      const latInput = isEdit
+        ? this.elements.editLatitudeInput
+        : this.elements.addHiddenLat;
+      const lonInput = isEdit
+        ? this.elements.editLongitudeInput
+        : this.elements.addHiddenLon;
+      if (submitButton && latInput?.value && lonInput?.value) {
+        submitButton.disabled = false;
+      } else if (submitButton) {
+        submitButton.disabled = true;
+      }
     }
   },
   updateCoordsDisplay(coordsData, formType = "add") {
@@ -697,6 +762,11 @@ const ui = {
         "Cannot update coords display: Missing required elements for form type",
         formType
       );
+      this.setStatusMessage(
+        statusEl,
+        "Internal UI Error updating coordinates.",
+        "error"
+      );
       return;
     }
     const lat = parseFloat(coordsData.latitude);
@@ -704,7 +774,7 @@ const ui = {
     if (isNaN(lat) || isNaN(lon)) {
       this.setStatusMessage(
         statusEl,
-        "Invalid coordinate data received.",
+        "Received invalid coordinate data.",
         "error"
       );
       submitButton.disabled = true;
@@ -716,11 +786,13 @@ const ui = {
       coordsSect.style.display = "none";
       return;
     }
-    latInput.value = lat;
-    lonInput.value = lon;
+    latInput.value = lat.toFixed(7);
+    lonInput.value = lon.toFixed(7);
     if (
-      coordsData.display_name !== undefined ||
-      coordsData.address !== undefined
+      coordsData.address !== undefined ||
+      coordsData.city !== undefined ||
+      coordsData.country !== undefined ||
+      coordsData.display_name !== undefined
     ) {
       addrHidden.value = coordsData.address || "";
       cityHidden.value = coordsData.city || "";
@@ -728,38 +800,126 @@ const ui = {
     }
     dispLatEl.textContent = lat.toFixed(6);
     dispLonEl.textContent = lon.toFixed(6);
-    if (dispAddrEl)
+    if (dispAddrEl) {
       dispAddrEl.textContent =
-        coordsData.display_name || "(Coordinates set manually)";
+        coordsData.display_name || "(Coordinates set via pin)";
+    }
     coordsSect.style.display = "block";
     submitButton.disabled = false;
   },
 
-  // --- NEW Pinning Logic (UI State Management) ---
+  // --- Pinning Logic ---
   toggleMapPinning(formType = "add") {
-    console.log(`UI: toggleMapPinning called for ${formType}`);
-    if (this.pinningActiveForForm === formType) {
-      // Turn off pinning for this form
-      this.pinningActiveForForm = null;
-    } else {
-      // Turn off pinning for the other form if active
-      if (this.pinningActiveForForm !== null) {
-        this.handlePinningModeChange(false, this.pinningActiveForForm);
-      }
-      // Turn on pinning for this form
-      this.pinningActiveForForm = formType;
-    }
-    // Update UI for the current form's new state
-    this.handlePinningModeChange(
-      this.pinningActiveForForm === formType,
-      formType
+    console.log(
+      `UI: toggleMapPinning called for ${formType}. Current active: ${this.pinningActiveForForm}`
     );
+    if (typeof L === "undefined") {
+      alert("Mapping library (Leaflet) is not loaded. Cannot use pin feature.");
+      console.error("Toggle Pinning failed: Leaflet (L) is undefined.");
+      return;
+    }
+
+    if (this.pinningActiveForForm === formType) {
+      // Turn OFF
+      console.log(`UI: Turning OFF pinning for ${formType}`);
+      this.pinningActiveForForm = null;
+      mapHandler.destroyPinningMap();
+      this.handlePinningModeChange(false, formType);
+    } else {
+      // Turn ON
+      console.log(`UI: Turning ON pinning for ${formType}`);
+      if (
+        this.pinningActiveForForm !== null &&
+        this.pinningActiveForForm !== formType
+      ) {
+        const otherForm = this.pinningActiveForForm;
+        console.log(`UI: Deactivating pinning for other form: ${otherForm}`);
+        this.pinningActiveForForm = null;
+        mapHandler.destroyPinningMap();
+        this.handlePinningModeChange(false, otherForm);
+      }
+
+      this.pinningActiveForForm = formType;
+      const pinningMapContainer = this.elements.pinningMapContainer;
+      if (!pinningMapContainer) {
+        console.error("Pinning map container element not found!");
+        alert("Error: Pinning map container is missing.");
+        this.pinningActiveForForm = null;
+        return;
+      }
+
+      // *** Move the container to the correct form section ***
+      const targetFormSection =
+        formType === "edit"
+          ? this.elements.editPlaceSection
+          : this.elements.addPlaceWrapper;
+      const pinInstructionElement =
+        formType === "edit"
+          ? this.elements.editMapPinInstruction
+          : this.elements.addMapPinInstruction;
+      if (
+        targetFormSection &&
+        pinInstructionElement &&
+        targetFormSection.contains(pinInstructionElement)
+      ) {
+        // Insert the map container *after* the instruction text
+        pinInstructionElement.parentNode.insertBefore(
+          pinningMapContainer,
+          pinInstructionElement.nextSibling
+        );
+        console.log(
+          `Moved pinning map container into ${formType} form section.`
+        );
+      } else {
+        console.error(
+          `Could not find target section or instruction element for ${formType} to insert map container.`
+        );
+        // Fallback: Append to body? Or just error out? Let's error for now.
+        alert("Internal UI error: Could not place pinning map correctly.");
+        this.pinningActiveForForm = null;
+        return;
+      }
+
+      pinningMapContainer.style.display = "block"; // Make container visible *before* init
+
+      let initialCoords = null;
+      if (formType === "edit" && this.currentPlaceDataForEdit) {
+        const lat = parseFloat(this.currentPlaceDataForEdit.latitude);
+        const lng = parseFloat(this.currentPlaceDataForEdit.longitude);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          initialCoords = { lat: lat, lng: lng };
+        }
+      }
+
+      console.log("UI: Calling mapHandler.initPinningMap...");
+      const mapInitialized = mapHandler.initPinningMap(
+        "pinning-map",
+        initialCoords
+      );
+
+      if (mapInitialized) {
+        console.log("UI: Pinning map initialized. Placing marker...");
+        mapHandler.placeDraggableMarker(initialCoords);
+        this.handlePinningModeChange(true, formType); // Update button text etc.
+        console.log("UI: Scrolling pinning map into view.");
+        pinningMapContainer.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        });
+      } else {
+        console.error("UI: mapHandler.initPinningMap failed.");
+        alert("Failed to initialize the pinning map. Please try again.");
+        pinningMapContainer.style.display = "none";
+        this.pinningActiveForForm = null;
+        this.handlePinningModeChange(false, formType);
+      }
+    }
   },
 
-  // Updated UI based on pinning state
   handlePinningModeChange(isActive, formType) {
+    // Only updates UI elements (buttons, text), NOT map visibility
     console.debug(
-      `UI: Updating UI for pinning mode change: ${isActive} for ${formType}`
+      `UI: handlePinningModeChange - isActive: ${isActive}, formType: ${formType}`
     );
     const isEdit = formType === "edit";
     const pinBtn = isEdit
@@ -777,9 +937,15 @@ const ui = {
     const statusEl = isEdit
       ? this.elements.editGeocodeStatus
       : this.elements.addGeocodeStatus;
+    // No need to handle map container visibility here, toggleMapPinning does that
 
-    if (!pinBtn || !instructionEl || !addressInput || !findBtn || !statusEl)
+    if (!pinBtn || !instructionEl || !addressInput || !findBtn || !statusEl) {
+      console.error(
+        "handlePinningModeChange: Required UI elements missing for form",
+        formType
+      );
       return;
+    }
 
     if (isActive) {
       addressInput.disabled = true;
@@ -788,15 +954,17 @@ const ui = {
       pinBtn.textContent = "Cancel Pinning";
       this.setStatusMessage(
         statusEl,
-        "Click the map to set the location.",
+        "Drag the pin on the map, then confirm.",
         "info"
       );
-      document.body.classList.add("map-pinning-active"); // Add class for cursor
+      console.log(
+        `handlePinningModeChange: Set UI for active pinning (${formType})`
+      );
     } else {
       addressInput.disabled = false;
       findBtn.disabled = false;
       instructionEl.style.display = "none";
-      pinBtn.textContent = "Pin Location on Map";
+      pinBtn.textContent = isEdit ? "Pin New Location" : "Pin Location on Map";
       const latInput = isEdit
         ? this.elements.editLatitudeInput
         : this.elements.addHiddenLat;
@@ -807,38 +975,37 @@ const ui = {
         ? this.elements.editSubmitBtn
         : this.elements.addSubmitBtn;
       if (submitBtn) submitBtn.disabled = !(latInput?.value && lonInput?.value);
-      document.body.classList.remove("map-pinning-active"); // Remove class
-    }
-  },
-
-  // Called by iframe script via window.handleMapPinClick
-  handleMapPinClick(lat, lng) {
-    console.log(
-      `UI: Received map pin click from iframe: Lat: ${lat}, Lng: ${lng}`
-    );
-    const activeForm = this.pinningActiveForForm; // Get which form is active
-    if (activeForm) {
-      const coords = { latitude: lat, longitude: lng };
-      this.updateCoordsDisplay(coords, activeForm); // Update the correct form
-      const statusEl =
-        activeForm === "edit"
-          ? this.elements.editGeocodeStatus
-          : this.elements.addGeocodeStatus;
-      this.setStatusMessage(statusEl, "Location pinned via map.", "success");
-      // Automatically turn off pinning mode after successful pin
-      this.toggleMapPinning(activeForm);
-    } else {
-      console.warn(
-        "UI: Map click received from iframe, but no form is in pinning mode."
+      console.log(
+        `handlePinningModeChange: Set UI for inactive pinning (${formType})`
       );
     }
   },
 
-  // Called by iframe script via window.isPinningActive
-  isPinningActive() {
-    return this.pinningActiveForForm !== null;
+  confirmPinLocation() {
+    // No changes needed here
+    console.log("UI: Confirm Pin clicked.");
+    if (!this.pinningActiveForForm) {
+      console.warn("Confirm Pin clicked but no form is active.");
+      return;
+    }
+    const position = mapHandler.getDraggableMarkerPosition();
+    const activeForm = this.pinningActiveForForm;
+    const statusEl =
+      activeForm === "edit"
+        ? this.elements.editGeocodeStatus
+        : this.elements.addGeocodeStatus;
+    if (position) {
+      const coords = { latitude: position.lat, longitude: position.lng };
+      this.updateCoordsDisplay(coords, activeForm);
+      this.setStatusMessage(statusEl, "Location set via map pin.", "success");
+      this.toggleMapPinning(activeForm); // Deactivate pinning
+    } else {
+      console.error("Could not get marker position on confirm.");
+      this.setStatusMessage(statusEl, "Error getting pin location.", "error");
+      this.toggleMapPinning(activeForm); // Cancel on error
+    }
   },
-  // --- End NEW Pinning Logic ---
+  // --- End Pinning Logic ---
 
   setupRatingStars() {
     /* ... same ... */ this.setupInteractiveStars(
@@ -849,11 +1016,19 @@ const ui = {
   setupInteractiveStars(container, hiddenInput) {
     /* ... same ... */ if (!container || !hiddenInput) return;
     const stars = container.querySelectorAll(".star");
+    const setRating = (value) => {
+      hiddenInput.value = value;
+      this.updateRatingStars(container, value);
+    };
     stars.forEach((star) => {
       star.addEventListener("click", (e) => {
         e.stopPropagation();
-        hiddenInput.value = star.dataset.value;
-        this.updateRatingStars(container, hiddenInput.value);
+        const value = star.dataset.value;
+        if (hiddenInput.value === value) {
+          setRating("");
+        } else {
+          setRating(value);
+        }
       });
       star.addEventListener("mouseover", () =>
         this.highlightStars(container, star.dataset.value)
@@ -890,8 +1065,9 @@ const ui = {
     const numRating = parseInt(rating, 10);
     if (numRating >= 1 && numRating <= 5) {
       let html = "";
-      for (let i = 1; i <= 5; i++)
+      for (let i = 1; i <= 5; i++) {
         html += `<i class="${i <= numRating ? "fas" : "far"} fa-star"></i> `;
+      }
       container.innerHTML = html.trim();
       container.style.display = "inline-block";
     } else {
@@ -900,13 +1076,24 @@ const ui = {
     }
   },
   setStatusMessage(element, message, type = "info") {
-    /* ... same ... */ if (!element) return;
+    /* ... same ... */ if (!element) {
+      console.warn(
+        "setStatusMessage called with null element for message:",
+        message
+      );
+      return;
+    }
     element.textContent = message;
     element.className = "status-message";
-    if (type === "error") element.classList.add("error-message");
-    else if (type === "success") element.classList.add("success-message");
-    else if (type === "loading") element.classList.add("loading-indicator");
-    else element.classList.add("info-message");
+    if (type === "error") {
+      element.classList.add("error-message");
+    } else if (type === "success") {
+      element.classList.add("success-message");
+    } else if (type === "loading") {
+      element.classList.add("loading-indicator");
+    } else {
+      element.classList.add("info-message");
+    }
     element.style.display = message ? "block" : "none";
   },
   resetAddPlaceForm() {
@@ -922,7 +1109,6 @@ const ui = {
     if (this.elements.addHiddenCity) this.elements.addHiddenCity.value = "";
     if (this.elements.addHiddenCountry)
       this.elements.addHiddenCountry.value = "";
-    if (this.elements.addSubmitBtn) this.elements.addSubmitBtn.disabled = true;
     if (this.elements.addDisplayLat)
       this.elements.addDisplayLat.textContent = "";
     if (this.elements.addDisplayLon)
@@ -930,6 +1116,7 @@ const ui = {
     if (this.elements.addDisplayAddress)
       this.elements.addDisplayAddress.textContent = "";
     if (this.elements.addAddressInput) this.elements.addAddressInput.value = "";
+    if (this.elements.addSubmitBtn) this.elements.addSubmitBtn.disabled = true;
     if (this.elements.addPinOnMapBtn)
       this.elements.addPinOnMapBtn.textContent = "Pin Location on Map";
     if (this.elements.addMapPinInstruction)
@@ -938,6 +1125,9 @@ const ui = {
       this.elements.addAddressInput.disabled = false;
     if (this.elements.addFindCoordsBtn)
       this.elements.addFindCoordsBtn.disabled = false;
+    if (this.pinningActiveForForm === "add") {
+      this.toggleMapPinning("add");
+    }
   },
   showImageOverlay(event) {
     /* ... same ... */ const clickedImage = event.target;
@@ -946,8 +1136,10 @@ const ui = {
       clickedImage.tagName !== "IMG" ||
       !clickedImage.src ||
       !clickedImage.src.startsWith("http")
-    )
+    ) {
+      console.debug("showImageOverlay: Click target not a valid image.");
       return;
+    }
     let overlay = document.querySelector(".image-overlay");
     if (!overlay) {
       overlay = document.createElement("div");
@@ -971,8 +1163,9 @@ const ui = {
       overlay.addEventListener(
         "transitionend",
         () => {
-          if (document.body.contains(overlay))
+          if (document.body.contains(overlay)) {
             document.body.removeChild(overlay);
+          }
         },
         { once: true }
       );

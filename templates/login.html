@@ -5,94 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Mapa Planes</title>
+    <link rel="icon" href="{{ url_for('static', path='/penguin_favicon.png') }}" type="image/png">
     <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
-    <style>
-        /* Add some specific styles for login/signup pages */
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background-color: var(--secondary-color);
-        }
-
-        .auth-container {
-            background: var(--white);
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: var(--box-shadow);
-            max-width: 400px;
-            width: 100%;
-        }
-
-        .auth-container h1 {
-            margin-bottom: 30px;
-            font-size: 2em;
-        }
-
-        .auth-container label {
-            margin-bottom: 5px;
-        }
-
-        .auth-container input[type="email"],
-        .auth-container input[type="password"] {
-            margin-bottom: 20px;
-        }
-
-        .auth-container button {
-            width: 100%;
-            padding: 15px;
-            margin-top: 10px;
-        }
-
-        .auth-links {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 0.95em;
-        }
-
-        .auth-links a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-
-        .auth-links a:hover {
-            text-decoration: underline;
-        }
-
-        .message-auth {
-            /* Base style for messages */
-            padding: 10px 12px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            display: none;
-            /* Hidden by default */
-            text-align: center;
-            font-size: 0.9em;
-            border: 1px solid transparent;
-        }
-
-        .error-message-auth {
-            color: var(--error-color);
-            background-color: #ffcdd2;
-            border-color: var(--error-color);
-        }
-
-        .info-message-auth {
-            color: #0277bd;
-            background-color: #e1f5fe;
-            border-color: #b3e5fc;
-        }
-
-        .success-message-auth {
-            color: #388e3c;
-            background-color: var(--primary-color-light);
-            border-color: #a5d6a7;
-        }
-    </style>
+    <!-- Specific styles for login/signup pages are now in styles.css -->
+    <!-- targeted using body.auth-page -->
 </head>
 
-<body>
+<body class="auth-page"> <!-- Add class for CSS targeting -->
     <div class="auth-container">
         <h1>Login</h1>
         <!-- Divs for displaying messages -->
@@ -102,10 +21,10 @@
         <!-- Form posts handled by JS module -->
         <form id="login-form" method="post">
             <label for="username">Email:</label>
-            <input type="email" id="username" name="username" required>
+            <input type="email" id="username" name="username" required autocomplete="email">
 
             <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required>
+            <input type="password" id="password" name="password" required autocomplete="current-password">
 
             <button type="submit">Login</button>
         </form>
