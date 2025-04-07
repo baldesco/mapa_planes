@@ -7,131 +7,92 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapa Planes</title>
     <link rel="icon" href="{{ url_for('static', path='/penguin_favicon.png') }}" type="image/png">
-    <!-- Load Leaflet CSS FIRST -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <!-- Then Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <!-- Your Custom CSS -->
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
-    <style>
-        /* Inline styles can be removed if fully migrated to styles.css */
-        .rating-stars {
-            display: inline-block;
-            font-size: 1.4em;
-            cursor: pointer;
-        }
-
-        .rating-stars .star {
-            color: #ccc;
-            transition: color 0.2s;
-        }
-
-        .rating-stars .star:hover,
-        .rating-stars .star.selected {
-            color: #FFD700;
-        }
-
-        .rating-stars-display .fas {
-            color: #FFD700;
-        }
-
-        .rating-stars-display .far {
-            color: #ccc;
-        }
-
-        .logout-btn {
-            background-color: var(--text-muted);
-            color: white;
-        }
-
-        .logout-btn:hover {
-            background-color: #5a6268;
-        }
-
-        .draggable-pin-icon i {
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        }
-    </style>
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
 </head>
 
 <body>
     <div class="container">
         <!-- Header Section -->
-        <div
-            style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid #eee;">
+        <header class="main-header">
             <h1>🐧 Dos en la ciudad 🦖</h1>
             {% if user_email %}
-            <div style="text-align: right;">
-                <span style="font-size: 0.9em; color: var(--text-muted);">Logged in as: {{ user_email }}</span><br>
-                <button type="button" id="logout-btn" class="logout-btn"
-                    style="padding: 5px 10px; font-size: 0.9em; margin-top: 5px;">Logout</button>
+            <div class="user-info">
+                <span>Logged in as: {{ user_email }}</span>
+                <button type="button" id="logout-btn" class="logout-btn">Logout</button>
             </div>
             {% else %}
-            <div> <a href="{{ url_for('serve_login_page') }}" style="margin-right: 10px;">Login</a> <a
-                    href="{{ url_for('serve_signup_page') }}">Sign Up</a> </div>
+            <div class="auth-links-header">
+                <a href="{{ url_for('serve_login_page') }}">Login</a>
+                <a href="{{ url_for('serve_signup_page') }}">Sign Up</a>
+            </div>
             {% endif %}
-        </div>
+        </header>
 
         <!-- Controls Section -->
-        <div class="controls-section filter-section">
+        <section class="controls-section filter-section">
             <form method="get" action="{{ request.url_for('serve_root_page') }}">
-                <div><label for="category">Category:</label><select id="category" name="category"
-                        onchange="this.form.submit()">
-                        <option value="" {% if not current_category %}selected{% endif %}>All</option> {% for cat in
-                        categories %}<option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{
-                            cat|capitalize }}</option>{% endfor %}
-                    </select></div>
-                <div><label for="status">Status:</label><select id="status" name="status" onchange="this.form.submit()">
-                        <option value="" {% if not current_status %}selected{% endif %}>All</option> {% for stat in
-                        statuses %}<option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{
-                            stat|replace('_', ' ')|capitalize }}</option>{% endfor %}
-                    </select></div>
-                <button type="submit">Filter</button> <button type="button"
-                    onclick="window.location.href='{{ request.url_for('serve_root_page') }}'">Clear Filters</button>
+                <div>
+                    <label for="category">Category:</label>
+                    <select id="category" name="category" onchange="this.form.submit()">
+                        <option value="" {% if not current_category %}selected{% endif %}>All</option>
+                        {% for cat in categories %}
+                        <option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{ cat|capitalize }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label for="status">Status:</label>
+                    <select id="status" name="status" onchange="this.form.submit()">
+                        <option value="" {% if not current_status %}selected{% endif %}>All</option>
+                        {% for stat in statuses %}
+                        <option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{ stat|replace('_',
+                            ' ')|capitalize }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <button type="submit">Filter</button>
+                <button type="button" onclick="window.location.href='{{ request.url_for('serve_root_page') }}'">Clear
+                    Filters</button>
             </form>
-            <button type="button" id="toggle-add-place-form-btn" style="margin-top: 10px;">Add New Place</button>
-        </div>
+            <button type="button" id="toggle-add-place-form-btn">Add New Place</button>
+        </section>
 
         <!-- Main Map Display (Folium) -->
-        <div id="map">
+        <section id="map">
             {% autoescape false %}
             {{ map_html if map_html else '<p style="text-align: center; padding: 20px; color: red;">Map could not be
                 loaded.</p>' }}
             {% endautoescape %}
-        </div>
+        </section>
 
         <!-- Add Place Form Section -->
-        <div id="add-place-wrapper-section" class="form-section" style="display: none;">
+        <section id="add-place-wrapper-section" class="form-section">
             <form id="add-place-form" action="{{ request.url_for('handle_create_new_place_form') }}" method="post">
                 <fieldset>
                     <legend>Add New Place</legend>
                     <label for="name">Place Name:</label>
                     <input type="text" id="name" name="name" required maxlength="100">
 
-                    <label>Location:</label>
+                    <label for="address-input">Location:</label>
                     <div class="address-input-row">
                         <input type="text" id="address-input" placeholder="Enter address or place name">
                         <button type="button" id="find-coords-btn">Find via Geocoding</button>
                     </div>
-                    <button type="button" id="pin-on-map-btn" style="margin-bottom: 10px;">Pin Location on Map</button>
+                    <button type="button" id="pin-on-map-btn">Pin Location on Map</button>
                     <div id="map-pin-instruction" class="map-pin-instruction">Drag the pin on the map below to the
                         desired location, then click Confirm.</div>
 
-                    <!-- Container for the Pinning Map -->
-                    <div id="pinning-map-container" style="display: none;">
-                        <div id="pinning-map"></div> <!-- The actual map div -->
-                        <div id="pinning-map-controls">
-                            <button type="button" id="confirm-pin-btn">Confirm Pin Location</button>
-                            <button type="button" id="cancel-pin-btn">Cancel Pinning</button>
-                        </div>
-                    </div>
+                    <!-- Pinning map container will be moved here by JS -->
 
                     <div id="geocode-status" class="status-message"></div>
 
-                    <div id="coords-section" class="coords-section" style="display: none;">
+                    <div id="coords-section" class="coords-section">
                         <p><strong>Selected Location:</strong> <span id="display-address">(Coordinates below)</span></p>
                         <p>Coords: (<span id="display-lat"></span>, <span id="display-lon"></span>)</p>
                         <input type="hidden" id="latitude" name="latitude" required>
@@ -158,32 +119,33 @@
                         {% endfor %}
                     </select>
 
-                    <button type="submit" id="add-place-submit-btn" disabled>Add Place</button>
-                    <button type="button" class="cancel-btn" id="add-place-cancel-btn">Cancel</button>
+                    <!-- *** Wrap buttons in a div *** -->
+                    <div class="form-actions">
+                        <button type="submit" id="add-place-submit-btn" disabled>Add Place</button>
+                        <button type="button" class="cancel-btn" id="add-place-cancel-btn">Cancel</button>
+                    </div>
                 </fieldset>
             </form>
-        </div>
+        </section>
 
         <!-- Edit Place Form Section -->
-        <div class="form-section" id="edit-place-section" style="display: none;">
+        <section class="form-section" id="edit-place-section">
             <form id="edit-place-form" action="" method="post">
                 <fieldset>
                     <h2>Edit Place: <span id="edit-place-form-title"></span></h2>
                     <label for="edit-name">Place Name:</label>
                     <input type="text" id="edit-name" name="name" required maxlength="100">
 
-                    <label>Update Location:</label>
+                    <label for="edit-address-input">Update Location:</label>
                     <div class="address-input-row">
                         <input type="text" id="edit-address-input" placeholder="Enter new address to re-geocode">
                         <button type="button" id="edit-find-coords-btn">Find New Coords</button>
                     </div>
-                    <button type="button" id="edit-pin-on-map-btn" style="margin-bottom: 10px;">Pin New
-                        Location</button>
+                    <button type="button" id="edit-pin-on-map-btn">Pin New Location</button>
                     <div id="edit-map-pin-instruction" class="map-pin-instruction">Drag the pin on the map below to the
                         new location, then click Confirm.</div>
 
-                    <!-- Pinning map container will be inserted here if needed, or use the global one -->
-                    <!-- The global #pinning-map-container will be shown/hidden -->
+                    <!-- Pinning map container will be moved here by JS -->
 
                     <div id="edit-geocode-status" class="status-message"></div>
 
@@ -211,14 +173,17 @@
                         {% endfor %}
                     </select>
 
-                    <button type="submit" id="edit-place-submit-btn">Save Changes</button>
-                    <button type="button" class="cancel-btn">Cancel</button>
+                    <!-- *** Wrap buttons in a div *** -->
+                    <div class="form-actions">
+                        <button type="submit" id="edit-place-submit-btn">Save Changes</button>
+                        <button type="button" class="cancel-btn">Cancel</button>
+                    </div>
                 </fieldset>
             </form>
-        </div>
+        </section>
 
         <!-- Add/Edit Review / Image Form Section -->
-        <div class="form-section" id="review-image-section" style="display: none;">
+        <section class="form-section" id="review-image-section">
             <form id="review-image-form" action="" method="post" enctype="multipart/form-data">
                 <fieldset>
                     <h2>Add/Edit Review for: <span id="review-form-title"></span></h2>
@@ -236,46 +201,58 @@
                         <span class="star" data-value="4"><i class="far fa-star"></i></span>
                         <span class="star" data-value="5"><i class="far fa-star"></i></span>
                     </div>
-                    <input type="hidden" id="review-rating" name="rating"> <!-- Stores 1-5 or "" -->
+                    <input type="hidden" id="review-rating" name="rating">
 
-                    <label for="review-image" style="margin-top: 15px;">Upload/Replace Image (Optional):</label>
+                    <label for="review-image">Upload/Replace Image (Optional):</label>
                     <input type="file" id="review-image" name="image"
                         accept="image/jpeg, image/png, image/gif, image/webp">
-                    <p style="font-size: 0.85em; color: #666;">Max file size ~5MB recommended.</p>
+                    <p class="password-hint">Max file size ~5MB recommended.</p>
 
-                    <div id="current-image-review-section" style="margin-bottom: 10px; display: none;">
+                    <div id="current-image-review-section">
                         <label>Current Image:</label>
-                        <img id="current-image-review-thumb" src=""
-                            style="max-width: 100px; max-height: 75px; border-radius: 4px; display: block; margin-bottom: 5px;">
-                        <input type="checkbox" id="review-remove-image" name="remove_image" value="yes">
-                        <label for="review-remove-image" style="display: inline-block; font-size: 0.9em;">Remove Current
-                            Image</label>
+                        <img id="current-image-review-thumb" src="" alt="Current place image">
+                        <div>
+                            <input type="checkbox" id="review-remove-image" name="remove_image" value="yes">
+                            <label for="review-remove-image">Remove Current Image</label>
+                        </div>
                     </div>
 
-                    <button type="submit" id="review-image-submit-btn">Save Review & Image</button>
-                    <button type="button" class="cancel-btn">Cancel</button>
+                    <!-- *** Wrap buttons in a div *** -->
+                    <div class="form-actions">
+                        <button type="submit" id="review-image-submit-btn">Save Review & Image</button>
+                        <button type="button" class="cancel-btn">Cancel</button>
+                    </div>
                 </fieldset>
             </form>
-        </div>
+        </section>
 
         <!-- See Review Modal Section -->
-        <div class="modal-section" id="see-review-section" style="display: none;">
+        <section class="modal-section" id="see-review-section">
             <fieldset>
                 <h2>Review: <span id="see-review-place-title"></span></h2>
                 <div class="modal-content">
-                    <div id="see-review-rating-display" class="rating-stars-display" style="margin-bottom: 10px;"></div>
-                    <h3 id="see-review-display-title" style="display: none;"></h3>
+                    <div id="see-review-rating-display" class="rating-stars-display"></div>
+                    <h3 id="see-review-display-title"></h3>
                     <p id="see-review-display-text"></p>
-                    <img id="see-review-display-image" src="" alt="Review image" style="display: none;" />
+                    <img id="see-review-display-image" src="" alt="Review image" />
                 </div>
                 <div class="modal-actions">
                     <button type="button" id="see-review-edit-btn" class="edit-review-btn">Edit Review</button>
                     <button type="button" class="cancel-btn">Close</button>
                 </div>
             </fieldset>
-        </div>
+        </section>
 
         <!-- Image Overlay Placeholder -->
+
+        <!-- Pinning Map Container (Defined once, moved by pinningUI.js) -->
+        <div id="pinning-map-container">
+            <div id="pinning-map"></div>
+            <div id="pinning-map-controls">
+                <button type="button" id="confirm-pin-btn">Confirm Pin Location</button>
+                <button type="button" id="cancel-pin-btn">Cancel Pinning</button>
+            </div>
+        </div>
 
     </div> <!-- /container -->
 

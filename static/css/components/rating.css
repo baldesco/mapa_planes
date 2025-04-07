@@ -1,0 +1,66 @@
+/* Styles for interactive and static rating stars */
+
+/* Container for interactive stars (in Review form) */
+.rating-stars {
+    display: inline-block;
+    font-size: 1.6em;
+    /* Make stars slightly larger */
+    cursor: pointer;
+    line-height: 1;
+    /* Prevent extra vertical space */
+    margin-bottom: 15px;
+    /* Match default input margin */
+}
+
+.rating-stars .star {
+    color: #ccc;
+    /* Default empty star color */
+    transition: color 0.2s, transform 0.1s;
+    display: inline-block;
+    /* Needed for transform */
+    margin-right: 2px;
+    /* Slight spacing between stars */
+}
+
+.rating-stars .star:hover {
+    transform: scale(1.15);
+    /* Slight scale effect on hover */
+}
+
+/* Style for selected/hovered stars */
+.rating-stars .star.selected,
+.rating-stars .star:hover {
+    color: #FFD700;
+    /* Gold color for selected/hover */
+}
+
+
+/* Container for static stars display (in See Review modal and popups) */
+.rating-stars-display {
+    display: inline-block;
+    /* Or block if needed */
+    font-size: 1em;
+    /* Adjust size as needed */
+    color: #ccc;
+    /* Default color for empty stars */
+    line-height: 1;
+    margin-bottom: 10px;
+    /* Spacing below rating */
+}
+
+.rating-stars-display .fas {
+    /* Filled star */
+    color: #FFD700;
+}
+
+.rating-stars-display .far {
+    /* Empty star */
+    color: #ccc;
+}
+
+/* Style for rating stars inside Leaflet popups */
+.leaflet-popup-content .rating-stars-display {
+    font-size: 0.9em;
+    /* Slightly smaller in popups */
+    margin-bottom: 5px;
+}

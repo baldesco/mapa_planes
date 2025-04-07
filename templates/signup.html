@@ -6,9 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - Mapa Planes</title>
     <link rel="icon" href="{{ url_for('static', path='/penguin_favicon.png') }}" type="image/png">
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
-    <!-- Specific styles for login/signup pages are now in styles.css -->
-    <!-- targeted using body.auth-page -->
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
 </head>
 
 <body class="auth-page"> <!-- Add class for CSS targeting -->
@@ -24,10 +22,7 @@
 
             <label for="password">Password:</label>
             <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
-            <p
-                style="font-size: 0.8em; color: var(--text-muted); text-align: left; margin-top: -15px; margin-bottom: 15px;">
-                Minimum 8 characters required.</p>
-
+            <p class="password-hint">Minimum 8 characters required.</p>
 
             <button type="submit">Sign Up</button>
         </form>
