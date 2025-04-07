@@ -1,0 +1,248 @@
+/* Styles related to map containers and Leaflet elements */
+
+/* Main Map (Folium Iframe Container) */
+#map {
+    height: 550px;
+    /* Default height */
+    width: 100%;
+    margin-bottom: 25px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: var(--box-shadow-sm);
+    display: block;
+    clear: both;
+    position: relative;
+    overflow: hidden;
+    /* Ensures iframe corners are clipped */
+}
+
+/* Ensure iframe fills the container */
+#map>div.folium-map {
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    height: 100% !important;
+    width: 100% !important;
+    padding-bottom: 0 !important;
+}
+
+#map>div.folium-map>iframe {
+    position: static !important;
+    width: 100% !important;
+    height: 100% !important;
+    border: none !important;
+}
+
+/* Leaflet Controls (Zoom, etc.) */
+.leaflet-control-container {
+    z-index: 800 !important;
+    /* Keep controls above potential overlays */
+}
+
+/* Leaflet Popups (from main map) */
+.leaflet-popup-content-wrapper {
+    border-radius: 8px !important;
+    box-shadow: var(--box-shadow);
+}
+
+.leaflet-popup-content {
+    font-family: 'Poppins', sans-serif !important;
+    font-size: 14px !important;
+    line-height: 1.6;
+    /* Improve popup readability */
+    max-width: 300px !important;
+    /* Prevent overly wide popups */
+}
+
+.leaflet-popup-content h4 {
+    margin: 0 0 10px 0;
+    color: var(--primary-color);
+    font-size: 1.15em;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 8px;
+    font-weight: 500;
+}
+
+.leaflet-popup-content p {
+    margin: 5px 0;
+    font-size: 0.98em;
+    word-wrap: break-word;
+}
+
+.leaflet-popup-content form {
+    margin: 0;
+    padding: 0;
+    border: none;
+    display: inline-block;
+    vertical-align: middle;
+}
+
+.leaflet-popup-content img {
+    margin-top: 10px;
+    border-radius: 4px;
+    max-width: 100%;
+    height: auto;
+    cursor: pointer;
+    /* Indicate clickable for overlay */
+}
+
+/* Buttons and Select inside Popups */
+.leaflet-popup-content button[type=button],
+.leaflet-popup-content button[type=submit],
+.leaflet-popup-content select {
+    padding: 4px 10px !important;
+    font-size: 0.85em !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    border: none !important;
+    color: white !important;
+    margin: 2px 3px !important;
+    font-family: inherit !important;
+    box-shadow: var(--box-shadow-sm) !important;
+    transition: background-color 0.2s, transform 0.1s !important;
+    vertical-align: middle;
+}
+
+.leaflet-popup-content button:active {
+    transform: translateY(1px);
+    box-shadow: none !important;
+}
+
+.leaflet-popup-content select {
+    color: var(--text-color) !important;
+    background-color: #f0f0f0 !important;
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+}
+
+/* Specific Popup Button Colors */
+.leaflet-popup-content button[title*="Edit Place"] {
+    background-color: var(--warning-color) !important;
+}
+
+.leaflet-popup-content button[title*="Edit Place"]:hover {
+    background-color: var(--warning-color-hover) !important;
+}
+
+.leaflet-popup-content button[title*="Add Review"] {
+    background-color: var(--info-color) !important;
+}
+
+.leaflet-popup-content button[title*="Add Review"]:hover {
+    background-color: var(--info-color-hover) !important;
+}
+
+.leaflet-popup-content button[title*="See Review"] {
+    background-color: var(--see-review-bg) !important;
+}
+
+.leaflet-popup-content button[title*="See Review"]:hover {
+    background-color: var(--see-review-hover-bg) !important;
+}
+
+.leaflet-popup-content button[title*="Delete"] {
+    background-color: var(--error-color) !important;
+}
+
+.leaflet-popup-content button[title*="Delete"]:hover {
+    background-color: var(--danger-color-hover) !important;
+}
+
+
+/* --- Pinning Map Styles --- */
+#pinning-map-container {
+    margin-top: 15px;
+    margin-bottom: 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: var(--box-shadow-sm);
+    display: none;
+    /* Hidden by default */
+}
+
+#pinning-map {
+    height: 350px;
+    /* Explicit height */
+    width: 100%;
+    background-color: var(--tertiary-color);
+    /* Light bg while loading */
+}
+
+#pinning-map-controls {
+    padding: 10px;
+    background-color: var(--tertiary-color);
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+}
+
+#pinning-map-controls button {
+    margin: 0 5px;
+    padding: 8px 15px;
+    font-size: 0.95em;
+}
+
+#pinning-map-controls #confirm-pin-btn {
+    background-color: var(--primary-color);
+}
+
+#pinning-map-controls #confirm-pin-btn:hover {
+    background-color: var(--primary-color-dark);
+}
+
+#pinning-map-controls #cancel-pin-btn {
+    background-color: var(--error-color);
+}
+
+#pinning-map-controls #cancel-pin-btn:hover {
+    background-color: var(--danger-color-hover);
+}
+
+/* Style for the draggable marker icon (using Font Awesome) */
+.draggable-pin-icon i {
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    /* Add shadow for visibility */
+    cursor: grab;
+    /* Indicate draggable */
+}
+
+.leaflet-marker-draggable:active .draggable-pin-icon i {
+    cursor: grabbing;
+}
+
+
+/* Map Pinning Instruction Text */
+.map-pin-instruction {
+    display: none;
+    /* Hidden by default */
+    margin-top: 10px;
+    margin-bottom: 10px;
+    font-style: italic;
+    color: var(--info-color);
+    padding: 8px;
+    background-color: var(--light-blue-bg);
+    border: 1px dashed var(--light-blue-border);
+    border-radius: 4px;
+}
+
+
+/* Responsive map heights */
+@media (max-width: 768px) {
+    #map {
+        height: 450px;
+    }
+
+    #pinning-map {
+        height: 300px;
+    }
+}
+
+@media (max-width: 480px) {
+    #map {
+        height: 380px;
+    }
+
+    #pinning-map {
+        height: 250px;
+    }
+}

@@ -1,0 +1,152 @@
+/* Styles for modal dialogs (See Review) and image overlay */
+
+/* Base modal section style (used by See Review) */
+.modal-section {
+    /* display: none; is handled by ui.js */
+    /* General padding/border/bg defined in layout.css or forms.css */
+    max-width: 600px;
+    /* Limit modal width */
+    margin-left: auto;
+    /* Center if container allows */
+    margin-right: auto;
+}
+
+.modal-section fieldset {
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+.modal-section h2 {
+    /* Modal Title */
+    font-size: 1.5em;
+    margin-bottom: 20px;
+    font-weight: 500;
+    color: var(--primary-color-dark);
+    text-align: left;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+}
+
+/* Scrollable content area within the modal */
+.modal-content {
+    max-height: 450px;
+    /* Limit height and enable scroll */
+    overflow-y: auto;
+    padding-right: 15px;
+    /* Space for scrollbar */
+    margin-bottom: 20px;
+    /* Space before actions */
+}
+
+/* Specific elements within the See Review modal */
+#see-review-section h3 {
+    /* Review Title */
+    font-size: 1.2em;
+    color: var(--primary-color);
+    margin-top: 0;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+#see-review-section p {
+    /* Review Text */
+    margin: 0 0 12px 0;
+    white-space: pre-wrap;
+    /* Preserve line breaks in review */
+    word-wrap: break-word;
+    color: var(--text-color);
+}
+
+#see-review-display-image {
+    /* Image within See Review modal */
+    display: none;
+    /* Hidden by default */
+    max-width: 100%;
+    max-height: 300px;
+    /* Limit image height */
+    height: auto;
+    border-radius: 6px;
+    margin-top: 15px;
+    margin-left: auto;
+    margin-right: auto;
+    border: 1px solid var(--border-color);
+    cursor: pointer;
+    /* Indicate clickable for overlay */
+    transition: transform 0.2s ease-in-out;
+}
+
+#see-review-display-image:hover {
+    transform: scale(1.03);
+}
+
+/* Action buttons area at the bottom of the modal */
+.modal-actions {
+    text-align: right;
+    /* Align buttons to the right */
+    border-top: 1px solid #eee;
+    padding-top: 15px;
+    margin-top: 15px;
+}
+
+.modal-actions button {
+    margin-left: 10px;
+    /* Space between buttons */
+}
+
+
+/* Image Overlay */
+.image-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1050;
+    /* Ensure it's above other content */
+    cursor: pointer;
+    /* Indicate clickable background to close */
+    opacity: 0;
+    transition: opacity 0.3s ease-in-out;
+    padding: 20px;
+    /* Padding around the image */
+}
+
+.image-overlay.visible {
+    opacity: 1;
+}
+
+.image-overlay img {
+    display: block;
+    max-width: 95%;
+    max-height: 95%;
+    object-fit: contain;
+    /* Scale image while preserving aspect ratio */
+    border-radius: 4px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    cursor: default;
+    /* Default cursor for the image itself */
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .modal-content {
+        max-height: 350px;
+    }
+
+    .modal-actions {
+        text-align: center;
+        /* Center buttons on smaller screens */
+    }
+
+    .modal-actions button {
+        width: auto;
+        /* Allow buttons to size naturally */
+        margin: 5px;
+    }
+}

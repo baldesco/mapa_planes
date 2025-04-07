@@ -5,158 +5,34 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up - Mapa Planes</title>
-    <link rel="stylesheet" href="{{ url_for('static', path='/css/styles.css') }}">
-    <style>
-        /* Reuse login styles */
-        body {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-            background-color: var(--secondary-color);
-        }
-
-        .auth-container {
-            background: var(--white);
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: var(--box-shadow);
-            max-width: 400px;
-            width: 100%;
-        }
-
-        .auth-container h1 {
-            margin-bottom: 30px;
-            font-size: 2em;
-        }
-
-        .auth-container label {
-            margin-bottom: 5px;
-        }
-
-        .auth-container input[type="email"],
-        .auth-container input[type="password"] {
-            margin-bottom: 20px;
-        }
-
-        .auth-container button {
-            width: 100%;
-            padding: 15px;
-            margin-top: 10px;
-        }
-
-        .auth-links {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 0.95em;
-        }
-
-        .auth-links a {
-            color: var(--primary-color);
-            text-decoration: none;
-        }
-
-        .auth-links a:hover {
-            text-decoration: underline;
-        }
-
-        .message-auth {
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 15px;
-            display: none;
-            text-align: center;
-            font-size: 0.9em;
-        }
-
-        .error-message-auth {
-            color: var(--error-color);
-            background-color: #ffcdd2;
-            border: 1px solid var(--error-color);
-        }
-
-        .success-message-auth {
-            color: #388e3c;
-            background-color: var(--primary-color-light);
-            border: 1px solid #a5d6a7;
-        }
-    </style>
+    <link rel="icon" href="{{ url_for('static', path='/penguin_favicon.png') }}" type="image/png">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
 </head>
 
-<body>
+<body class="auth-page"> <!-- Add class for CSS targeting -->
     <div class="auth-container">
         <h1>Sign Up</h1>
-        <div id="message-div" class="message-auth"></div> <!-- For success/error messages -->
+        <!-- Div for success/error messages -->
+        <div id="message-div" class="message-auth"></div>
 
+        <!-- Form posts handled by JS module -->
         <form id="signup-form" method="post">
             <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
+            <input type="email" id="email" name="email" required autocomplete="email">
 
             <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required minlength="8"> <!-- Add minlength -->
-            <!-- Optional: Add password confirmation field -->
-            <!-- <label for="password-confirm">Confirm Password:</label> -->
-            <!-- <input type="password" id="password-confirm" name="password_confirm" required minlength="8"> -->
+            <input type="password" id="password" name="password" required minlength="8" autocomplete="new-password">
+            <p class="password-hint">Minimum 8 characters required.</p>
 
             <button type="submit">Sign Up</button>
         </form>
         <div class="auth-links">
-            <p>Already have an account? <a href="{{ url_for('login_page') }}">Login</a></p>
+            <p>Already have an account? <a href="{{ url_for('serve_login_page') }}">Login</a></p>
         </div>
     </div>
 
-    <script>
-        const signupForm = document.getElementById('signup-form');
-        const messageDiv = document.getElementById('message-div');
-
-        signupForm.addEventListener('submit', async (event) => {
-            event.preventDefault();
-            messageDiv.style.display = 'none';
-            messageDiv.className = 'message-auth'; // Reset classes
-
-            const email = document.getElementById('email').value;
-            const password = document.getElementById('password').value;
-            // Optional: Add password confirmation check here in JS
-            // const passwordConfirm = document.getElementById('password-confirm').value;
-            // if (password !== passwordConfirm) {
-            //     messageDiv.textContent = 'Passwords do not match.';
-            //     messageDiv.classList.add('error-message-auth');
-            //     messageDiv.style.display = 'block';
-            //     return;
-            // }
-
-            try {
-                const response = await fetch('/api/auth/signup', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ email: email, password: password }),
-                });
-
-                const result = await response.json();
-
-                if (response.ok) {
-                    messageDiv.textContent = result.message || 'Signup successful. Redirecting to login...'; // Use message from backend
-                    messageDiv.classList.add('success-message-auth');
-                    messageDiv.style.display = 'block';
-                    // Redirect to login after a short delay
-                    setTimeout(() => {
-                        window.location.href = '/login?signup=success';
-                    }, 3000); // 3 seconds delay
-                } else {
-                    messageDiv.textContent = result.detail || 'Signup failed. Please try again.';
-                    messageDiv.classList.add('error-message-auth');
-                    messageDiv.style.display = 'block';
-                }
-            } catch (error) {
-                console.error('Signup error:', error);
-                messageDiv.textContent = 'An error occurred during signup. Please try again.';
-                messageDiv.classList.add('error-message-auth');
-                messageDiv.style.display = 'block';
-            }
-        });
-    </script>
+    <!-- Load main JS as a module -->
+    <script type="module" src="{{ url_for('static', path='/js/main.js') }}"></script>
 </body>
 
 </html>

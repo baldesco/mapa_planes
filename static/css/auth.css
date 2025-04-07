@@ -1,0 +1,184 @@
+/* Styles specific to the login and signup pages */
+
+/* Apply centering only to auth pages */
+body.auth-page {
+    justify-content: center;
+    align-items: center;
+}
+
+.auth-container {
+    background: var(--white);
+    padding: 40px 35px;
+    border-radius: 12px;
+    box-shadow: var(--box-shadow);
+    max-width: 420px;
+    width: 90%;
+    /* Responsive width */
+    margin: 20px;
+    /* Ensure some margin on small screens */
+    text-align: center;
+}
+
+.auth-container h1 {
+    margin-top: 0;
+    margin-bottom: 35px;
+    font-size: 2.1em;
+    color: var(--primary-color);
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.auth-container label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: left;
+    font-size: 0.95em;
+}
+
+.auth-container input[type="email"],
+.auth-container input[type="password"] {
+    width: 100%;
+    padding: 14px 16px;
+    margin-bottom: 22px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    font-size: 1em;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.auth-container input[type="email"]:focus,
+.auth-container input[type="password"]:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px var(--primary-color-light);
+    outline: none;
+}
+
+/* Specific message styling for auth pages */
+.message-auth {
+    padding: 12px 15px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    display: none;
+    /* Hidden by default */
+    text-align: center;
+    font-size: 0.95em;
+    border: 1px solid transparent;
+}
+
+.error-message-auth {
+    color: var(--error-color);
+    background-color: #ffcdd2;
+    border-color: #ef9a9a;
+}
+
+.info-message-auth {
+    color: #0d47a1;
+    /* Darker blue */
+    background-color: #bbdefb;
+    /* Lighter blue */
+    border-color: #90caf9;
+}
+
+.success-message-auth {
+    color: var(--primary-color-dark);
+    background-color: var(--primary-color-light);
+    border-color: #a5d6a7;
+}
+
+/* Auth form submit button */
+.auth-container button[type="submit"] {
+    width: 100%;
+    padding: 14px;
+    margin-top: 15px;
+    /* Space above button */
+    font-size: 1.1em;
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.auth-container button[type="submit"]:hover {
+    background-color: var(--primary-color-dark);
+    transform: translateY(-1px);
+}
+
+.auth-container button[type="submit"]:disabled {
+    background-color: #bdbdbd;
+    cursor: not-allowed;
+    transform: none;
+}
+
+
+/* Links below auth form (Sign up/Login) */
+.auth-links {
+    text-align: center;
+    margin-top: 25px;
+    font-size: 0.95em;
+    color: var(--text-muted);
+}
+
+.auth-links p {
+    margin-bottom: 0.5rem;
+    /* Space between lines if needed */
+}
+
+.auth-links a {
+    color: var(--primary-color);
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.auth-links a:hover {
+    text-decoration: underline;
+    color: var(--primary-color-dark);
+}
+
+/* Password hint on signup */
+.password-hint {
+    font-size: 0.8em;
+    color: var(--text-muted);
+    text-align: left;
+    margin-top: -15px;
+    /* Pull up closer to password input */
+    margin-bottom: 15px;
+}
+
+/* Responsive adjustments for auth container */
+@media (max-width: 768px) {
+    .auth-container {
+        padding: 30px 25px;
+        max-width: 90%;
+    }
+
+    .auth-container h1 {
+        font-size: 1.8em;
+        margin-bottom: 25px;
+    }
+}
+
+@media (max-width: 480px) {
+    .auth-container {
+        padding: 25px 20px;
+    }
+
+    .auth-container h1 {
+        font-size: 1.6em;
+    }
+
+    .auth-container input[type="email"],
+    .auth-container input[type="password"] {
+        padding: 12px 14px;
+        margin-bottom: 18px;
+    }
+
+    .auth-container button[type="submit"] {
+        padding: 12px;
+        font-size: 1em;
+    }
+}

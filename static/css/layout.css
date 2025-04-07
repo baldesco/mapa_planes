@@ -1,0 +1,244 @@
+/* Styles for the main page structure and layout */
+
+.container {
+    max-width: 1200px;
+    margin: 30px auto;
+    background: var(--white);
+    padding: 30px;
+    box-shadow: var(--box-shadow);
+    border-radius: 12px;
+    position: relative;
+    width: 100%;
+    flex-grow: 1;
+    /* Allow container to fill space on normal pages */
+}
+
+/* Header section within the main container */
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.main-header h1 {
+    margin-bottom: 0;
+    /* Remove default heading margin */
+    border-bottom: none;
+    padding-bottom: 0;
+    font-size: 2.4em;
+    /* Keep original size */
+    color: var(--primary-color);
+    /* Match original style */
+}
+
+.user-info {
+    text-align: right;
+}
+
+.user-info span {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    display: block;
+    /* Ensure email is on its own line */
+    margin-bottom: 5px;
+}
+
+.user-info .logout-btn {
+    padding: 5px 10px;
+    font-size: 0.9em;
+    margin-top: 5px;
+    background-color: var(--text-muted);
+    color: white;
+}
+
+.user-info .logout-btn:hover {
+    background-color: #5a6268;
+}
+
+.auth-links-header a {
+    margin-left: 15px;
+    /* Space out login/signup links */
+}
+
+
+/* Controls Section (Filters, Add Button) */
+.controls-section {
+    margin-bottom: 30px;
+    padding: 20px 25px;
+    /* Slightly less padding */
+    border: 1px solid var(--border-color);
+    background-color: #fdfdfd;
+    /* Slightly off-white */
+    border-radius: 8px;
+    box-shadow: var(--box-shadow-sm);
+    clear: both;
+}
+
+.filter-section form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-end;
+    margin-bottom: 15px;
+    /* Space between filters and add button */
+}
+
+.filter-section form>div {
+    flex-grow: 1;
+}
+
+.filter-section label {
+    margin-bottom: 5px;
+    font-size: 0.9em;
+    /* Smaller filter labels */
+}
+
+.filter-section select {
+    width: 100%;
+    min-width: 180px;
+    margin-bottom: 0;
+    padding: 8px 12px;
+    /* Smaller padding for selects */
+}
+
+.filter-section button {
+    width: auto;
+    padding: 8px 18px;
+    /* Smaller padding for buttons */
+    font-size: 0.95em;
+    flex-shrink: 0;
+    margin-bottom: 0;
+}
+
+.filter-section button[type="submit"] {
+    background-color: var(--info-color);
+}
+
+.filter-section button[type="submit"]:hover {
+    background-color: var(--info-color-hover);
+}
+
+.filter-section button[type="button"] {
+    /* Clear Filters button */
+    background-color: var(--text-muted);
+}
+
+.filter-section button[type="button"]:hover {
+    background-color: #5a6268;
+}
+
+#toggle-add-place-form-btn {
+    margin-left: auto;
+    /* Pushes button to the right if space allows */
+    flex-shrink: 0;
+    margin-bottom: 0;
+    background-color: var(--toggle-button-bg);
+}
+
+#toggle-add-place-form-btn:hover {
+    background-color: var(--toggle-button-hover-bg);
+}
+
+
+/* General Form Section Styling (Add/Edit/Review/Modal Wrappers) */
+.form-section,
+.modal-section {
+    margin-bottom: 30px;
+    padding: 25px;
+    border: 1px solid var(--border-color);
+    background-color: var(--white);
+    border-radius: 8px;
+    box-shadow: var(--box-shadow-sm);
+    clear: both;
+}
+
+/* Hide sections by default, JS will show them */
+#add-place-wrapper-section,
+#edit-place-section,
+#review-image-section,
+#see-review-section {
+    display: none;
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container:not(.auth-container) {
+        margin: 15px auto;
+        padding: 20px;
+    }
+
+    .main-header {
+        flex-direction: column;
+        align-items: center;
+        /* Center items vertically */
+        gap: 10px;
+        /* Add gap between title and user info */
+    }
+
+    .main-header h1 {
+        font-size: 2em;
+        text-align: center;
+    }
+
+    .user-info {
+        text-align: center;
+        /* Center user info */
+    }
+
+    .controls-section {
+        padding: 15px;
+    }
+
+    .filter-section form {
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        gap: 15px;
+    }
+
+    .filter-section form>div {
+        width: 100%;
+    }
+
+    .filter-section select {
+        min-width: 0;
+        width: 100%;
+    }
+
+    .filter-section button {
+        width: 100%;
+        margin-top: 8px;
+    }
+
+    #toggle-add-place-form-btn {
+        margin-left: 0;
+        margin-top: 15px;
+        width: 100%;
+    }
+
+    .form-section,
+    .modal-section {
+        padding: 20px;
+    }
+}
+
+@media (max-width: 480px) {
+    .container:not(.auth-container) {
+        margin: 10px auto;
+        padding: 15px;
+    }
+
+    .main-header h1 {
+        font-size: 1.7em;
+    }
+
+    .form-section,
+    .modal-section,
+    .controls-section {
+        padding: 15px;
+    }
+}

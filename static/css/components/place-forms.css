@@ -1,0 +1,179 @@
+/* File: /static/css/components/place-forms.css */
+/* Styles specific to the Add, Edit, and Review form sections */
+
+/* Row layout for address input and geocode button */
+.address-input-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: stretch;
+    margin-bottom: 10px;
+}
+
+.address-input-row input[type="text"] {
+    flex-grow: 1;
+    width: auto;
+    margin-bottom: 0;
+}
+
+.address-input-row button {
+    flex-shrink: 0;
+    padding: 12px 18px;
+    font-size: 1em;
+    margin-bottom: 0;
+    height: auto;
+    background-color: var(--info-color);
+    box-shadow: var(--box-shadow-sm);
+}
+
+.address-input-row button:hover {
+    background-color: var(--info-color-hover);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.12);
+}
+
+/* Pin on map button */
+#pin-on-map-btn,
+#edit-pin-on-map-btn {
+    margin-bottom: 10px;
+    background-color: var(--secondary-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    box-shadow: none;
+}
+
+#pin-on-map-btn:hover,
+#edit-pin-on-map-btn:hover {
+    background-color: var(--tertiary-color);
+    border-color: #adb5bd;
+    box-shadow: var(--box-shadow-sm);
+}
+
+
+/* Coordinates display section */
+.coords-section {
+    margin-top: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: var(--light-blue-bg);
+    border: 1px dashed var(--light-blue-border);
+    border-radius: 6px;
+    font-size: 0.95em;
+}
+
+.coords-section p {
+    margin: 6px 0;
+    color: #01579b;
+}
+
+.coords-section strong {
+    font-weight: 500;
+    color: #014a7e;
+}
+
+/* Review Form Specifics */
+#review-image-section label[for="rating"] {
+    margin-bottom: 5px;
+}
+
+#review-image-section .rating-stars {
+    margin-bottom: 20px;
+}
+
+#review-image-section label[for="review-image"] {
+    margin-top: 15px;
+}
+
+#review-image-section input[type="file"]+p {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: -10px;
+    margin-bottom: 15px;
+}
+
+/* Current image preview in review form */
+#current-image-review-section {
+    margin-bottom: 15px;
+    padding: 10px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: #fafafa;
+}
+
+#current-image-review-section label {
+    font-weight: 500;
+    font-size: 0.9em;
+    color: var(--text-muted);
+    margin-bottom: 5px;
+}
+
+#current-image-review-thumb {
+    max-width: 100px;
+    max-height: 75px;
+    border-radius: 4px;
+    display: block;
+    margin-bottom: 8px;
+    border: 1px solid var(--border-color);
+}
+
+#current-image-review-section input[type="checkbox"]+label {
+    font-size: 0.9em;
+    color: var(--text-color);
+}
+
+
+/* *** NEW: Container for form action buttons *** */
+.form-actions {
+    margin-top: 25px;
+    /* Space above buttons */
+    padding-top: 15px;
+    /* Space within the container */
+    border-top: 1px solid #eee;
+    /* Separator line */
+    display: flex;
+    justify-content: flex-end;
+    /* Align buttons to the right */
+    flex-wrap: wrap;
+    /* Allow wrapping on small screens */
+    gap: 10px;
+    /* Space between buttons */
+}
+
+/* Ensure buttons within actions don't have extra bottom margin */
+.form-actions button {
+    margin-bottom: 0;
+}
+
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .address-input-row {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .address-input-row input[type="text"] {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .address-input-row button {
+        width: 100%;
+    }
+
+    /* Stack buttons on smaller screens */
+    .form-actions {
+        justify-content: center;
+    }
+
+    .form-actions button {
+        width: auto;
+        /* Allow buttons to size naturally */
+        min-width: 120px;
+        /* Optional minimum width */
+    }
+
+    .form-actions button.cancel-btn {
+        margin-top: 0;
+        /* Remove stacking margin */
+    }
+}
