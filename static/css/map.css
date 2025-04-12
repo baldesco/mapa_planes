@@ -3,7 +3,7 @@
 /* Main Map (Folium Iframe Container) */
 #map {
     height: 550px;
-    /* Default height */
+    /* Default height for larger screens */
     width: 100%;
     margin-bottom: 25px;
     border: 1px solid var(--border-color);
@@ -163,7 +163,7 @@
 
 #pinning-map {
     height: 350px;
-    /* Explicit height */
+    /* Default height */
     width: 100%;
     background-color: var(--tertiary-color);
     /* Light bg while loading */
@@ -226,10 +226,19 @@
 }
 
 
-/* Responsive map heights */
-@media (max-width: 768px) {
+/* Responsive map adjustments */
+@media (max-width: 992px) {
     #map {
-        height: 450px;
+        height: 480px;
+    }
+}
+
+@media (max-width: 768px) {
+
+    /* Tablets / Small Laptops */
+    #map {
+        height: 400px;
+        /* Keep a reduced fixed height */
     }
 
     #pinning-map {
@@ -238,11 +247,19 @@
 }
 
 @media (max-width: 480px) {
+
+    /* Phones */
     #map {
-        height: 380px;
+        height: auto;
+        /* Let aspect-ratio control height */
+        aspect-ratio: 3 / 4;
+        /* Make container taller than wide (portrait-like) */
     }
 
     #pinning-map {
-        height: 250px;
+        height: auto;
+        /* Let aspect-ratio control height */
+        aspect-ratio: 3 / 4;
+        /* Make container taller than wide */
     }
 }
