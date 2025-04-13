@@ -32,9 +32,9 @@ async def get_db_with_header_token(
 ) -> SupabaseClient:
     """
     FastAPI dependency that provides a Supabase client instance configured
-    to use the JWT token from the Authorization header.
-    Used specifically for endpoints where auth comes from header (e.g., password reset confirmation).
-    Raises 401 if the token is missing during configuration.
+    to use the JWT token from the Authorization header (e.g., for password reset).
+    Raises 401 if the token is missing or invalid during configuration.
+    Crucially calls `set_session` on the client instance.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -48,7 +48,7 @@ async def get_db_with_header_token(
 
     auth_header = f"Bearer {token}"
     try:
-        # Configure PostgREST client
+        # Configure PostgREST client (might not be strictly needed for auth.update_user, but good practice)
         if hasattr(request_client, "postgrest") and hasattr(
             request_client.postgrest, "session"
         ):
@@ -58,7 +58,7 @@ async def get_db_with_header_token(
                 "Could not find request_client.postgrest.session to set auth header."
             )
 
-        # Configure Storage client
+        # Configure Storage client (might not be strictly needed for auth.update_user)
         if hasattr(request_client, "storage") and hasattr(
             request_client.storage, "_client"
         ):
@@ -69,28 +69,36 @@ async def get_db_with_header_token(
             elif hasattr(request_client.storage._client, "headers"):
                 request_client.storage._client.headers["Authorization"] = auth_header
 
-        # Set the token for the Auth client itself
+        # *** CRITICAL STEP: Set the session on the Auth client ***
+        # This is what `update_user` relies on when no JWT is passed explicitly.
         request_client.auth.set_session(access_token=token, refresh_token="")
+        logger.info(
+            "get_db_with_header_token: Successfully called set_session on Supabase client."
+        )
 
+        # Store token in state for debugging or potential future use, but don't rely on it for the fix
+        request.state.recovery_token = token
+
+        # REMOVED the get_user call block here as it was failing and isn't needed for the update operation itself.
+        # The primary goal is to return a client instance with the session correctly set.
+        request.state.user = None  # Explicitly set user state to None here
+
+    except AuthApiError as api_error:
+        # Catch potential errors during set_session if the token is immediately invalid
+        logger.error(
+            f"get_db_with_header_token: AuthApiError during set_session: {api_error.status} - {api_error.message}",
+            exc_info=False,
+        )
+        raise credentials_exception from api_error
     except Exception as e:
         logger.error(
-            f"get_db_with_header_token: Unexpected error setting auth token on Supabase client: {e}",
+            f"get_db_with_header_token: Unexpected error setting auth token/session on Supabase client: {e}",
             exc_info=True,
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to configure database client for authenticated access.",
         ) from e
-
-    # Attempt to get user info non-blockingly IF POSSIBLE, just for state, but don't fail if it doesn't work
-    try:
-        temp_user_info = request_client.auth.get_user()
-        if temp_user_info and temp_user_info.user:
-            request.state.user = UserInToken(
-                id=temp_user_info.user.id, email=temp_user_info.user.email
-            )
-    except Exception:
-        pass  # Ignore errors here, the real check is in the endpoint
 
     return request_client
 
@@ -106,6 +114,7 @@ async def get_token_from_cookie(
     if not token_cookie:
         return None
 
+    # Handle potential "Bearer " prefix in cookie value
     if token_cookie.lower().startswith("bearer "):
         parts = token_cookie.split(maxsplit=1)
         if len(parts) == 2 and parts[1]:
@@ -116,10 +125,11 @@ async def get_token_from_cookie(
             )
             return None
     else:
-        logger.warning(
-            f"get_token_from_cookie: Cookie value does not start with 'Bearer ': '{token_cookie}' - Treating as invalid."
+        # Assume the cookie value *is* the token if no "Bearer " prefix
+        logger.debug(
+            f"get_token_from_cookie: Cookie value does not start with 'Bearer ', treating value as token: '{token_cookie[:10]}...'"
         )
-        return None
+        return token_cookie
 
 
 async def get_current_user(
@@ -140,6 +150,7 @@ async def get_current_user(
         raise credentials_exception
 
     try:
+        # Use the base client and pass the token explicitly to get_user
         response = await asyncio.to_thread(base_db.auth.get_user, token)
         user_data = response.user
 
@@ -210,6 +221,7 @@ async def get_optional_current_user(
         token = await get_token_from_cookie(request)
         if token is None:
             return None
+        # Pass the token explicitly to get_current_user
         current_user = await get_current_user(token=token, base_db=db)
         return current_user
     except HTTPException as e:
@@ -219,8 +231,9 @@ async def get_optional_current_user(
             f"Unexpected HTTPException in get_optional_current_user: {e.status_code} - {e.detail}",
             exc_info=False,
         )
-        raise e
+        raise e  # Re-raise other HTTP exceptions
     except Exception as e:
+        # Log critical errors but return None to avoid breaking pages that allow anonymous access
         logger.error(
             f"Critical unexpected error in get_optional_current_user: {e}",
             exc_info=True,
@@ -231,14 +244,18 @@ async def get_optional_current_user(
 async def get_db(
     token: str | None = Depends(get_token_from_cookie),
     request_client: SupabaseClient = Depends(get_base_supabase_client),
-    current_user: UserInToken = Depends(get_current_active_user),
+    current_user: UserInToken = Depends(
+        get_current_active_user
+    ),  # Ensures user is authenticated
 ) -> SupabaseClient:
     """
     FastAPI dependency that provides a Supabase client instance configured
-    to use the user's JWT token for RLS-enabled API calls.
+    to use the user's JWT token (from cookie) for RLS-enabled API calls.
     Requires user to be authenticated (enforced by current_user dependency).
     """
     if token is None:
+        # This should theoretically not happen due to get_current_active_user dependency,
+        # but check defensively.
         logger.error(
             "get_db: Reached dependency logic but token is None despite active user dependency."
         )
@@ -249,6 +266,7 @@ async def get_db(
 
     auth_header = f"Bearer {token}"
     try:
+        # Configure PostgREST client
         if hasattr(request_client, "postgrest") and hasattr(
             request_client.postgrest, "session"
         ):
@@ -258,6 +276,7 @@ async def get_db(
                 "Could not find request_client.postgrest.session to set auth header."
             )
 
+        # Configure Storage client
         if hasattr(request_client, "storage") and hasattr(
             request_client.storage, "_client"
         ):
@@ -267,6 +286,9 @@ async def get_db(
                 )
             elif hasattr(request_client.storage._client, "headers"):
                 request_client.storage._client.headers["Authorization"] = auth_header
+
+        # Set session for auth client as well (might be needed for some auth operations)
+        request_client.auth.set_session(access_token=token, refresh_token="")
 
     except Exception as e:
         logger.error(

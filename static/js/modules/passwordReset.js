@@ -5,7 +5,7 @@
 import apiClient from "./apiClient.js";
 
 const passwordReset = {
-  accessToken: null, // Store the token extracted from URL fragment
+  // No need to store token globally anymore
 
   initRequestPage() {
     const requestForm = document.getElementById("request-reset-form");
@@ -42,6 +42,7 @@ const passwordReset = {
         }
       } catch (error) {
         console.error("Error requesting password reset:", error);
+        // Still show generic message on unexpected error
         messageDiv.textContent =
           "Password reset instructions sent (if account exists).";
         messageDiv.classList.add("success-message-auth");
@@ -55,32 +56,42 @@ const passwordReset = {
   initResetPage() {
     const resetForm = document.getElementById("reset-password-form");
     const messageDiv = document.getElementById("message-div");
+    const tokenInput = document.getElementById("recovery_token");
+    const typeInput = document.getElementById("recovery_type");
 
-    if (!resetForm || !messageDiv) {
+    if (!resetForm || !messageDiv || !tokenInput || !typeInput) {
       console.warn("Reset password page elements not found. Skipping setup.");
       return;
     }
 
-    // --- Extract Token from URL Fragment ---
+    // --- Extract Token and Type from URL Fragment ---
     const hash = window.location.hash.substring(1); // Remove '#'
     const params = new URLSearchParams(hash);
-    this.accessToken = params.get("access_token");
+    const accessToken = params.get("access_token");
+    const recoveryType = params.get("type"); // Usually 'recovery'
 
-    if (!this.accessToken) {
-      console.error("Reset password page: Access token not found in URL hash.");
+    if (!accessToken || !recoveryType) {
+      console.error(
+        "Reset password page: Access token or type not found in URL hash."
+      );
       messageDiv.textContent =
-        "Error: Invalid or missing password reset link. Please request a new one.";
+        "Error: Invalid or missing password reset link parameters. Please request a new one.";
       messageDiv.className = "message-auth error-message-auth";
       messageDiv.style.display = "block";
-      resetForm.style.display = "none"; // Hide form if no token
+      resetForm.style.display = "none"; // Hide form if params missing
       return; // Stop initialization
     } else {
+      // Populate hidden form fields
+      tokenInput.value = accessToken;
+      typeInput.value = recoveryType;
+
       // Clear the token from the URL bar for security
       window.history.replaceState(
         {},
         document.title,
         window.location.pathname + window.location.search
       );
+      console.debug("Token and type extracted and cleared from URL hash.");
     }
     // --- End Token Extraction ---
 
@@ -109,16 +120,21 @@ const passwordReset = {
 
       if (submitButton) submitButton.disabled = true;
 
-      const formData = new FormData();
-      formData.append("new_password", newPassword);
+      // Create FormData from the form
+      const formData = new FormData(resetForm);
+
+      // *** FIX: Remove the confirm_password field before sending ***
+      formData.delete("confirm_password");
+      console.debug("Removed confirm_password from FormData before sending.");
+
+      // *** DEBUG: Log FormData keys after deletion ***
+      console.debug("FormData keys being sent:", [...formData.keys()]);
+      // *** END DEBUG ***
 
       try {
         const apiUrl = "/api/v1/auth/reset-password";
-        const response = await apiClient.postForm(apiUrl, formData, {
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-          },
-        });
+        // Use postForm, no explicit Authorization header needed now
+        const response = await apiClient.postForm(apiUrl, formData);
 
         const result = await response.json();
 
@@ -133,7 +149,7 @@ const passwordReset = {
         } else {
           messageDiv.textContent =
             result.detail ||
-            "Failed to update password. The link may have expired or the password doesn't meet requirements.";
+            "Failed to update password. The link may have expired, the password doesn't meet requirements, or the token was invalid.";
           messageDiv.classList.add("error-message-auth");
           messageDiv.style.display = "block";
           if (submitButton) submitButton.disabled = false;
