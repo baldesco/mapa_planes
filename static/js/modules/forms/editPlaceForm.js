@@ -1,6 +1,7 @@
 /**
  * editPlaceForm.js
  * Manages interactions and state for the Edit Place form.
+ * Tag input is handled externally by tagInput.js via uiOrchestrator.
  */
 import apiClient from "../apiClient.js";
 import mapHandler from "../mapHandler.js";
@@ -29,6 +30,7 @@ const editPlaceForm = {
     countryHidden: null,
     categorySelect: null,
     statusSelect: null,
+    tagsInputElement: null,
     submitBtn: null,
   },
   isMapReady: false,
@@ -82,6 +84,8 @@ const editPlaceForm = {
     this.elements.countryHidden = document.getElementById("edit-country"); // Hidden input
     this.elements.categorySelect = document.getElementById("edit-category");
     this.elements.statusSelect = document.getElementById("edit-status");
+    // Get reference to the tag input element, but don't manipulate its value directly
+    this.elements.tagsInputElement = document.getElementById("edit-tags-input");
     this.elements.submitBtn = document.getElementById("edit-place-submit-btn");
   },
 
@@ -290,7 +294,6 @@ const editPlaceForm = {
       els.cityHidden.value = coordsData.city || "";
       els.countryHidden.value = coordsData.country || "";
     }
-    // If only lat/lon provided (from pin), DO NOT clear existing hidden address/city/country
 
     // Update display elements
     els.displayLat.textContent = lat.toFixed(6);

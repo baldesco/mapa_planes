@@ -9,7 +9,7 @@ from fastapi import (
     status,
 )
 from fastapi.responses import RedirectResponse
-from typing import Optional
+from typing import Optional, List  # Import List
 from pydantic import ValidationError
 from datetime import datetime, timezone
 from supabase import Client as SupabaseClient
@@ -41,10 +41,11 @@ async def handle_create_new_place_form(
     address: Optional[str] = Form(None),
     city: Optional[str] = Form(None),
     country: Optional[str] = Form(None),
+    # Tags are not added on creation via this form
 ):
     """Handles the submission of the 'Add New Place' form from the main page."""
     logger.info(f"FORM Create place received for user {current_user.email}.")
-    redirect_url = request.url_for("serve_root_page")  # Use named route from pages.py
+    redirect_url = request.url_for("serve_root_page")
     try:
         place_data = models_places.PlaceCreate(
             name=name,
@@ -91,6 +92,7 @@ async def handle_update_place_status_form(
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """Handles status updates submitted from the map popup dropdown form."""
+    # This endpoint remains unchanged as it only updates status
     logger.info(
         f"FORM Update status for place {place_id} to {new_status.value} by user {current_user.email}"
     )
@@ -117,14 +119,12 @@ async def handle_update_place_status_form(
 
 
 @router.post("/places/{place_id}/edit", status_code=status.HTTP_303_SEE_OTHER)
-async def handle_edit_place_form(  # Renamed for clarity
+async def handle_edit_place_form(
     request: Request,
     place_id: int,
     db: SupabaseClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    # db_service is only needed if image handling were here, remove if not needed
-    # db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
-    # --- Core Place Fields Only ---
+    # --- Core Place Fields ---
     name: str = Form(...),
     latitude: float = Form(...),
     longitude: float = Form(...),
@@ -133,20 +133,23 @@ async def handle_edit_place_form(  # Renamed for clarity
     address: Optional[str] = Form(None),
     city: Optional[str] = Form(None),
     country: Optional[str] = Form(None),
-    # --- REMOVED review/rating/image fields ---
-    # rating: Optional[int] = Form(None),
-    # review_title: Optional[str] = Form(None),
-    # review_text: Optional[str] = Form(None),
-    # remove_image: Optional[str] = Form(None),
+    # --- Add tags input ---
+    tags_input: str = Form("", description="Comma-separated list of tag names"),
 ):
-    """Handles the submission of the 'Edit Place' form (core details only)."""
+    """Handles the submission of the 'Edit Place' form (core details + tags)."""
     logger.info(
-        f"FORM Edit CORE place details for ID {place_id} by user {current_user.email}"
+        f"FORM Edit CORE place details & tags for ID {place_id} by user {current_user.email}. Tags Raw: '{tags_input}'"
     )
     redirect_url = request.url_for("serve_root_page")
 
+    # Parse tags from the comma-separated input string
+    # The JS library (Tagify) should ideally populate this input correctly.
+    # We still clean it up here.
+    tag_list: List[str] = [tag.strip() for tag in tags_input.split(",") if tag.strip()]
+    logger.debug(f"FORM Parsed tags for update: {tag_list}")
+
     try:
-        # Construct the update payload with only core fields
+        # Construct the update payload
         update_payload_dict = {
             "name": name,
             "latitude": latitude,
@@ -157,10 +160,13 @@ async def handle_edit_place_form(  # Renamed for clarity
             "city": city if city is not None else None,
             "country": country if country is not None else None,
             "updated_at": datetime.now(timezone.utc),
+            "tags": tag_list,  # Add the parsed tag list
         }
 
+        # Use the PlaceUpdate model for validation
         place_update_data = models_places.PlaceUpdate(**update_payload_dict)
 
+        # The CRUD function now handles tag updates
         updated_place = await crud_places.update_place(
             place_id=place_id,
             user_id=current_user.id,
@@ -171,24 +177,24 @@ async def handle_edit_place_form(  # Renamed for clarity
 
         if updated_place is None:
             logger.error(
-                f"FORM Failed to update core details for place ID {place_id}, user {current_user.email}."
+                f"FORM Failed to update core details/tags for place ID {place_id}, user {current_user.email}."
             )
             # TODO: Flash error: "Failed to save changes."
         else:
             logger.info(
-                f"FORM Core details for place ID {place_id} updated by user {current_user.email}."
+                f"FORM Core details/tags for place ID {place_id} updated by user {current_user.email}."
             )
             # TODO: Flash success: "Place details updated."
 
     except ValidationError as e:
         logger.error(
-            f"FORM Edit core details validation error ID {place_id}, user {current_user.email}: {e.errors()}",
+            f"FORM Edit core details/tags validation error ID {place_id}, user {current_user.email}: {e.errors()}",
             exc_info=False,
         )
         # TODO: Flash validation error: "Invalid data submitted."
     except Exception as e:
         logger.error(
-            f"FORM Unexpected error editing core details for place ID {place_id}, user {current_user.email}: {e}",
+            f"FORM Unexpected error editing core details/tags for place ID {place_id}, user {current_user.email}: {e}",
             exc_info=True,
         )
         # TODO: Flash generic error: "An unexpected error occurred."
@@ -196,7 +202,7 @@ async def handle_edit_place_form(  # Renamed for clarity
     return RedirectResponse(url=redirect_url, status_code=status.HTTP_303_SEE_OTHER)
 
 
-# This endpoint remains unchanged as it already handles review/rating/image
+# This endpoint remains unchanged as it only handles review/rating/image
 @router.post("/places/{place_id}/review-image", status_code=status.HTTP_303_SEE_OTHER)
 async def handle_add_review_image_form(
     request: Request,
@@ -207,7 +213,6 @@ async def handle_add_review_image_form(
     # Form fields for review/image
     review_title: str = Form(""),
     review_text: str = Form(""),
-    # Changed type hint to accept str, will handle conversion below
     rating: Optional[str] = Form(None),
     image_file: Optional[UploadFile] = File(None, alias="image"),
     remove_image: Optional[str] = Form(None),  # Checkbox value 'yes'
@@ -239,7 +244,6 @@ async def handle_add_review_image_form(
                     f"Image uploaded successfully for place {place_id}, URL: {image_public_url}"
                 )
             else:
-                # If upload returns None but no exception, treat as failure to proceed
                 update_failed = True
                 logger.warning(
                     f"Image upload function returned None for place {place_id}."
@@ -268,7 +272,6 @@ async def handle_add_review_image_form(
         valid_rating: Optional[int] = None
         if rating is not None and rating.strip() != "":
             try:
-                # Ensure it's a valid integer if provided
                 parsed_rating = int(rating)
                 if 1 <= parsed_rating <= 5:
                     valid_rating = parsed_rating
@@ -280,19 +283,16 @@ async def handle_add_review_image_form(
                 logger.warning(
                     f"Invalid rating value '{rating}' (not an integer) received for place {place_id}, setting to None."
                 )
-        # If rating is None or empty string, valid_rating remains None
 
         update_payload = {
             "review_title": review_title.strip() if review_title else None,
             "review": review_text.strip() if review_text else None,
-            "rating": valid_rating,  # Use validated rating
-            # Only update status to visited if review/rating/image implies it
+            "rating": valid_rating,
             "status": models_places.PlaceStatus.VISITED
             if (valid_rating or review_title or review_text or image_public_url)
             else None,
             "updated_at": datetime.now(timezone.utc),
         }
-        # Remove status if it resolved to None (meaning no review content was added)
         if update_payload["status"] is None:
             del update_payload["status"]
 
@@ -300,10 +300,8 @@ async def handle_add_review_image_form(
             update_payload["image_url"] = None
         elif image_public_url:
             update_payload["image_url"] = image_public_url
-        # If no new image and not removing, image_url is not included, preserving existing
 
-        # Only proceed if there's actually something to update
-        # (excluding updated_at)
+        # Exclude tags from this update, as it only handles review/image
         keys_to_check = ["review_title", "review", "rating", "image_url", "status"]
         has_changes = any(k in update_payload for k in keys_to_check)
 
@@ -316,15 +314,15 @@ async def handle_add_review_image_form(
                 url=redirect_url, status_code=status.HTTP_303_SEE_OTHER
             )
 
-        # Use exclude_none=True to avoid sending nulls unless explicitly set (like image_url=None)
         place_update_model = models_places.PlaceUpdate(
             **{
                 k: v
                 for k, v in update_payload.items()
                 if v is not None or k == "image_url"
-            }  # Keep image_url even if None
+            }
         )
 
+        # Use the standard update function, which will ignore the tags field if not present
         updated_place = await crud_places.update_place(
             place_id=place_id,
             user_id=current_user.id,
@@ -343,7 +341,6 @@ async def handle_add_review_image_form(
             # TODO: Flash failure: "Failed to save review details."
 
     except ValidationError as e:
-        # This shouldn't happen now for rating "" vs None, but good to keep
         logger.error(
             f"FORM Review/Image Pydantic validation error ID {place_id}: {e.errors()}",
             exc_info=False,
@@ -368,6 +365,7 @@ async def handle_delete_place_form(
     db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
 ):
     """Handles the submission of the delete confirmation from the map popup."""
+    # No changes needed for tags here
     logger.warning(
         f"FORM Soft Delete request for place ID {place_id} by user {current_user.email}"
     )
