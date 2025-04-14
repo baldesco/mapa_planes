@@ -28,7 +28,8 @@
         </form>
         <div class="auth-links">
             <p>Don't have an account? <a href="{{ url_for('serve_signup_page') }}">Sign Up</a></p>
-            <!-- <p><a href="/password-reset">Forgot Password?</a></p> -->
+            <!-- Add Forgot Password link -->
+            <p><a href="{{ url_for('serve_request_password_reset_page') }}">Forgot Password?</a></p>
         </div>
     </div>
 

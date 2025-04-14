@@ -5,7 +5,8 @@
 
 import auth from "./modules/auth.js";
 import mapHandler from "./modules/mapHandler.js";
-import uiOrchestrator from "./modules/uiOrchestrator.js"; // Import the new orchestrator
+import uiOrchestrator from "./modules/uiOrchestrator.js";
+import passwordReset from "./modules/passwordReset.js";
 
 document.addEventListener("DOMContentLoaded", async () => {
   console.log("DOM Loaded. Initializing main application script...");
@@ -13,7 +14,12 @@ document.addEventListener("DOMContentLoaded", async () => {
   const pathname = window.location.pathname;
 
   // Add class to body for CSS targeting (e.g., auth pages)
-  if (pathname === "/login" || pathname === "/signup") {
+  if (
+    pathname === "/login" ||
+    pathname === "/signup" ||
+    pathname === "/request-password-reset" ||
+    pathname === "/reset-password"
+  ) {
     document.body.classList.add("auth-page");
   }
 
@@ -22,19 +28,17 @@ document.addEventListener("DOMContentLoaded", async () => {
     auth.initLoginPage();
   } else if (pathname === "/signup") {
     auth.initSignupPage();
+  } else if (pathname === "/request-password-reset") {
+    passwordReset.initRequestPage();
+  } else if (pathname === "/reset-password") {
+    // Initialization now happens directly in passwordReset.js after checking for supabase client
+    passwordReset.initResetPage();
   } else if (pathname === "/") {
-    console.log("On main map page, initializing core modules.");
-
-    // Initialize map handler first (essential for map features)
+    console.log("Initializing core modules for main page.");
     const mapReady = await mapHandler.init();
-
-    // Initialize the UI orchestrator, passing map status
     uiOrchestrator.init(mapReady);
-
-    // Setup logout button (could be moved into uiOrchestrator if preferred)
     auth.setupLogoutButton();
   } else {
-    console.log(`On page ${pathname}, no specific page script to run.`);
     // Setup logout button if it might exist on other potential pages
     auth.setupLogoutButton();
   }

@@ -1,14 +1,18 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from supabase import Client as SupabaseClient
-from datetime import datetime, timezone, timedelta  # Import timedelta
+from datetime import datetime, timezone, timedelta
+from gotrue.errors import AuthApiError
 
 from app.core.config import settings, logger
 from app.models.auth import Token, UserCreate, UserInToken, PasswordResetRequest
 from app.models.general import Msg
 from app.db.setup import get_base_supabase_client
-from app.auth.dependencies import get_current_active_user, get_db
+from app.auth.dependencies import (
+    get_current_active_user,
+    get_db,
+)
 from app.auth import utils as auth_utils
 
 
@@ -28,9 +32,6 @@ async def login_for_access_token(
         auth_response = await asyncio.to_thread(
             db.auth.sign_in_with_password,
             {"email": form_data.username, "password": form_data.password},
-        )
-        logger.debug(
-            f"Supabase sign_in response: User ID {auth_response.user.id if auth_response.user else 'None'}, Session present: {auth_response.session is not None}"
         )
         if (
             not auth_response
@@ -55,16 +56,15 @@ async def login_for_access_token(
             secure=settings.APP_ENV != "development",
             path="/",
         )
-        logger.info(
-            f"API Login successful for {form_data.username}, token set in cookie."
-        )
+        logger.info(f"API Login successful for user: {form_data.username}")
         return Token(access_token=access_token, token_type="bearer")
-    except Exception as e:
-        err_msg = getattr(e, "message", str(e))
-        status_code = status.HTTP_401_UNAUTHORIZED
+    except AuthApiError as api_error:
+        err_msg = getattr(api_error, "message", str(api_error))
+        status_code = getattr(api_error, "status", 401)
         detail = "Incorrect email or password"
         logger.error(
-            f"API Login error for {form_data.username}: {err_msg}", exc_info=False
+            f"API Login AuthApiError for {form_data.username}: {status_code} - {err_msg}",
+            exc_info=False,
         )
         if "Invalid login credentials" in err_msg:
             pass
@@ -78,11 +78,24 @@ async def login_for_access_token(
             )
             status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             detail = "An internal error occurred during login."
+
         raise HTTPException(
-            status_code=status_code,
+            status_code=status_code
+            if isinstance(status_code, int)
+            else status.HTTP_401_UNAUTHORIZED,
             detail=detail,
             headers={"WWW-Authenticate": "Bearer"},
+        ) from api_error
+    except Exception as e:
+        logger.error(
+            f"Unexpected general error during API login for {form_data.username}: {e}",
+            exc_info=True,
         )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="An internal error occurred during login.",
+            headers={"WWW-Authenticate": "Bearer"},
+        ) from e
 
 
 @router.post("/signup", response_model=Msg, status_code=status.HTTP_201_CREATED)
@@ -92,7 +105,7 @@ async def signup_user(
 ):
     """Handles new user registration via API."""
     logger.info(f"API Signup attempt for email: {user_in.email}")
-    await auth_utils.create_supabase_user(user_data=user_in, db=db)
+    await auth_utils.create_supabase_user(user_in, db=db)
     return Msg(
         message="Signup successful. Please check your email for a confirmation link if required."
     )
@@ -100,46 +113,18 @@ async def signup_user(
 
 @router.post("/request-password-reset", response_model=Msg)
 async def request_password_reset(
+    request: Request,
     reset_data: PasswordResetRequest,
     db: SupabaseClient = Depends(get_base_supabase_client),
 ):
     """Initiates the password reset flow via API."""
     logger.info(f"API Password reset request for: {reset_data.email}")
-    await auth_utils.initiate_supabase_password_reset(email=reset_data.email, db=db)
+    await auth_utils.initiate_supabase_password_reset(
+        email=reset_data.email, db=db, request=request
+    )
     return Msg(
         message="If an account exists for this email, a password reset link has been sent."
     )
-
-
-@router.post("/reset-password", response_model=Msg)
-async def reset_password(
-    new_password: str = Form(...),
-    db: SupabaseClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-):
-    """Sets a new password for the authenticated user (post-reset flow) via API."""
-    if not new_password:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="New password not provided",
-        )
-
-    logger.warning(
-        f"API Attempting password update for user {current_user.email} via recovery flow."
-    )
-    success = await auth_utils.confirm_supabase_password_reset(
-        access_token="", new_password=new_password, db=db
-    )
-
-    if success:
-        logger.info(f"API Password successfully updated for user: {current_user.email}")
-        return Msg(message="Password updated successfully.")
-    else:
-        logger.error(f"API Password update failed for user {current_user.email}.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password update failed. The reset link may have expired, the password might not meet requirements, or the request was invalid.",
-        )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -151,27 +136,28 @@ async def logout(
     """Logs the current user out via API by calling Supabase sign_out and clearing the cookie."""
     logger.info(f"API Logout request for user: {current_user.email}")
     try:
-        logger.debug(f"Calling Supabase sign_out for user {current_user.email}")
         await asyncio.to_thread(auth_db.auth.sign_out)
         logger.info(
             f"Supabase sign_out API call completed successfully for user: {current_user.email}"
         )
-    except Exception as e:
-        err_msg = getattr(e, "message", str(e))
-        status_code = getattr(e, "status", None) or getattr(e, "status_code", None)
+    except AuthApiError as api_error:
+        status_code = getattr(api_error, "status", None)
         if status_code == 401:
             logger.warning(
                 f"Supabase sign_out failed (401), likely token already invalid for {current_user.email}. Proceeding with cookie clear."
             )
         else:
             logger.error(
-                f"Error during Supabase sign_out call for {current_user.email}: {err_msg}",
-                exc_info=True,
+                f"Error during Supabase sign_out call for {current_user.email}: {api_error.status} - {api_error.message}",
+                exc_info=False,
             )
+    except Exception as e:
+        logger.error(
+            f"Unexpected error during Supabase sign_out call for {current_user.email}: {e}",
+            exc_info=True,
+        )
 
-    # --- Forceful Cookie Deletion ---
     logger.info(f"Attempting to delete access_token cookie for {current_user.email}")
-    # Use FastAPI's method first
     response.delete_cookie(
         key="access_token",
         path="/",
@@ -179,16 +165,11 @@ async def logout(
         samesite="Lax",
         secure=settings.APP_ENV != "development",
     )
-    # --- ADDITIONALLY set raw header for maximum browser compatibility ---
     past_date = datetime.now(timezone.utc) - timedelta(days=1)
     expires_formatted = past_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
     secure_flag = "; Secure" if settings.APP_ENV != "development" else ""
-    # Ensure HttpOnly and SameSite=Lax are also set here for consistency
     manual_cookie_header = f"access_token=deleted; Path=/; Max-Age=0; Expires={expires_formatted}; HttpOnly; SameSite=Lax{secure_flag}"
-    logger.debug(f"Setting manual Set-Cookie header: {manual_cookie_header}")
-    # Use append_header to avoid overriding other potential Set-Cookie headers
     response.headers.append("Set-Cookie", manual_cookie_header)
-    # --------------------------------------------------------------------
 
     logger.info(
         f"Access token cookie cleared instruction sent for user: {current_user.email}"
@@ -201,5 +182,4 @@ async def read_users_me(
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """Returns the basic information of the currently authenticated user via API."""
-    logger.debug(f"API '/me' endpoint accessed by user: {current_user.email}")
     return current_user
