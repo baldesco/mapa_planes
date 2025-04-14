@@ -20,6 +20,5 @@ from .auth import (
     Token,
     TokenData,
     PasswordResetRequest,
-    PasswordResetConfirm,
 )
 from .general import GeocodeResult, Msg
