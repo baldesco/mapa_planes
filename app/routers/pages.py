@@ -9,9 +9,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 from supabase import Client as SupabaseClient
-from urllib.parse import urlencode
 
-from app.core.config import logger
+from app.core.config import logger, settings
 from app.models import places as models_places
 from app.models.auth import UserInToken
 from app.crud import places as crud_places
@@ -108,7 +107,7 @@ async def serve_login_page(
     user: UserInToken | None = Depends(get_optional_current_user),
 ):
     """Serves the login page. Redirects if user is logged in, unless forced."""
-    if reason in ["logged_out", "session_expired"]:
+    if reason in ["logged_out", "session_expired", "password_reset_success"]:
         logger.debug(f"Displaying login page due to reason={reason}")
         return templates.TemplateResponse(
             "login.html", {"request": request, "reason": reason}
@@ -141,3 +140,35 @@ async def serve_signup_page(
             status_code=status.HTTP_303_SEE_OTHER,
         )
     return templates.TemplateResponse("signup.html", {"request": request})
+
+
+@router.get(
+    "/request-password-reset",
+    response_class=HTMLResponse,
+    name="serve_request_password_reset_page",
+)
+async def serve_request_password_reset_page(
+    request: Request,
+    user: UserInToken | None = Depends(get_optional_current_user),
+):
+    """Serves the page to request a password reset email."""
+    if user:
+        # Redirect logged-in users away from password reset
+        return RedirectResponse(
+            url=request.url_for("serve_root_page"),
+            status_code=status.HTTP_303_SEE_OTHER,
+        )
+    return templates.TemplateResponse(
+        "request_password_reset.html", {"request": request}
+    )
+
+
+@router.get(
+    "/reset-password",
+    response_class=HTMLResponse,
+    name="serve_reset_password_page",
+)
+async def serve_reset_password_page(request: Request):
+    return templates.TemplateResponse(
+        "reset_password.html", {"request": request, "settings": settings}
+    )
