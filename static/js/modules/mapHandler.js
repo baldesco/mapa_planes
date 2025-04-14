@@ -20,6 +20,8 @@ const mapHandler = {
         console.log(
           "Map Handler: Main Leaflet map instance (Folium) obtained."
         );
+        // Initial invalidateSize call after map is found, in case container size is already different
+        this.invalidateMapSize();
         return true;
       } else {
         console.error(
@@ -152,7 +154,26 @@ const mapHandler = {
     }
   },
 
+  /**
+   * Invalidates the size of the main Leaflet map instance.
+   * This should be called after the map container is resized.
+   */
+  invalidateMapSize() {
+    const map = this.getMainMap();
+    if (map && typeof map.invalidateSize === "function") {
+      try {
+        // console.debug("Map Handler: Calling invalidateSize() on main map."); // Can be noisy
+        map.invalidateSize({ animate: false }); // Animate false is usually smoother
+      } catch (e) {
+        console.error("Map Handler: Error calling invalidateSize:", e);
+      }
+    } else {
+      // console.warn("Map Handler: Cannot invalidate size, map instance not available."); // Can be noisy
+    }
+  },
+
   // --- Pinning Map Logic ---
+  // (No changes needed in pinning map logic for this fix)
 
   /**
    * Initializes the dedicated pinning map.
