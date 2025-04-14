@@ -9,6 +9,19 @@ import editPlaceForm from "./forms/editPlaceForm.js";
 import reviewForm from "./forms/reviewForm.js";
 import modals from "./components/modals.js";
 import pinningUI from "./components/pinningUI.js"; // Import pinning UI handler
+import mapHandler from "./mapHandler.js"; // Import mapHandler to call invalidateSize
+
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
 
 const uiOrchestrator = {
   elements: {
@@ -18,10 +31,11 @@ const uiOrchestrator = {
     editPlaceSection: null,
     reviewImageSection: null,
     seeReviewSection: null,
-    // Pinning map container (needed to ensure it's hidden initially)
+    mapContainer: null,
     pinningMapContainer: null,
   },
-  isMapReady: false, // Track if the main map initialized successfully
+  isMapReady: false,
+  debouncedInvalidateMapSize: null,
 
   init(mapReadyStatus = false) {
     console.debug("UI Orchestrator: Initializing...");
@@ -50,11 +64,18 @@ const uiOrchestrator = {
     this.setupEventListeners();
 
     // Make global functions available (called from map popups)
-    // window.showAddPlaceForm = this.showAddPlaceForm.bind(this); // Should ideally not be needed
     window.showEditPlaceForm = this.showEditPlaceForm.bind(this);
     window.showReviewForm = this.showReviewForm.bind(this);
     window.showSeeReviewModal = modals.showSeeReviewModal.bind(modals);
     window.showImageOverlay = modals.showImageOverlay.bind(modals);
+
+    if (this.isMapReady && this.elements.mapContainer) {
+      this.setupResizeObserver();
+    } else if (!this.elements.mapContainer) {
+      console.warn(
+        "UI Orchestrator: #map container not found for ResizeObserver."
+      );
+    }
 
     console.log("UI Orchestrator: Initialization complete.");
   },
@@ -73,6 +94,7 @@ const uiOrchestrator = {
     );
     this.elements.seeReviewSection =
       document.getElementById("see-review-section");
+    this.elements.mapContainer = document.getElementById("map");
     this.elements.pinningMapContainer = document.getElementById(
       "pinning-map-container"
     );
@@ -95,7 +117,27 @@ const uiOrchestrator = {
     }
   },
 
-  /** Hides all major form/modal sections and resets pinning */
+  setupResizeObserver() {
+    if (!this.elements.mapContainer) return;
+
+    // Create debounced version of the map handler's function
+    this.debouncedInvalidateMapSize = debounce(
+      mapHandler.invalidateMapSize.bind(mapHandler),
+      250
+    ); // 250ms debounce delay
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      // We are only observing one element, but loop is good practice
+      for (let entry of entries) {
+        // console.debug('ResizeObserver detected resize for #map'); // Can be noisy
+        this.debouncedInvalidateMapSize(); // Call the debounced function
+      }
+    });
+
+    resizeObserver.observe(this.elements.mapContainer);
+    console.log("UI Orchestrator: ResizeObserver attached to #map container.");
+  },
+
   hideAllSections() {
     console.debug("UI Orchestrator: Hiding all sections.");
     if (this.elements.addPlaceWrapper)
@@ -144,7 +186,6 @@ const uiOrchestrator = {
 
   showEditPlaceForm(placeDataInput) {
     let placeData;
-    // *** FIX: Parse the incoming string data ***
     if (typeof placeDataInput === "string") {
       try {
         placeData = JSON.parse(placeDataInput);
@@ -156,10 +197,9 @@ const uiOrchestrator = {
           placeDataInput
         );
         alert("Error: Could not read place data to edit.");
-        return; // Stop if parsing fails
+        return;
       }
     } else if (typeof placeDataInput === "object" && placeDataInput !== null) {
-      // Allow passing object directly (though popups pass strings)
       placeData = placeDataInput;
     } else {
       console.error(
@@ -169,11 +209,9 @@ const uiOrchestrator = {
       alert("Internal Error: Invalid data for edit form.");
       return;
     }
-    // *** END FIX ***
 
-    this.hideAllSections(); // Hide other sections first
+    this.hideAllSections();
 
-    // Now call populateForm with the actual object
     if (editPlaceForm.populateForm(placeData)) {
       if (this.elements.editPlaceSection) {
         this.elements.editPlaceSection.style.display = "block";
@@ -186,7 +224,6 @@ const uiOrchestrator = {
       }
     } else {
       console.error("UI Orchestrator: Failed to populate edit form.");
-      // Optionally show an error message to the user
     }
   },
 
@@ -200,7 +237,6 @@ const uiOrchestrator = {
 
   showReviewForm(placeDataInput) {
     let placeData;
-    // *** FIX: Parse the incoming string data ***
     if (typeof placeDataInput === "string") {
       try {
         placeData = JSON.parse(placeDataInput);
@@ -212,7 +248,7 @@ const uiOrchestrator = {
           placeDataInput
         );
         alert("Error: Could not read place data for review.");
-        return; // Stop if parsing fails
+        return;
       }
     } else if (typeof placeDataInput === "object" && placeDataInput !== null) {
       placeData = placeDataInput;
@@ -224,7 +260,6 @@ const uiOrchestrator = {
       alert("Internal Error: Invalid data for review form.");
       return;
     }
-    // *** END FIX ***
 
     this.hideAllSections();
 
@@ -249,8 +284,6 @@ const uiOrchestrator = {
     if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
   },
-
-  // Note: showSeeReviewModal and showImageOverlay are delegated to modals.js
 };
 
 export default uiOrchestrator;
