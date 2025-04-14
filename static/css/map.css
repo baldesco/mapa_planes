@@ -43,6 +43,8 @@
 .leaflet-popup-content-wrapper {
     border-radius: 8px !important;
     box-shadow: var(--box-shadow);
+    background-color: #fff;
+    /* Ensure background */
 }
 
 .leaflet-popup-content {
@@ -50,10 +52,17 @@
     font-size: 14px !important;
     line-height: 1.6;
     /* Improve popup readability */
-    max-width: 300px !important;
-    /* Prevent overly wide popups */
+    max-width: 280px !important;
+    /* Reduced max-width */
+    margin: 10px 15px !important;
+    /* Add some internal padding */
+    padding: 0 !important;
+    /* Reset default padding */
+    color: var(--text-color);
 }
 
+/* Styles applied via injected <style> tag in mapping.py */
+/* These are fallback/base styles if injection fails */
 .leaflet-popup-content h4 {
     margin: 0 0 10px 0;
     color: var(--primary-color);
@@ -69,14 +78,6 @@
     word-wrap: break-word;
 }
 
-.leaflet-popup-content form {
-    margin: 0;
-    padding: 0;
-    border: none;
-    display: inline-block;
-    vertical-align: middle;
-}
-
 .leaflet-popup-content img {
     margin-top: 10px;
     border-radius: 4px;
@@ -86,20 +87,19 @@
     /* Indicate clickable for overlay */
 }
 
-/* Buttons and Select inside Popups */
+/* Buttons and Select inside Popups (Base styles, specific colors in injected style) */
 .leaflet-popup-content button[type=button],
-.leaflet-popup-content button[type=submit],
-.leaflet-popup-content select {
-    padding: 4px 10px !important;
-    font-size: 0.85em !important;
-    border-radius: 4px !important;
+.leaflet-popup-content button[type=submit] {
+    padding: 6px 12px !important;
+    font-size: 0.9em !important;
+    border-radius: 5px !important;
     cursor: pointer !important;
     border: none !important;
     color: white !important;
-    margin: 2px 3px !important;
+    margin: 3px 4px !important;
     font-family: inherit !important;
     box-shadow: var(--box-shadow-sm) !important;
-    transition: background-color 0.2s, transform 0.1s !important;
+    transition: background-color 0.2s, transform 0.1s, box-shadow 0.15s !important;
     vertical-align: middle;
 }
 
@@ -107,47 +107,6 @@
     transform: translateY(1px);
     box-shadow: none !important;
 }
-
-.leaflet-popup-content select {
-    color: var(--text-color) !important;
-    background-color: #f0f0f0 !important;
-    border: 1px solid #ccc !important;
-    box-shadow: none !important;
-}
-
-/* Specific Popup Button Colors */
-.leaflet-popup-content button[title*="Edit Place"] {
-    background-color: var(--warning-color) !important;
-}
-
-.leaflet-popup-content button[title*="Edit Place"]:hover {
-    background-color: var(--warning-color-hover) !important;
-}
-
-.leaflet-popup-content button[title*="Add Review"] {
-    background-color: var(--info-color) !important;
-}
-
-.leaflet-popup-content button[title*="Add Review"]:hover {
-    background-color: var(--info-color-hover) !important;
-}
-
-.leaflet-popup-content button[title*="See Review"] {
-    background-color: var(--see-review-bg) !important;
-}
-
-.leaflet-popup-content button[title*="See Review"]:hover {
-    background-color: var(--see-review-hover-bg) !important;
-}
-
-.leaflet-popup-content button[title*="Delete"] {
-    background-color: var(--error-color) !important;
-}
-
-.leaflet-popup-content button[title*="Delete"]:hover {
-    background-color: var(--danger-color-hover) !important;
-}
-
 
 /* --- Pinning Map Styles --- */
 #pinning-map-container {
@@ -246,20 +205,21 @@
     }
 }
 
-@media (max-width: 480px) {
+@media (max-width: 480px) and (orientation: portrait) {
 
-    /* Phones */
+    /* Phones (Portrait) */
     #map {
         height: auto;
         /* Let aspect-ratio control height */
-        aspect-ratio: 3 / 4;
-        /* Make container taller than wide (portrait-like) */
+        aspect-ratio: 1 / 1;
+        /* Make container square (taller than 3/4) */
     }
 
     #pinning-map {
         height: auto;
         /* Let aspect-ratio control height */
-        aspect-ratio: 3 / 4;
-        /* Make container taller than wide */
+        aspect-ratio: 1 / 1;
+        /* Make container square */
     }
 }
+
