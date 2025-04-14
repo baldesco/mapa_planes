@@ -1,9 +1,7 @@
 import uuid
 from pydantic import BaseModel, Field, EmailStr
-from datetime import datetime
 
 
-# --- Authentication Models ---
 class UserBase(BaseModel):
     email: EmailStr
 
@@ -14,7 +12,7 @@ class UserCreate(UserBase):
 
 class User(UserBase):
     id: uuid.UUID
-    is_active: bool = True  # Assuming Supabase users are active by default
+    is_active: bool = True
 
     class Config:
         from_attributes = True
@@ -26,14 +24,12 @@ class UserInToken(BaseModel):
     email: EmailStr
 
 
-# Supabase returns more info, but this is essential for our JWT validation/usage
+# Essential fields from Supabase user object needed after auth operations
 class SupabaseUser(BaseModel):
     id: uuid.UUID
     aud: str
     role: str
     email: EmailStr
-    # Supabase includes many other fields like confirmed_at, created_at etc.
-    # We only map what we strictly need for our app's logic post-login.
 
 
 class Token(BaseModel):
@@ -42,17 +38,23 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    # This will hold the payload decoded from our JWT if we were doing it manually
-    # Using 'sub' (subject) standard claim for user identifier (email or id)
-    sub: str | None = None  # Could be email or UUID string
-    id: uuid.UUID | None = None  # Extracted user ID
-    email: EmailStr | None = None  # Extracted user email
+    # Represents potential data decoded from a JWT (not used directly with Supabase validation)
+    sub: str | None = None
+    id: uuid.UUID | None = None
+    email: EmailStr | None = None
 
 
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
 
-class PasswordResetConfirm(BaseModel):
-    token: str  # The token received via email (or temp password, depending on flow)
-    new_password: str = Field(..., min_length=8)
+# Model removed as password confirmation is now handled client-side via Supabase JS
+# class PasswordResetConfirm(BaseModel):
+#     token: str
+#     new_password: str = Field(..., min_length=8)
+
+# Model removed as verification is now handled client-side via Supabase JS
+# class VerifyRecoveryPayload(BaseModel):
+#     token: str
+#     type: str
+#     email: EmailStr

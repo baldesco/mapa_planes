@@ -1,14 +1,26 @@
 import asyncio
-import uuid
 from fastapi import Depends, HTTPException, status, Request
-from jose import JWTError, jwt
+from fastapi.security import OAuth2PasswordBearer
+
 from supabase import Client as SupabaseClient
-from supabase import AuthApiError  # Import specific Supabase error directly
+from supabase import AuthApiError
 from pydantic import ValidationError
 
-from app.core.config import settings, logger
+from app.core.config import logger
 from app.models.auth import UserInToken
 from app.db.setup import get_base_supabase_client
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
+
+
+async def get_token_from_header(
+    token: str | None = Depends(oauth2_scheme),
+) -> str | None:
+    """
+    Dependency to extract the token from the Authorization header.
+    Returns the raw token string or None if not found.
+    """
+    return token
 
 
 async def get_token_from_cookie(
@@ -20,25 +32,20 @@ async def get_token_from_cookie(
     """
     token_cookie = request.cookies.get("access_token")
     if not token_cookie:
-        # logger.debug("get_token_from_cookie: No 'access_token' cookie found.")
         return None
 
     if token_cookie.lower().startswith("bearer "):
         parts = token_cookie.split(maxsplit=1)
         if len(parts) == 2 and parts[1]:
-            raw_token = parts[1]
-            # logger.debug(f"get_token_from_cookie: Extracted raw token from Bearer: {raw_token[:10]}...")
-            return raw_token
+            return parts[1]
         else:
             logger.warning(
                 f"get_token_from_cookie: Malformed Bearer token in cookie: '{token_cookie}'"
             )
             return None
     else:
-        logger.warning(
-            f"get_token_from_cookie: Cookie value does not start with 'Bearer ': '{token_cookie}' - Treating as invalid."
-        )
-        return None
+        # Assume the cookie value *is* the token if no "Bearer " prefix
+        return token_cookie
 
 
 async def get_current_user(
@@ -47,7 +54,7 @@ async def get_current_user(
 ) -> UserInToken:
     """
     Dependency to validate the token from the cookie via Supabase and return user info.
-    Raises 401 if token is missing, invalid, or validation fails (including invalidated session).
+    Raises 401 if token is missing, invalid, or validation fails.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -59,24 +66,17 @@ async def get_current_user(
         raise credentials_exception
 
     try:
-        logger.debug(
-            f"get_current_user: Attempting validation for token {token[:10]}..."
-        )
         response = await asyncio.to_thread(base_db.auth.get_user, token)
         user_data = response.user
-        logger.debug(
-            f"get_current_user: Supabase auth get_user response received. User ID: {user_data.id if user_data else 'None'}"
-        )
 
         if not user_data or not user_data.id:
             logger.warning(
-                "Token validation failed: Supabase get_user returned no user or user ID (session likely invalidated)."
+                "Token validation failed: Supabase get_user returned no user or user ID."
             )
             raise credentials_exception
 
         try:
             current_user = UserInToken(id=user_data.id, email=user_data.email)
-            logger.debug(f"Token validated successfully for user: {current_user.email}")
             return current_user
         except (ValidationError, AttributeError) as e:
             logger.error(
@@ -97,6 +97,7 @@ async def get_current_user(
         ):
             raise credentials_exception from api_error
         else:
+            # Log other API errors but raise a generic internal server error
             logger.error(
                 f"Unexpected Supabase AuthApiError during validation: {api_error}",
                 exc_info=True,
@@ -124,7 +125,7 @@ async def get_current_active_user(
     Ensures the user retrieved from the token is valid.
     Relies on get_current_user to perform the actual validation.
     """
-    logger.debug(f"get_current_active_user returning user: {current_user.email}")
+    # Placeholder for future checks (e.g., is_active flag)
     return current_user
 
 
@@ -140,6 +141,7 @@ async def get_optional_current_user(
         current_user = await get_current_user(token=token, base_db=db)
         return current_user
     except HTTPException as e:
+        # Only suppress 401, re-raise others
         if e.status_code == status.HTTP_401_UNAUTHORIZED:
             return None
         logger.error(
@@ -158,12 +160,13 @@ async def get_optional_current_user(
 async def get_db(
     token: str | None = Depends(get_token_from_cookie),
     request_client: SupabaseClient = Depends(get_base_supabase_client),
-    current_user: UserInToken = Depends(get_current_active_user),
+    current_user: UserInToken = Depends(
+        get_current_active_user
+    ),  # Ensures user is authenticated
 ) -> SupabaseClient:
     """
-    FastAPI dependency that provides a Supabase client instance configured
-    to use the user's JWT token for RLS-enabled API calls.
-    Requires user to be authenticated (enforced by current_user dependency).
+    Provides a Supabase client configured with the user's JWT token (from cookie)
+    for RLS-enabled API calls. Requires authentication.
     """
     if token is None:
         logger.error(
@@ -174,9 +177,9 @@ async def get_db(
             detail="Not authenticated (token missing)",
         )
 
-    logger.debug(f"get_db: Configuring request client for user {current_user.email}...")
     auth_header = f"Bearer {token}"
     try:
+        # Configure PostgREST client
         if hasattr(request_client, "postgrest") and hasattr(
             request_client.postgrest, "session"
         ):
@@ -186,6 +189,7 @@ async def get_db(
                 "Could not find request_client.postgrest.session to set auth header."
             )
 
+        # Configure Storage client
         if hasattr(request_client, "storage") and hasattr(
             request_client.storage, "_client"
         ):
@@ -195,7 +199,9 @@ async def get_db(
                 )
             elif hasattr(request_client.storage._client, "headers"):
                 request_client.storage._client.headers["Authorization"] = auth_header
-        # else: logger.debug("Storage client or its session not found for header setting.")
+
+        # Set session for auth client as well
+        request_client.auth.set_session(access_token=token, refresh_token="")
 
     except Exception as e:
         logger.error(
@@ -210,4 +216,13 @@ async def get_db(
     return request_client
 
 
-# logger.info("Auth Dependencies: User validation and authenticated 'get_db' dependency configured.")
+# Dependency used for password reset where auth relies on implicit Supabase cookie
+async def get_db_unvalidated(
+    request_client: SupabaseClient = Depends(get_base_supabase_client),
+) -> SupabaseClient:
+    """
+    Provides a base Supabase client without performing any token validation.
+    """
+    # The Supabase library should pick up the necessary session cookie automatically
+    # when db.auth.update_user is called in the endpoint using this client.
+    return request_client
