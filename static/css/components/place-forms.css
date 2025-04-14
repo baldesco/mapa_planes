@@ -121,24 +121,102 @@
 }
 
 
-/* *** NEW: Container for form action buttons *** */
-.form-actions {
-    margin-top: 25px;
-    /* Space above buttons */
-    padding-top: 15px;
-    /* Space within the container */
-    border-top: 1px solid #eee;
-    /* Separator line */
-    display: flex;
-    justify-content: flex-end;
-    /* Align buttons to the right */
-    flex-wrap: wrap;
-    /* Allow wrapping on small screens */
-    gap: 10px;
-    /* Space between buttons */
+/* Target the specific inputs if needed, or use general Tagify classes */
+#edit-tags-input,
+#tag-filter-input {
+    /* The original input is hidden by Tagify, style the wrapper */
+    margin-bottom: 15px;
+    /* Match other inputs */
 }
 
-/* Ensure buttons within actions don't have extra bottom margin */
+/* General Tagify styling overrides */
+.tagify {
+    --tags-border-color: var(--border-color);
+    --tags-hover-border-color: var(--primary-color);
+    --tags-focus-border-color: var(--primary-color);
+    --tag-bg: var(--primary-color-light);
+    --tag-hover: #c8e6c9;
+    /* Slightly darker */
+    --tag-text-color: var(--primary-color-dark);
+    --tag-remove-btn-color: var(--primary-color-dark);
+    --tag-pad: 0.4em 0.7em;
+    --tag-inset-shadow-size: 1.1em;
+    --tag-remove-btn-bg: none;
+    --tag-remove-btn-bg--hover: #e57373;
+    /* Light red on hover */
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 1em;
+    min-height: 45px;
+    /* Match approx height of other inputs */
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.tagify:hover {
+    border-color: var(--tags-hover-border-color);
+}
+
+.tagify--focus {
+    border-color: var(--tags-focus-border-color);
+    box-shadow: 0 0 0 3px var(--primary-color-light);
+}
+
+.tagify__tag {
+    margin: 4px;
+    /* Adjust spacing */
+}
+
+.tagify__tag>div::before {
+    box-shadow: inset 0 0 0 var(--tag-inset-shadow-size) var(--tag-bg);
+    /* Use variable */
+}
+
+.tagify__tag:hover:not([readonly]) div::before {
+    box-shadow: inset 0 0 0 var(--tag-inset-shadow-size) var(--tag-hover);
+    /* Use variable */
+}
+
+.tagify__input {
+    font-size: 1em;
+    padding: 0.4em 0.5em;
+    /* Match tag padding */
+    margin: 4px;
+    /* Match tag margin */
+}
+
+/* Suggestions dropdown */
+.tagify__dropdown {
+    border-radius: 6px;
+    box-shadow: var(--box-shadow);
+    border: 1px solid var(--border-color);
+}
+
+.tagify__dropdown__item {
+    padding: 0.5em 0.8em;
+}
+
+.tagify__dropdown__item--active {
+    background: var(--primary-color-light);
+    color: var(--primary-color-dark);
+}
+
+.tagify__dropdown__item:hover {
+    background: var(--tertiary-color);
+    color: var(--text-color);
+}
+
+
+/* Container for form action buttons */
+.form-actions {
+    margin-top: 25px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: flex-end;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
 .form-actions button {
     margin-bottom: 0;
 }
@@ -160,20 +238,16 @@
         width: 100%;
     }
 
-    /* Stack buttons on smaller screens */
     .form-actions {
         justify-content: center;
     }
 
     .form-actions button {
         width: auto;
-        /* Allow buttons to size naturally */
         min-width: 120px;
-        /* Optional minimum width */
     }
 
     .form-actions button.cancel-btn {
         margin-top: 0;
-        /* Remove stacking margin */
     }
 }

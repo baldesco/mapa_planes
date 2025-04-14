@@ -4,6 +4,9 @@ from typing import Optional, List
 from enum import Enum
 from datetime import datetime
 
+# Import the new Tag model
+from .tags import Tag
+
 
 # --- Enums ---
 class PlaceCategory(str, Enum):
@@ -41,6 +44,7 @@ class PlaceCreate(PlaceBase):
     )
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
+    # Tags are not added during initial creation via this model
 
 
 # --- Update Model (Input for PUT /places/{id}) ---
@@ -61,6 +65,10 @@ class PlaceUpdate(BaseModel):
     )
     deleted_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    # Add tags field: Expects a list of tag names from the frontend
+    tags: Optional[List[str]] = Field(
+        None, description="List of tag names to associate with the place."
+    )
 
     @field_validator("review", "review_title", "name", "address", "city", "country")
     @classmethod
@@ -76,6 +84,25 @@ class PlaceUpdate(BaseModel):
             raise ValueError("Rating must be between 1 and 5")
         return v
 
+    # Optional: Add validator for tags to ensure they are clean strings
+    @field_validator(
+        "tags", mode="before"
+    )  # Use mode='before' if input might not be list
+    @classmethod
+    def clean_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is None:
+            return None
+        if not isinstance(v, list):
+            # Could add handling for comma-separated string if needed, but list is preferred
+            raise ValueError("Tags must be provided as a list of strings.")
+        cleaned_tags = [
+            tag.strip().lower() for tag in v if isinstance(tag, str) and tag.strip()
+        ]
+        # Remove duplicates while preserving order (if needed, though set is easier)
+        seen = set()
+        unique_tags = [x for x in cleaned_tags if not (x in seen or seen.add(x))]
+        return unique_tags if unique_tags else None  # Return None if list becomes empty
+
 
 # --- Database Model (Representation matching DB schema) ---
 class PlaceInDB(PlaceBase):
@@ -89,6 +116,8 @@ class PlaceInDB(PlaceBase):
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None
+    # Add tags list, populated after fetching place
+    tags: List[Tag] = []
 
     class Config:
         from_attributes = True
@@ -96,7 +125,7 @@ class PlaceInDB(PlaceBase):
 
 # --- API Response Model ---
 class Place(PlaceInDB):
-    pass
+    pass  # Inherits tags from PlaceInDB
 
 
 # --- List Response Model ---

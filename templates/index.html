@@ -7,11 +7,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapa Planes</title>
     <link rel="icon" href="{{ url_for('static', path='/penguin_favicon.png') }}" type="image/png">
+    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <!-- Tagify CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
+    <!-- Main App CSS -->
     <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
 </head>
 
@@ -35,7 +40,7 @@
 
         <!-- Controls Section -->
         <section class="controls-section filter-section">
-            <form method="get" action="{{ request.url_for('serve_root_page') }}">
+            <form id="filter-form" method="get" action="{{ request.url_for('serve_root_page') }}">
                 <div>
                     <label for="category">Category:</label>
                     <select id="category" name="category" onchange="this.form.submit()">
@@ -55,6 +60,12 @@
                             ' ')|capitalize }}</option>
                         {% endfor %}
                     </select>
+                </div>
+                <!-- Tag Filter Input -->
+                <div class="tag-filter-container">
+                    <label for="tag-filter-input">Tags:</label>
+                    <input id="tag-filter-input" name="tags" placeholder="Filter by tags..."
+                        value="{{ current_tags_filter|join(',') }}">
                 </div>
                 <button type="submit">Filter</button>
                 <button type="button" onclick="window.location.href='{{ request.url_for('serve_root_page') }}'">Clear
@@ -88,8 +99,6 @@
                     <div id="map-pin-instruction" class="map-pin-instruction">Drag the pin on the map below to the
                         desired location, then click Confirm.</div>
 
-                    <!-- Pinning map container will be moved here by JS -->
-
                     <div id="geocode-status" class="status-message"></div>
 
                     <div id="coords-section" class="coords-section">
@@ -119,7 +128,6 @@
                         {% endfor %}
                     </select>
 
-                    <!-- *** Wrap buttons in a div *** -->
                     <div class="form-actions">
                         <button type="submit" id="add-place-submit-btn" disabled>Add Place</button>
                         <button type="button" class="cancel-btn" id="add-place-cancel-btn">Cancel</button>
@@ -144,8 +152,6 @@
                     <button type="button" id="edit-pin-on-map-btn">Pin New Location</button>
                     <div id="edit-map-pin-instruction" class="map-pin-instruction">Drag the pin on the map below to the
                         new location, then click Confirm.</div>
-
-                    <!-- Pinning map container will be moved here by JS -->
 
                     <div id="edit-geocode-status" class="status-message"></div>
 
@@ -173,7 +179,10 @@
                         {% endfor %}
                     </select>
 
-                    <!-- *** Wrap buttons in a div *** -->
+                    <!-- Tags Input -->
+                    <label for="edit-tags-input">Tags:</label>
+                    <input id="edit-tags-input" name="tags_input" placeholder="Add tags...">
+
                     <div class="form-actions">
                         <button type="submit" id="edit-place-submit-btn">Save Changes</button>
                         <button type="button" class="cancel-btn">Cancel</button>
@@ -217,7 +226,6 @@
                         </div>
                     </div>
 
-                    <!-- *** Wrap buttons in a div *** -->
                     <div class="form-actions">
                         <button type="submit" id="review-image-submit-btn">Save Review & Image</button>
                         <button type="button" class="cancel-btn">Cancel</button>
@@ -256,8 +264,18 @@
 
     </div> <!-- /container -->
 
+    <!-- Embed user tags data for JavaScript -->
+    <script id="user-tags-data" type="application/json">
+        {{ all_user_tags_json | safe }}
+    </script>
+
+    <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <!-- Tagify JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.polyfills.min.js"></script>
+    <!-- Main App JS -->
     <script type="module" src="{{ url_for('static', path='/js/main.js') }}"></script>
 </body>
 
