@@ -1,5 +1,5 @@
 import asyncio
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Form
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from supabase import Client as SupabaseClient
 from datetime import datetime, timezone, timedelta
@@ -8,12 +8,11 @@ from gotrue.errors import AuthApiError
 from app.core.config import settings, logger
 from app.models.auth import Token, UserCreate, UserInToken, PasswordResetRequest
 from app.models.general import Msg
-from app.db.setup import get_base_supabase_client  # Use base client
+from app.db.setup import get_base_supabase_client
 from app.auth.dependencies import (
     get_current_active_user,
     get_db,
 )
-from app.auth.utils import verify_recovery_and_update_password
 from app.auth import utils as auth_utils
 
 
@@ -57,9 +56,7 @@ async def login_for_access_token(
             secure=settings.APP_ENV != "development",
             path="/",
         )
-        logger.info(
-            f"API Login successful for {form_data.username}, token set in cookie."
-        )
+        logger.info(f"API Login successful for user: {form_data.username}")
         return Token(access_token=access_token, token_type="bearer")
     except AuthApiError as api_error:
         err_msg = getattr(api_error, "message", str(api_error))
@@ -108,7 +105,7 @@ async def signup_user(
 ):
     """Handles new user registration via API."""
     logger.info(f"API Signup attempt for email: {user_in.email}")
-    await auth_utils.create_supabase_user(user_data=user_in, db=db)
+    await auth_utils.create_supabase_user(user_in, db=db)
     return Msg(
         message="Signup successful. Please check your email for a confirmation link if required."
     )
@@ -128,52 +125,6 @@ async def request_password_reset(
     return Msg(
         message="If an account exists for this email, a password reset link has been sent."
     )
-
-
-@router.post("/reset-password", response_model=Msg)
-async def reset_password(
-    # *** DEBUG: Add Request parameter ***
-    request: Request,
-    # Keep original Form parameters for validation attempt
-    token: str = Form(...),
-    type: str = Form(...),
-    new_password: str = Form(..., min_length=8),
-    db: SupabaseClient = Depends(get_base_supabase_client),
-):
-    """
-    Verifies the recovery token and type, then sets the new password.
-    Relies on JS extracting token/type from URL fragment and putting them in the form.
-    """
-    # *** DEBUG: Log received form data ***
-    try:
-        form_data = await request.form()
-        logger.debug(f"Received form data in /reset-password: {dict(form_data)}")
-    except Exception as e:
-        logger.error(f"Error reading form data in /reset-password: {e}")
-        # Don't raise here, let the parameter validation handle it if needed
-        # but log that reading failed.
-        pass  # Continue to parameter validation
-    # *** END DEBUG ***
-
-    logger.info(f"API Attempting password update via verify_otp flow (type: {type}).")
-
-    # Call the utility function (using the validated Form parameters)
-    success = await verify_recovery_and_update_password(
-        recovery_token=token,
-        recovery_type=type,
-        new_password=new_password,
-        db=db,
-    )
-
-    if success:
-        logger.info(f"API Password successfully updated via recovery token.")
-        return Msg(message="Password updated successfully.")
-    else:
-        logger.error(f"API Password update failed via recovery token.")
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password update failed. The reset link may have expired, the password might not meet requirements, or the token/type was invalid.",
-        )
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
