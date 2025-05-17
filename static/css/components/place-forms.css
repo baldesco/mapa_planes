@@ -7,21 +7,27 @@
     flex-wrap: wrap;
     gap: 12px;
     align-items: stretch;
+    /* Changed from center to stretch for consistent button height */
     margin-bottom: 10px;
 }
 
 .address-input-row input[type="text"] {
     flex-grow: 1;
     width: auto;
+    /* Allow shrinking if needed */
     margin-bottom: 0;
+    /* Remove margin if inside flex row */
 }
 
 .address-input-row button {
     flex-shrink: 0;
     padding: 12px 18px;
+    /* Keep original padding */
     font-size: 1em;
     margin-bottom: 0;
+    /* Remove margin if inside flex row */
     height: auto;
+    /* Let padding define height */
     background-color: var(--info-color);
     box-shadow: var(--box-shadow-sm);
 }
@@ -70,28 +76,104 @@
     color: #014a7e;
 }
 
-/* Review Form Specifics */
-#review-image-section label[for="rating"] {
-    margin-bottom: 5px;
+/* --- Plan/Edit Visit Form Specifics --- */
+/* (Applies to #plan-visit-section which is a .form-section) */
+#plan-visit-section label[for="visit-date"],
+#plan-visit-section label[for="visit-time"] {
+    margin-top: 10px;
 }
 
-#review-image-section .rating-stars {
+/* Group for reminder checkbox and its label */
+.form-group.reminder-group {
+    margin-top: 20px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+}
+
+.form-group.reminder-group input[type="checkbox"] {
+    margin-right: 8px;
+    width: auto;
+    height: auto;
+    vertical-align: middle;
+    /* Ensure proper alignment */
+}
+
+/* Ensure label for checkbox is styled correctly */
+#plan-visit-section .form-group.reminder-group label.inline-label {
+    margin-bottom: 0;
+    font-weight: normal;
+    color: var(--text-color);
+    display: inline;
+    /* Keep it inline with checkbox */
+    font-size: 1em;
+    /* Match other labels or adjust as needed */
+}
+
+/* Container for reminder offset checkboxes */
+#visit-reminder-options {
+    padding: 10px 15px 15px 25px;
+    margin-top: 5px;
+    /* Space after the enable checkbox */
+    margin-bottom: 15px;
+    background-color: var(--light-blue-bg);
+    border: 1px dashed var(--light-blue-border);
+    border-radius: 4px;
+}
+
+#visit-reminder-options p {
+    /* "Remind me:" text */
+    font-size: 0.9em;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+    font-weight: 500;
+}
+
+#visit-reminder-options div {
+    /* Each checkbox + label container */
+    margin-bottom: 5px;
+    display: flex;
+    /* Align checkbox and label */
+    align-items: center;
+}
+
+#visit-reminder-options input[type="checkbox"] {
+    margin-right: 8px;
+    width: auto;
+    height: auto;
+}
+
+/* Ensure label for these checkboxes is styled correctly */
+#plan-visit-section #visit-reminder-options label.inline-label {
+    font-size: 0.95em;
+    font-weight: normal;
+    color: var(--text-color);
+    display: inline;
+    margin-bottom: 0;
+}
+
+
+/* Visit Review Form Specifics */
+/* (Applies to #visit-review-image-section which is a .form-section) */
+#visit-review-image-section label[for="visit-review-rating"],
+#visit-review-image-section .rating-stars {
     margin-bottom: 20px;
 }
 
-#review-image-section label[for="review-image"] {
+#visit-review-image-section label[for="visit-review-image"] {
     margin-top: 15px;
 }
 
-#review-image-section input[type="file"]+p {
+#visit-review-image-section input[type="file"]+p.password-hint {
+    /* Target the hint specifically */
     font-size: 0.85em;
     color: #666;
     margin-top: -10px;
     margin-bottom: 15px;
 }
 
-/* Current image preview in review form */
-#current-image-review-section {
+/* Current image preview in visit review form */
+#current-visit-image-review-section {
     margin-bottom: 15px;
     padding: 10px;
     border: 1px solid var(--border-color);
@@ -99,14 +181,17 @@
     background-color: #fafafa;
 }
 
-#current-image-review-section label {
+#current-visit-image-review-section label {
+    /* "Current Visit Image:" */
     font-weight: 500;
     font-size: 0.9em;
     color: var(--text-muted);
     margin-bottom: 5px;
+    display: block;
+    /* Ensure it's on its own line */
 }
 
-#current-image-review-thumb {
+#current-visit-image-review-thumb {
     max-width: 100px;
     max-height: 75px;
     border-radius: 4px;
@@ -115,18 +200,22 @@
     border: 1px solid var(--border-color);
 }
 
-#current-image-review-section input[type="checkbox"]+label {
+/* Label for "Remove Current Visit Image" checkbox */
+#visit-review-image-section #current-visit-image-review-section input[type="checkbox"]+label {
     font-size: 0.9em;
     color: var(--text-color);
+    font-weight: normal;
+    /* Make it normal weight */
+    display: inline;
+    /* Keep it inline */
+    margin-bottom: 0;
 }
 
 
 /* Target the specific inputs if needed, or use general Tagify classes */
 #edit-tags-input,
 #tag-filter-input {
-    /* The original input is hidden by Tagify, style the wrapper */
     margin-bottom: 15px;
-    /* Match other inputs */
 }
 
 /* General Tagify styling overrides */
@@ -136,19 +225,16 @@
     --tags-focus-border-color: var(--primary-color);
     --tag-bg: var(--primary-color-light);
     --tag-hover: #c8e6c9;
-    /* Slightly darker */
     --tag-text-color: var(--primary-color-dark);
     --tag-remove-btn-color: var(--primary-color-dark);
     --tag-pad: 0.4em 0.7em;
     --tag-inset-shadow-size: 1.1em;
     --tag-remove-btn-bg: none;
     --tag-remove-btn-bg--hover: #e57373;
-    /* Light red on hover */
     border-radius: 6px;
     font-family: inherit;
     font-size: 1em;
     min-height: 45px;
-    /* Match approx height of other inputs */
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
@@ -163,25 +249,20 @@
 
 .tagify__tag {
     margin: 4px;
-    /* Adjust spacing */
 }
 
 .tagify__tag>div::before {
     box-shadow: inset 0 0 0 var(--tag-inset-shadow-size) var(--tag-bg);
-    /* Use variable */
 }
 
 .tagify__tag:hover:not([readonly]) div::before {
     box-shadow: inset 0 0 0 var(--tag-inset-shadow-size) var(--tag-hover);
-    /* Use variable */
 }
 
 .tagify__input {
     font-size: 1em;
     padding: 0.4em 0.5em;
-    /* Match tag padding */
     margin: 4px;
-    /* Match tag margin */
 }
 
 /* Suggestions dropdown */
@@ -219,6 +300,7 @@
 
 .form-actions button {
     margin-bottom: 0;
+    /* Remove bottom margin if using gap */
 }
 
 

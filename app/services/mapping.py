@@ -20,7 +20,7 @@ def generate_map_html(
         f"Generating map HTML for {len(places)} places. Filters: cat={category_filter}, status={status_filter}"
     )
 
-    map_center = [4.7110, -74.0721]  # Default to Bogotá
+    map_center = [4.7110, -74.0721]
     zoom_start = 12
     if places:
         valid_coords = [
@@ -59,23 +59,27 @@ def generate_map_html(
 
     popup_style = """
 <style>
-    .map-popup-container { font-family: 'Poppins', sans-serif; font-size: 14px; line-height: 1.6; color: #212529; }
-    .map-popup-container h4 { margin: 0 0 8px 0; padding-bottom: 6px; font-size: 1.2em; font-weight: 600; color: #1B5E20; border-bottom: 1px solid #eee; }
-    .popup-content-scrollable { max-height: 180px; overflow-y: auto; margin-bottom: 12px; padding-right: 8px; word-wrap: break-word; }
-    .popup-content-scrollable p, .popup-content-scrollable b, .popup-content-scrollable i, .popup-content-scrollable span { font-size: 0.95em; margin-bottom: 4px; }
-    .popup-content-scrollable b { font-weight: 500; color: #444; }
-    .popup-tags-container { margin-top: 8px; margin-bottom: 5px; }
-    .popup-tag { display: inline-block; background-color: #e9ecef; color: #495057; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; margin-right: 4px; margin-bottom: 4px; white-space: nowrap; }
-    .popup-visits-placeholder { font-style: italic; color: #666; font-size: 0.9em; margin-top:10px; }
-    .popup-actions { margin-top: 10px; padding-top: 10px; border-top: 1px solid #eee; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
-    .popup-actions button { padding: 5px 10px; font-size: 0.85em; font-weight: 500; border-radius: 5px; cursor: pointer; border: none; color: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: background-color 0.2s, transform 0.1s; }
-    .popup-actions button:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,0.15); }
-    .popup-actions button:active { transform: translateY(0); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .map-popup-container { font-family: 'Poppins', sans-serif; font-size: 13px; line-height: 1.5; color: #212529; max-width: 280px; }
+    .map-popup-container h4 { margin: 0 0 7px 0; padding-bottom: 5px; font-size: 1.15em; font-weight: 600; color: #1B5E20; border-bottom: 1px solid #eee; }
+    .popup-content-scrollable { max-height: 150px; overflow-y: auto; margin-bottom: 10px; padding-right: 5px; word-wrap: break-word; }
+    .popup-content-scrollable p, .popup-content-scrollable b, .popup-content-scrollable i, .popup-content-scrollable span { font-size: 0.9em; margin-bottom: 3px; }
+    .popup-content-scrollable b { font-weight: 500; color: #333; }
+    .popup-tags-container { margin-top: 6px; margin-bottom: 4px; }
+    .popup-tag { display: inline-block; background-color: #f0f0f0; color: #555; padding: 2px 7px; border-radius: 10px; font-size: 0.75em; margin-right: 3px; margin-bottom: 3px; white-space: nowrap; }
+    .popup-visits-info { font-style: italic; color: #555; font-size: 0.85em; margin-top:8px; padding-top: 5px; border-top: 1px dashed #eee; }
+    .popup-actions { margin-top: 8px; padding-top: 8px; border-top: 1px solid #eee; display: flex; flex-wrap: wrap; gap: 5px; justify-content: flex-start; }
+    .popup-actions button, .popup-actions form button {
+        padding: 4px 8px; font-size: 0.8em; font-weight: 500; border-radius: 4px; cursor: pointer; border: none;
+        color: white; box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+        transition: background-color 0.2s, transform 0.1s; margin: 0;
+    }
+    .popup-actions button:hover, .popup-actions form button:hover { transform: translateY(-1px); box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .popup-actions button:active, .popup-actions form button:active { transform: translateY(0); box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
     .popup-btn-edit-place { background-color: #ff9800; } .popup-btn-edit-place:hover { background-color: #f57c00; }
     .popup-btn-plan-visit { background-color: #0288d1; } .popup-btn-plan-visit:hover { background-color: #0277bd; }
-    .popup-btn-view-visits { background-color: #607d8b; } .popup-btn-view-visits:hover { background-color: #455a64; }
-    .popup-btn-delete-place { background-color: #d32f2f; } .popup-btn-delete-place:hover { background-color: #b71c1c; }
-    .popup-actions form { margin: 0; padding: 0; display: inline-block; }
+    .popup-btn-view-visits { background-color: #546e7a; } .popup-btn-view-visits:hover { background-color: #455a64; }
+    .popup-btn-delete-place { background-color: #d32f2f; } .popup-btn-delete-place:hover { background-color: #c62828; }
+    .popup-actions form { margin: 0; padding: 0; display: inline-flex; }
 </style>
 """
     marker_count = 0
@@ -91,7 +95,7 @@ def generate_map_html(
             try:
                 place_name = html.escape(place.name or "Unnamed Place")
 
-                place_data_for_js = {
+                place_data_for_js_actions = {
                     "id": place.id,
                     "name": place.name or "",
                     "latitude": place.latitude,
@@ -102,18 +106,10 @@ def generate_map_html(
                     "city": place.city or "",
                     "country": place.country or "",
                     "timezone_iana": place.timezone_iana or "",
-                    # "image_url": str(place.image_url) if place.image_url else "", # REMOVED this line
                     "tags": [tag.name for tag in place.tags] if place.tags else [],
-                    "created_at": place.created_at.isoformat()
-                    if place.created_at
-                    else None,
-                    "updated_at": place.updated_at.isoformat()
-                    if place.updated_at
-                    else None,
                 }
-                js_object_string = json.dumps(place_data_for_js)
-                escaped_js_string_for_html_attr = html.escape(
-                    js_object_string, quote=True
+                js_object_string_for_html_attr = html.escape(
+                    json.dumps(place_data_for_js_actions), quote=True
                 )
 
                 popup_parts = [
@@ -147,6 +143,9 @@ def generate_map_html(
                         f'<div class="popup-tags-container"><b>Tags:</b> {tags_html}</div>'
                     )
 
+                popup_parts.append("</div>")
+
+                popup_parts.append("<div class='popup-visits-info'>")
                 num_future_visits = sum(
                     1
                     for v in place.visits
@@ -154,43 +153,33 @@ def generate_map_html(
                 )
                 if num_future_visits > 0:
                     popup_parts.append(
-                        f"<p><i>Upcoming visits: {num_future_visits} scheduled.</i></p>"
+                        f"{num_future_visits} upcoming visit(s) scheduled."
                     )
                 elif place.visits:
-                    popup_parts.append(
-                        f"<p><i>{len(place.visits)} past visit(s) recorded.</i></p>"
-                    )
+                    popup_parts.append(f"{len(place.visits)} past visit(s) recorded.")
                 else:
-                    popup_parts.append(
-                        "<p class='popup-visits-placeholder'>No visits recorded yet.</p>"
-                    )
-
+                    popup_parts.append("No visits recorded yet.")
                 popup_parts.append("</div>")
 
                 popup_parts.append("<div class='popup-actions'>")
-
-                edit_place_onclick = f"if(window.parent && window.parent.showEditPlaceForm){{window.parent.showEditPlaceForm('{escaped_js_string_for_html_attr}')}}else{{console.error('showEditPlaceForm not found')}}"
+                edit_place_onclick = f"window.parent.showEditPlaceForm('{js_object_string_for_html_attr}');"  # Corrected variable name
                 popup_parts.append(
                     f'<button type="button" class="popup-btn-edit-place" onclick="{edit_place_onclick}" title="Edit Place Details">Edit Place</button>'
                 )
-
-                plan_visit_onclick = f"if(window.parent && window.parent.showPlanVisitForm){{window.parent.showPlanVisitForm('{escaped_js_string_for_html_attr}')}}else{{console.error('showPlanVisitForm not found')}}"
+                plan_visit_onclick = f"window.parent.showPlanVisitForm('{js_object_string_for_html_attr}');"  # Corrected variable name
                 popup_parts.append(
                     f'<button type="button" class="popup-btn-plan-visit" onclick="{plan_visit_onclick}" title="Plan a New Visit">Plan Visit</button>'
                 )
-
-                view_visits_onclick = f"if(window.parent && window.parent.showVisitsListModal){{window.parent.showVisitsListModal('{escaped_js_string_for_html_attr}')}}else{{console.error('showVisitsListModal not found')}}"
+                view_visits_onclick = f"window.parent.showVisitsListModal('{js_object_string_for_html_attr}');"  # Corrected variable name
                 popup_parts.append(
                     f'<button type="button" class="popup-btn-view-visits" onclick="{view_visits_onclick}" title="View All Visits">View Visits</button>'
                 )
-
                 delete_form_url = request.url_for(
                     "handle_delete_place_form", place_id=place.id
                 )
                 popup_parts.append(
-                    f'<form action="{delete_form_url}" method="post" target="_top" onsubmit="return confirm(\'Are you sure you want to delete this place and all its visits?\');"><button type="submit" class="popup-btn-delete-place" title="Delete Place">Delete Place</button></form>'
+                    f'<form action="{delete_form_url}" method="post" target="_top" onsubmit="return confirm(\'Are you sure you want to delete this place and all its visits?\');"><button type="submit" class="popup-btn-delete-place" title="Delete Place">Delete</button></form>'
                 )
-
                 popup_parts.append("</div>")
                 popup_parts.append("</div>")
 
@@ -221,11 +210,8 @@ def generate_map_html(
         setTimeout(function() {{
             try {{
                 if (window.parent && typeof window.parent.attachMapClickListener === 'function') {{
-                    console.log('Iframe: Attempting to call parent attachMapClickListener for ' + {map_var_name_js});
                     window.parent.attachMapClickListener({map_var_name_js});
-                }} else {{
-                    console.error('Iframe: Cannot attach map listener: Parent window function not found.');
-                }}
+                }} else {{ console.error('Iframe: Cannot attach map listener: Parent window function not found.'); }}
             }} catch (e) {{ console.error('Iframe: Error calling parent window function for map listener:', e); }}
         }}, 500);
     """
