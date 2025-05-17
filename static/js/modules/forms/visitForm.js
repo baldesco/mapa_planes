@@ -12,23 +12,22 @@ const visitForm = {
     formTitle: null,
     placeTitleSpan: null,
     placeIdInput: null,
-    visitIdInput: null, // For editing
+    visitIdInput: null,
     dateInput: null,
     timeInput: null,
     reminderEnabledCheckbox: null,
     reminderOptionsDiv: null,
-    reminderOffsetCheckboxes: [], // Array of checkbox elements
+    reminderOffsetCheckboxes: [],
     statusMessage: null,
     submitBtn: null,
     cancelBtn: null,
   },
-  currentPlaceData: null, // To store parent place data when planning/editing a visit
-  currentVisitData: null, // To store existing visit data when editing
+  currentPlaceData: null,
+  currentVisitData: null,
   hideCallback: null,
-  onVisitSavedCallback: null, // Callback to refresh main UI after saving
+  onVisitSavedCallback: null,
 
   init(hideFn, onSaveFn) {
-    console.debug("Visit Form: Initializing...");
     this.hideCallback = hideFn;
     this.onVisitSavedCallback = onSaveFn;
     this.cacheDOMElements();
@@ -44,7 +43,7 @@ const visitForm = {
       return;
     }
     this.elements.form = document.getElementById("plan-visit-form");
-    this.elements.formTitle = this.elements.wrapper.querySelector("h2"); // More robust
+    this.elements.formTitle = this.elements.wrapper.querySelector("h2");
     this.elements.placeTitleSpan = document.getElementById(
       "plan-visit-place-title"
     );
@@ -70,17 +69,14 @@ const visitForm = {
 
   setupEventListeners() {
     if (!this.elements.form) return;
-
     this.elements.form.addEventListener("submit", (event) =>
       this.handleSubmit(event)
     );
-
     if (this.elements.cancelBtn && this.hideCallback) {
       this.elements.cancelBtn.addEventListener("click", () =>
         this.hideCallback()
       );
     }
-
     if (
       this.elements.reminderEnabledCheckbox &&
       this.elements.reminderOptionsDiv
@@ -99,21 +95,19 @@ const visitForm = {
   populateForm(placeData, visitData = null) {
     if (!this.elements.form) return false;
     this.currentPlaceData = placeData;
-    this.currentVisitData = visitData; // Store existing visit data if editing
+    this.currentVisitData = visitData;
 
-    this.elements.form.reset(); // Clear previous state
+    this.elements.form.reset();
     if (this.elements.reminderOptionsDiv)
       this.elements.reminderOptionsDiv.style.display = "none";
     setStatusMessage(this.elements.statusMessage, "", "info");
 
-    if (this.elements.placeTitleSpan) {
+    if (this.elements.placeTitleSpan)
       this.elements.placeTitleSpan.textContent = `"${
         placeData.name || "Unknown Place"
       }"`;
-    }
-    if (this.elements.placeIdInput) {
+    if (this.elements.placeIdInput)
       this.elements.placeIdInput.value = placeData.id;
-    }
 
     if (visitData) {
       // Editing existing visit
@@ -132,8 +126,8 @@ const visitForm = {
       if (this.elements.timeInput && visitData.visit_datetime) {
         const timeStr = new Date(visitData.visit_datetime)
           .toTimeString()
-          .split(" ")[0]; // HH:MM:SS
-        this.elements.timeInput.value = timeStr.substring(0, 5); // HH:MM
+          .split(" ")[0];
+        this.elements.timeInput.value = timeStr.substring(0, 5);
       }
       if (this.elements.reminderEnabledCheckbox) {
         this.elements.reminderEnabledCheckbox.checked =
@@ -156,13 +150,12 @@ const visitForm = {
       // Planning new visit
       if (this.elements.formTitle)
         this.elements.formTitle.textContent = "Plan New Visit for:";
-      if (this.elements.visitIdInput) this.elements.visitIdInput.value = ""; // Clear visit ID
+      if (this.elements.visitIdInput) this.elements.visitIdInput.value = "";
       if (this.elements.submitBtn)
         this.elements.submitBtn.textContent = "Schedule Visit";
-      // Set date to today and time to current time + 1 hour as a sensible default
       const now = new Date();
       now.setHours(now.getHours() + 1);
-      now.setMinutes(0); // Round to hour
+      now.setMinutes(0);
       if (this.elements.dateInput)
         this.elements.dateInput.value = now.toISOString().split("T")[0];
       if (this.elements.timeInput)
@@ -182,7 +175,6 @@ const visitForm = {
     const formData = new FormData(this.elements.form);
     const placeId = this.currentPlaceData.id;
     const visitId = this.currentVisitData ? this.currentVisitData.id : null;
-
     const dateValue = formData.get("visit_date");
     const timeValue = formData.get("visit_time");
 
@@ -195,13 +187,6 @@ const visitForm = {
       if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
       return;
     }
-    // Combine date and time. IMPORTANT: This creates a datetime in the browser's local timezone.
-    // The backend needs to be aware of this or expect UTC.
-    // For simplicity, we'll send it as is, and Supabase TIMESTAMPTZ will store it as UTC
-    // if the input string is ISO 8601 compliant without explicit offset, assuming local time.
-    // Or, better, construct ISO string with local offset, then Supabase converts to UTC.
-    // For now, let's send local date and time parts. Backend will combine.
-    // OR, construct full ISO string here.
     const localDateTime = new Date(`${dateValue}T${timeValue}:00`);
     if (isNaN(localDateTime.getTime())) {
       setStatusMessage(
@@ -213,6 +198,10 @@ const visitForm = {
       return;
     }
     const visit_datetime_iso = localDateTime.toISOString();
+    console.log(
+      "VisitForm: Scheduling visit with visit_datetime (ISO UTC):",
+      visit_datetime_iso
+    );
 
     const reminderEnabled = this.elements.reminderEnabledCheckbox
       ? this.elements.reminderEnabledCheckbox.checked
@@ -220,48 +209,37 @@ const visitForm = {
     let reminderOffsets = [];
     if (reminderEnabled && this.elements.reminderOffsetCheckboxes.length > 0) {
       this.elements.reminderOffsetCheckboxes.forEach((cb) => {
-        if (cb.checked) {
-          reminderOffsets.push(parseInt(cb.value));
-        }
+        if (cb.checked) reminderOffsets.push(parseInt(cb.value));
       });
     }
 
     const payload = {
       place_id: parseInt(placeId),
-      visit_datetime: visit_datetime_iso, // Send as ISO string (UTC or with offset)
+      visit_datetime: visit_datetime_iso,
       reminder_enabled: reminderEnabled,
       reminder_offsets_hours:
         reminderOffsets.length > 0 ? reminderOffsets : null,
-      // Review fields are not part of this form
     };
 
     let response;
     try {
       if (visitId) {
-        // Editing existing visit
-        const apiUrl = `/api/v1/visits/${visitId}`;
-        // For PUT with FormData (if image was part of this form, which it's not now)
-        // For now, assuming VisitUpdate for schedule/reminders is JSON
-        response = await apiClient.put(apiUrl, payload);
+        response = await apiClient.put(`/api/v1/visits/${visitId}`, payload);
       } else {
-        // Creating new visit
-        const apiUrl = `/api/v1/places/${placeId}/visits`;
-        response = await apiClient.post(apiUrl, payload);
+        response = await apiClient.post(
+          `/api/v1/places/${placeId}/visits`,
+          payload
+        );
       }
-
       const result = await response.json();
-
       if (response.ok) {
         setStatusMessage(
           this.elements.statusMessage,
           `Visit ${visitId ? "updated" : "scheduled"} successfully!`,
           "success"
         );
-        if (this.onVisitSavedCallback) {
-          this.onVisitSavedCallback(result); // Pass created/updated visit data
-        }
+        if (this.onVisitSavedCallback) this.onVisitSavedCallback(result);
         setTimeout(() => {
-          // Give time to read success message
           if (this.hideCallback) this.hideCallback();
         }, 1500);
       } else {
@@ -287,5 +265,4 @@ const visitForm = {
     }
   },
 };
-
 export default visitForm;

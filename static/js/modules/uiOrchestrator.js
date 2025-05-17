@@ -6,14 +6,14 @@
 
 import addPlaceForm from "./forms/addPlaceForm.js";
 import editPlaceForm from "./forms/editPlaceForm.js";
-import reviewForm from "./forms/reviewForm.js"; // Will be adapted for visit reviews
-import visitForm from "./forms/visitForm.js"; // NEW: For planning/editing visits
+import reviewForm from "./forms/reviewForm.js";
+import visitForm from "./forms/visitForm.js";
 import modals from "./components/modals.js";
 import pinningUI from "./components/pinningUI.js";
 import mapHandler from "./mapHandler.js";
 import tagInput from "./components/tagInput.js";
-import { setStatusMessage } from "./components/statusMessages.js"; // Import for modals
-import apiClient from "./apiClient.js"; // Import apiClient for handleDeleteVisit
+import { setStatusMessage } from "./components/statusMessages.js";
+import apiClient from "./apiClient.js";
 
 function debounce(func, wait) {
   let timeout;
@@ -53,7 +53,6 @@ const uiOrchestrator = {
   currentPlaceForVisitModal: null,
 
   init(mapReadyStatus = false) {
-    console.debug("UI Orchestrator: Initializing...");
     this.isMapReady = mapReadyStatus;
     this.cacheDOMElements();
     this.loadUserTags();
@@ -70,14 +69,14 @@ const uiOrchestrator = {
       this.hideEditPlaceForm.bind(this)
     );
     reviewForm.init(
-      this.showVisitReviewForm.bind(this),
-      this.hideVisitReviewForm.bind(this)
+      this.hideVisitReviewForm.bind(this),
+      this.handleVisitSaved.bind(this)
     );
     visitForm.init(
       this.hidePlanVisitForm.bind(this),
       this.handleVisitSaved.bind(this)
     );
-    modals.init(this.showVisitReviewForm.bind(this)); // Pass callback for "Edit Review" from modal
+    modals.init(this.showVisitReviewForm.bind(this));
     pinningUI.init(this.isMapReady);
 
     if (this.elements.tagFilterInput) {
@@ -105,7 +104,7 @@ const uiOrchestrator = {
     window.isPinningActive = () => pinningUI.isActive;
     window.handleMapPinClick = this.handleMapPinClick.bind(this);
     window.showEditPlaceForm = this.showEditPlaceForm.bind(this);
-    window.showImageOverlay = modals.showImageOverlay.bind(modals);
+    window.showImageOverlay = modals.showImageOverlay.bind(this);
     window.showPlanVisitForm = this.showPlanVisitForm.bind(this);
     window.showVisitsListModal = this.showVisitsListModal.bind(this);
     window.showSeeVisitReviewModal = modals.showSeeReviewModal.bind(modals);
@@ -114,7 +113,6 @@ const uiOrchestrator = {
     if (this.isMapReady && this.elements.mapContainer) {
       this.setupResizeObserver();
     }
-
     console.log("UI Orchestrator: Initialization complete.");
   },
 
@@ -172,12 +170,15 @@ const uiOrchestrator = {
         const tagsData = JSON.parse(tagsDataElement.textContent || "[]");
         this.allUserTags = tagsData.map((tag) => tag.name);
       } catch (e) {
+        console.error("Failed to parse embedded user tags data:", e);
         this.allUserTags = [];
       }
     } else {
+      console.warn("User tags data element not found.");
       this.allUserTags = [];
     }
   },
+
   setupResizeObserver() {
     if (!this.elements.mapContainer) return;
     this.debouncedInvalidateMapSize = debounce(
@@ -189,6 +190,7 @@ const uiOrchestrator = {
     });
     resizeObserver.observe(this.elements.mapContainer);
   },
+
   attachMapClickListener(mapVarName) {
     if (!this.elements.mapIframe || !this.elements.mapIframe.contentWindow) {
       console.error(
@@ -211,19 +213,31 @@ const uiOrchestrator = {
         }
         return false;
       } catch (err) {
+        console.error(
+          `Error attaching map click listener to '${mapVarName}':`,
+          err
+        );
         return false;
       }
     };
     if (!tryAttach()) {
       setTimeout(() => {
         if (!tryAttach()) {
-          console.error(`Failed to attach listener to '${mapVarName}'`);
+          console.error(
+            `Failed to attach listener to '${mapVarName}' even after delay.`
+          );
         }
       }, 1500);
     }
   },
+
   handleMapPinClick(lat, lng) {
-    if (!pinningUI.isActive || !pinningUI.updateCoordsCallback) return;
+    if (!pinningUI.isActive || !pinningUI.updateCoordsCallback) {
+      console.warn(
+        "handleMapPinClick called but pinning not active or callback missing."
+      );
+      return;
+    }
     pinningUI.updateCoordsCallback({ latitude: lat, longitude: lng });
   },
 
@@ -232,9 +246,13 @@ const uiOrchestrator = {
       this.elements.toggleAddPlaceBtn.addEventListener("click", () => {
         const isHidden =
           !this.elements.addPlaceWrapper ||
-          this.elements.addPlaceWrapper.style.display === "none";
-        if (isHidden) this.showAddPlaceForm();
-        else this.hideAddPlaceForm();
+          this.elements.addPlaceWrapper.style.display === "none" ||
+          this.elements.addPlaceWrapper.style.display === "";
+        if (isHidden) {
+          this.showAddPlaceForm();
+        } else {
+          this.hideAddPlaceForm();
+        }
       });
     }
     if (this.elements.visitsListCloseBtn) {
@@ -243,10 +261,20 @@ const uiOrchestrator = {
       );
     }
     if (this.elements.visitsListPlanNewBtn) {
+      const self = this;
       this.elements.visitsListPlanNewBtn.addEventListener("click", () => {
-        if (this.currentPlaceForVisitModal) {
-          this.hideVisitsListModal();
-          this.showPlanVisitForm(this.currentPlaceForVisitModal);
+        const placeDataForCall = self.currentPlaceForVisitModal;
+        if (placeDataForCall && placeDataForCall.id) {
+          self.hideVisitsListModal();
+          self.showPlanVisitForm(placeDataForCall, null);
+        } else {
+          alert(
+            "Error: Place context lost or invalid for planning another visit (pre-call check)."
+          );
+          console.error(
+            "Plan Another Visit: placeDataForCall is null, undefined, or lacks an ID.",
+            placeDataForCall
+          );
         }
       });
     }
@@ -286,6 +314,7 @@ const uiOrchestrator = {
       });
     }
   },
+
   hideAddPlaceForm() {
     if (this.elements.addPlaceWrapper)
       this.elements.addPlaceWrapper.style.display = "none";
@@ -293,6 +322,7 @@ const uiOrchestrator = {
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
     pinningUI.deactivateIfActiveFor("add");
   },
+
   showEditPlaceForm(placeDataInput) {
     let placeData;
     try {
@@ -301,7 +331,22 @@ const uiOrchestrator = {
           ? JSON.parse(placeDataInput)
           : placeDataInput;
     } catch (e) {
-      console.error("showEditPlaceForm: Invalid placeData", e);
+      console.error(
+        "showEditPlaceForm: Invalid placeData JSON",
+        e,
+        "Input was:",
+        placeDataInput
+      );
+      alert("Error preparing edit form: Invalid place data format.");
+      return;
+    }
+
+    if (!placeData || !placeData.id) {
+      console.error(
+        "showEditPlaceForm: Invalid or missing place data (or place.id). placeData:",
+        placeData
+      );
+      alert("Cannot edit place without valid information.");
       return;
     }
 
@@ -322,30 +367,41 @@ const uiOrchestrator = {
           block: "start",
         });
       }
+    } else {
+      console.error("UI Orchestrator: Failed to populate edit place form.");
     }
   },
+
   hideEditPlaceForm() {
     if (this.elements.editPlaceSection)
       this.elements.editPlaceSection.style.display = "none";
-    if (this.elements.toggleAddPlaceBtn)
-      this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
     pinningUI.deactivateIfActiveFor("edit");
     tagInput.destroy("edit-tags-input");
   },
 
   showPlanVisitForm(placeDataInput, visitToEdit = null) {
     let placeData;
-    try {
-      placeData =
-        typeof placeDataInput === "string"
-          ? JSON.parse(placeDataInput)
-          : placeDataInput;
-    } catch (e) {
-      console.error("showPlanVisitForm: Invalid placeData", e);
-      return;
+    if (typeof placeDataInput === "string") {
+      try {
+        placeData = JSON.parse(placeDataInput);
+      } catch (e) {
+        console.error(
+          "showPlanVisitForm: Invalid placeData string",
+          e,
+          "Input was:",
+          placeDataInput
+        );
+        placeData = null;
+      }
+    } else {
+      placeData = placeDataInput;
     }
 
     if (!placeData || !placeData.id) {
+      console.error(
+        "showPlanVisitForm: Invalid or missing place data (or place.id) after processing. placeData:",
+        placeData
+      );
       alert("Cannot plan a visit without valid place information.");
       return;
     }
@@ -359,8 +415,13 @@ const uiOrchestrator = {
           block: "start",
         });
       }
+    } else {
+      console.error(
+        "UI Orchestrator: Failed to populate plan/edit visit form."
+      );
     }
   },
+
   hidePlanVisitForm() {
     if (this.elements.planVisitSection)
       this.elements.planVisitSection.style.display = "none";
@@ -374,18 +435,27 @@ const uiOrchestrator = {
           ? JSON.parse(visitDataInput)
           : visitDataInput;
     } catch (e) {
-      console.error("showVisitReviewForm: Invalid visitData", e);
+      console.error(
+        "showVisitReviewForm: Invalid visitData JSON",
+        e,
+        "Input was:",
+        visitDataInput
+      );
+      alert("Error preparing review form: Invalid visit data format.");
       return;
     }
 
     if (!visitData || !visitData.id) {
+      console.error(
+        "showVisitReviewForm: Invalid or missing visit data (or visit.id). visitData:",
+        visitData
+      );
       alert("Cannot add/edit review without valid visit information.");
       return;
     }
 
     this.hideAllSectionsAndModals();
     if (reviewForm.populateForm(visitData, placeName)) {
-      // reviewForm.populateForm needs to be adapted
       if (this.elements.visitReviewImageSection) {
         this.elements.visitReviewImageSection.style.display = "block";
         this.elements.visitReviewImageSection.scrollIntoView({
@@ -393,8 +463,11 @@ const uiOrchestrator = {
           block: "start",
         });
       }
+    } else {
+      console.error("UI Orchestrator: Failed to populate visit review form.");
     }
   },
+
   hideVisitReviewForm() {
     if (this.elements.visitReviewImageSection)
       this.elements.visitReviewImageSection.style.display = "none";
@@ -408,7 +481,13 @@ const uiOrchestrator = {
           ? JSON.parse(placeDataInput)
           : placeDataInput;
     } catch (e) {
-      console.error("showVisitsListModal: Invalid placeData", e);
+      console.error(
+        "showVisitsListModal: Invalid placeData JSON",
+        e,
+        "Input was:",
+        placeDataInput
+      );
+      alert("Error displaying visits: Invalid place data format.");
       return;
     }
 
@@ -419,8 +498,13 @@ const uiOrchestrator = {
       !this.elements.visitsListContent ||
       !this.elements.visitsListPlaceTitle ||
       !this.elements.visitsListStatus
-    )
+    ) {
+      console.error(
+        "showVisitsListModal: Missing place data or modal elements. placeData:",
+        placeData
+      );
       return;
+    }
 
     this.currentPlaceForVisitModal = placeData;
     this.hideAllSectionsAndModals();
@@ -448,13 +532,16 @@ const uiOrchestrator = {
       const visits = await response.json();
       this.renderVisitsList(visits, placeData);
     } catch (error) {
+      console.error("Error fetching visits for modal:", error);
       this.elements.visitsListContent.innerHTML = `<p class="error-message">Could not load visits: ${error.message}</p>`;
     }
   },
+
   hideVisitsListModal() {
     if (this.elements.visitsListModal)
       this.elements.visitsListModal.style.display = "none";
-    this.elements.visitsListContent.innerHTML = "";
+    if (this.elements.visitsListContent)
+      this.elements.visitsListContent.innerHTML = "";
     this.currentPlaceForVisitModal = null;
   },
 
@@ -505,13 +592,27 @@ const uiOrchestrator = {
     });
     html += "</ul>";
     this.elements.visitsListContent.innerHTML = html;
+
     this.elements.visitsListContent
       .querySelectorAll(".edit-visit-schedule-btn")
       .forEach((btn) => {
         btn.addEventListener("click", (e) => {
           const visitData = JSON.parse(e.currentTarget.dataset.visit);
           this.hideVisitsListModal();
-          this.showPlanVisitForm(this.currentPlaceForVisitModal, visitData);
+          if (
+            this.currentPlaceForVisitModal &&
+            this.currentPlaceForVisitModal.id
+          ) {
+            this.showPlanVisitForm(this.currentPlaceForVisitModal, visitData);
+          } else {
+            console.error(
+              "Cannot edit visit schedule: Parent place data lost or invalid.",
+              this.currentPlaceForVisitModal
+            );
+            alert(
+              "An error occurred: parent place data is missing or invalid."
+            );
+          }
         });
       });
     this.elements.visitsListContent
@@ -542,30 +643,20 @@ const uiOrchestrator = {
       });
   },
 
-  // escapeHTML(str) {
-  //   if (str === null || str === undefined) return '';
-  //   return String(str).replace(/[&<>"']/g, function (match) {
-  //       return { '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[match];
-  //   });
-  // },
-
   escapeHTML(str) {
     if (str === null || str === undefined) return "";
-    return String(str).replace(
-      /[&<>"']/g,
-      (match) =>
-        ({
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#39;",
-        }[match])
-    );
+    return String(str).replace(/[&<>"']/g, function (match) {
+      return { "&": "&", "<": "<", ">": ">", '"': '"', "'": "'" }[match];
+    });
   },
 
   async handleDeleteVisit(visitId) {
-    if (!visitId || !this.elements.visitsListStatus) return; // Added check for visitsListStatus
+    if (!visitId || !this.elements.visitsListStatus) {
+      console.error(
+        "handleDeleteVisit: visitId or visitsListStatus element is missing."
+      );
+      return;
+    }
     if (
       !confirm(
         "Are you sure you want to delete this visit? This cannot be undone."
@@ -579,17 +670,22 @@ const uiOrchestrator = {
       "loading"
     );
     try {
-      const response = await apiClient.delete(`/api/v1/visits/${visitId}`); // apiClient was missing
+      const response = await apiClient.delete(`/api/v1/visits/${visitId}`);
       if (response.ok || response.status === 204) {
         setStatusMessage(
           this.elements.visitsListStatus,
           "Visit deleted successfully.",
           "success"
         );
-        if (this.currentPlaceForVisitModal) {
+        if (
+          this.currentPlaceForVisitModal &&
+          this.currentPlaceForVisitModal.id
+        ) {
           this.showVisitsListModal(this.currentPlaceForVisitModal);
+        } else {
+          // Fallback if context is lost
+          this.handleVisitSaved(); // Reload page
         }
-        this.handleVisitSaved();
       } else {
         const errData = await response
           .json()
@@ -597,6 +693,7 @@ const uiOrchestrator = {
         throw new Error(errData.detail || `Error ${response.status}`);
       }
     } catch (error) {
+      console.error("Error deleting visit:", error);
       setStatusMessage(
         this.elements.visitsListStatus,
         `Error: ${error.message}`,
@@ -606,7 +703,11 @@ const uiOrchestrator = {
   },
 
   handleVisitSaved(savedVisitData) {
-    console.log("Visit saved/updated, refreshing map data:", savedVisitData);
+    // A full reload is the simplest way to ensure all data (place status, visit lists) is fresh.
+    console.log(
+      "Visit saved/updated, will refresh page to show changes:",
+      savedVisitData
+    );
     window.location.reload();
   },
 };
