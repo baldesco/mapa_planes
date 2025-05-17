@@ -231,20 +231,36 @@
     /* Phones (Portrait) */
     #map {
         height: auto;
-        /* Let aspect-ratio control height */
         aspect-ratio: 3 / 4;
-        /* Make container taller than wide */
     }
 
     #pinning-map-container {
-        /* Apply aspect ratio to the container */
         height: auto;
-        aspect-ratio: 3 / 4;
+        /* Allow content to define height initially */
+        max-height: 70vh;
+        /* Limit height to 70% of viewport height */
+        display: flex;
+        flex-direction: column;
+        /* Ensure controls don't get squished if map is too small */
     }
 
     #pinning-map {
-        /* Make map fill the container */
-        height: 100%;
+        flex-grow: 1;
+        /* Map takes available space */
+        min-height: 200px;
+        /* Ensure map is at least somewhat usable */
+        /* height: 100%; Removed, flex-grow will handle it */
+    }
+
+    #pinning-map-controls {
+        flex-shrink: 0;
+        /* Controls don't shrink */
+        padding: 8px;
+        /* Slightly reduce padding for small screens */
+    }
+
+    #pinning-map-controls button {
+        padding: 8px 12px;
+        font-size: 0.9em;
     }
 }
-
