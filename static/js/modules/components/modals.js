@@ -3,15 +3,12 @@
  * Handles showing/hiding modal dialogs like the "See Visit Review" modal
  * and the full-screen image overlay.
  */
-// setStatusMessage is not used directly here, but good to keep if modals evolve
-// import { setStatusMessage } from "./statusMessages.js";
 
 const modals = {
   elements: {
-    // See Visit Review Modal Elements (IDs updated in HTML)
     seeVisitReviewSection: null,
     seeVisitReviewPlaceTitle: null,
-    seeVisitReviewDateTime: null, // To display visit date/time
+    seeVisitReviewDateTime: null,
     seeVisitReviewRatingDisplay: null,
     seeVisitReviewDisplayTitle: null,
     seeVisitReviewDisplayText: null,
@@ -20,24 +17,24 @@ const modals = {
     seeVisitReviewCloseBtn: null,
     imageOverlayInstance: null,
   },
-  currentVisitDataForReviewModal: null, // Store visit data
-  currentPlaceNameForReviewModal: null, // Store place name
-  editVisitReviewCallback: null, // Function from orchestrator to show the edit review form
+  currentVisitDataForReviewModal: null,
+  currentPlaceNameForReviewModal: null,
+  editVisitReviewCallback: null,
 
   init(editReviewFn) {
-    console.debug("Modals Component: Initializing...");
-    this.editVisitReviewCallback = editReviewFn; // This will be uiOrchestrator.showVisitReviewForm
+    this.editVisitReviewCallback = editReviewFn;
     this.cacheDOMElements();
     this.setupEventListeners();
   },
 
   cacheDOMElements() {
-    // IDs updated to match HTML
     this.elements.seeVisitReviewSection = document.getElementById(
       "see-visit-review-section"
     );
-    if (!this.elements.seeVisitReviewSection) return;
-
+    if (!this.elements.seeVisitReviewSection) {
+      // console.warn("Modals: See Visit Review section element not found."); // Optional warning
+      return;
+    }
     this.elements.seeVisitReviewPlaceTitle = document.getElementById(
       "see-visit-review-place-title"
     );
@@ -70,23 +67,23 @@ const modals = {
         this.hideSeeReviewModal()
       );
     }
-
     if (this.elements.seeVisitReviewEditBtn && this.editVisitReviewCallback) {
       this.elements.seeVisitReviewEditBtn.addEventListener("click", () => {
-        if (this.currentVisitDataForReviewModal) {
-          // Call orchestrator's function to show the actual review form for this visit
+        if (
+          this.currentVisitDataForReviewModal &&
+          this.currentVisitDataForReviewModal.id
+        ) {
           this.editVisitReviewCallback(
             this.currentVisitDataForReviewModal,
             this.currentPlaceNameForReviewModal
           );
         } else {
-          console.error("Cannot edit visit review, data missing.");
+          console.error("Cannot edit visit review, data missing or invalid.");
           alert("Error: Could not retrieve data to edit review.");
         }
-        this.hideSeeReviewModal(); // Hide this modal after clicking edit
+        this.hideSeeReviewModal();
       });
     }
-
     if (this.elements.seeVisitReviewDisplayImage) {
       this.elements.seeVisitReviewDisplayImage.addEventListener(
         "click",
@@ -106,13 +103,12 @@ const modals = {
       container.innerHTML = html.trim();
       container.style.display = "inline-block";
     } else {
-      container.innerHTML = "(No rating for this visit)"; // Updated text
+      container.innerHTML = "(No rating for this visit)";
       container.style.display = "inline-block";
     }
   },
 
   showSeeReviewModal(visitDataInput, placeName = "this place") {
-    // Now takes visitData and placeName
     let visitData;
     if (typeof visitDataInput === "string") {
       try {
@@ -130,6 +126,14 @@ const modals = {
       return;
     }
 
+    if (!visitData || !visitData.id) {
+      console.error(
+        "Modals: Invalid or missing visit data for showSeeReviewModal."
+      );
+      alert("Cannot display review: Invalid visit data.");
+      return;
+    }
+
     this.currentVisitDataForReviewModal = visitData;
     this.currentPlaceNameForReviewModal = placeName;
     const els = this.elements;
@@ -142,7 +146,6 @@ const modals = {
     try {
       if (els.seeVisitReviewPlaceTitle)
         els.seeVisitReviewPlaceTitle.textContent = `"${this.currentPlaceNameForReviewModal}"`;
-
       if (els.seeVisitReviewDateTime && visitData.visit_datetime) {
         const visitDate = new Date(visitData.visit_datetime);
         const formattedDate = visitDate.toLocaleDateString(undefined, {
@@ -158,7 +161,6 @@ const modals = {
       } else if (els.seeVisitReviewDateTime) {
         els.seeVisitReviewDateTime.textContent = "(Date/Time not available)";
       }
-
       this.displayStaticRatingStars(
         els.seeVisitReviewRatingDisplay,
         visitData.rating
@@ -208,11 +210,66 @@ const modals = {
   },
 
   showImageOverlay(event) {
-    /* ... same as before ... */
+    const clickedImage = event.target;
+    if (
+      !clickedImage ||
+      clickedImage.tagName !== "IMG" ||
+      !clickedImage.src ||
+      !clickedImage.src.startsWith("http")
+    ) {
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    this.elements.imageOverlayInstance =
+      document.querySelector(".image-overlay");
+    if (!this.elements.imageOverlayInstance) {
+      this.elements.imageOverlayInstance = document.createElement("div");
+      this.elements.imageOverlayInstance.className = "image-overlay";
+      const img = document.createElement("img");
+      img.alt = "Enlarged image";
+      img.onclick = (e) => e.stopPropagation();
+      this.elements.imageOverlayInstance.appendChild(img);
+      this.elements.imageOverlayInstance.onclick =
+        this.hideImageOverlay.bind(this);
+      document.body.appendChild(this.elements.imageOverlayInstance);
+    }
+    this.elements.imageOverlayInstance.querySelector("img").src =
+      clickedImage.src;
+    this.elements.imageOverlayInstance.querySelector("img").alt =
+      clickedImage.alt || "Enlarged image";
+    setTimeout(() => {
+      if (this.elements.imageOverlayInstance)
+        this.elements.imageOverlayInstance.classList.add("visible");
+    }, 10);
   },
+
   hideImageOverlay() {
-    /* ... same as before ... */
+    if (
+      this.elements.imageOverlayInstance &&
+      this.elements.imageOverlayInstance.classList.contains("visible")
+    ) {
+      this.elements.imageOverlayInstance.classList.remove("visible");
+      this.elements.imageOverlayInstance.addEventListener(
+        "transitionend",
+        () => {
+          if (
+            this.elements.imageOverlayInstance &&
+            document.body.contains(this.elements.imageOverlayInstance)
+          ) {
+            document.body.removeChild(this.elements.imageOverlayInstance);
+          }
+          this.elements.imageOverlayInstance = null;
+        },
+        { once: true }
+      );
+    } else {
+      const existingOverlay = document.querySelector(".image-overlay");
+      if (existingOverlay && document.body.contains(existingOverlay)) {
+        document.body.removeChild(existingOverlay);
+      }
+      this.elements.imageOverlayInstance = null;
+    }
   },
 };
-
 export default modals;

@@ -194,12 +194,14 @@ const reviewForm = {
     const visitId = this.currentVisitData.id;
     const formData = new FormData();
 
-    if (this.elements.titleInput.value)
-      formData.append("review_title", this.elements.titleInput.value);
-    if (this.elements.textInput.value)
-      formData.append("review_text", this.elements.textInput.value);
+    if (this.elements.titleInput.value.trim())
+      formData.append("review_title", this.elements.titleInput.value.trim());
+    if (this.elements.textInput.value.trim())
+      formData.append("review_text", this.elements.textInput.value.trim());
     if (this.elements.ratingInput.value)
       formData.append("rating", this.elements.ratingInput.value);
+    // If a field should be explicitly nulled, the backend API for PUT should handle missing fields as "no change"
+    // or accept nulls. Our VisitUpdate model uses Optional, so missing fields are fine.
 
     if (
       this.elements.imageInput &&
@@ -252,16 +254,56 @@ const reviewForm = {
   },
 
   setupRatingStars() {
-    /* ... same ... */
+    if (!this.elements.ratingStarsContainer || !this.elements.ratingInput)
+      return;
+    this.setupInteractiveStars(
+      this.elements.ratingStarsContainer,
+      this.elements.ratingInput
+    );
   },
   setupInteractiveStars(container, hiddenInput) {
-    /* ... same ... */
+    if (!container || !hiddenInput) return;
+    const stars = container.querySelectorAll(".star");
+    const setRating = (value) => {
+      hiddenInput.value = value;
+      this.updateRatingStars(container, value);
+    };
+    stars.forEach((star) => {
+      star.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const value = star.dataset.value;
+        if (hiddenInput.value === value) setRating("");
+        else setRating(value);
+      });
+      star.addEventListener("mouseover", () =>
+        this.highlightStars(container, star.dataset.value)
+      );
+      star.addEventListener("mouseout", () =>
+        this.updateRatingStars(container, hiddenInput.value)
+      );
+    });
+    this.updateRatingStars(container, hiddenInput.value);
   },
   highlightStars(container, value) {
-    /* ... same ... */
+    if (!container) return;
+    const stars = container.querySelectorAll(".star");
+    const val = parseInt(value, 10);
+    stars.forEach((star) => {
+      const starVal = parseInt(star.dataset.value, 10);
+      const icon = star.querySelector("i");
+      if (!icon) return;
+      if (starVal <= val) {
+        icon.classList.replace("far", "fas");
+        star.classList.add("selected");
+      } else {
+        icon.classList.replace("fas", "far");
+        star.classList.remove("selected");
+      }
+    });
   },
   updateRatingStars(container, selectedValue) {
-    /* ... same ... */
+    if (!container) return;
+    this.highlightStars(container, parseInt(selectedValue, 10) || 0);
   },
 };
 export default reviewForm;

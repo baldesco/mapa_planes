@@ -37,7 +37,7 @@ async def _update_parent_place_status(
         logger.error(
             f"_update_parent_place_status: APIError fetching visits for place {place_id}: {e.message}"
         )
-        return  # Cannot proceed without visit data
+        return
     except Exception as e:
         logger.error(
             f"_update_parent_place_status: Unexpected error fetching visits for place {place_id}: {e}",
@@ -46,6 +46,7 @@ async def _update_parent_place_status(
         return
 
     now_utc = datetime.now(timezone.utc)
+
     logger.debug(
         f"_update_parent_place_status: Current UTC time: {now_utc.isoformat()}"
     )
@@ -66,12 +67,13 @@ async def _update_parent_place_status(
             )
             if visit_dt >= now_utc:
                 has_future_visits = True
+                break
         except ValueError as ve:
-            logger.error(
+            logger.warning(
                 f"Could not parse visit_datetime '{v_data.get('visit_datetime')}' for visit ID {v_data.get('id')}: {ve}"
             )
         except Exception as e_parse:
-            logger.error(
+            logger.warning(
                 f"Error processing visit_datetime for visit {v_data.get('id')}: {v_data.get('visit_datetime')}. Error: {e_parse}"
             )
 
@@ -83,24 +85,30 @@ async def _update_parent_place_status(
     if has_future_visits:
         new_status_val = PlaceStatus.PENDING_SCHEDULED
     else:
-        has_reviewed_past_visit = False
+        has_reviewed_past_or_present_visit = False
         for v_data in visits_data:
             try:
                 visit_dt_str = v_data["visit_datetime"]
                 visit_dt = datetime.fromisoformat(visit_dt_str.replace("Z", "+00:00"))
                 if visit_dt.tzinfo is None:
                     visit_dt = visit_dt.replace(tzinfo=timezone.utc)
-                if (
+
+                is_reviewed = (
                     v_data.get("rating") is not None
                     or v_data.get("review_text")
                     or v_data.get("review_title")
-                ) and visit_dt < now_utc:
-                    has_reviewed_past_visit = True
+                )
+
+                if is_reviewed and visit_dt < now_utc:
+                    has_reviewed_past_or_present_visit = True
                     break
-            except Exception:
+            except Exception as e_parse:
+                logger.warning(
+                    f"Error processing visit_datetime for visit {v_data.get('id')} during past review check: {e_parse}"
+                )
                 continue
 
-        if has_reviewed_past_visit:
+        if has_reviewed_past_or_present_visit:
             new_status_val = PlaceStatus.VISITED
         else:
             try:
@@ -114,32 +122,30 @@ async def _update_parent_place_status(
                 current_place_response: APIResponse = await asyncio.to_thread(
                     current_place_query.execute
                 )
-                if (
-                    current_place_response.data
-                    and current_place_response.data.get("status")
-                    == PlaceStatus.PENDING_PRIORITIZED.value
-                ):
+                current_status_str = (
+                    current_place_response.data.get("status")
+                    if current_place_response.data
+                    else None
+                )
+
+                if current_status_str == PlaceStatus.PENDING_PRIORITIZED.value:
                     new_status_val = PlaceStatus.PENDING_PRIORITIZED
                 else:
                     new_status_val = PlaceStatus.PENDING
-            except (
-                APIError
-            ) as e:  # Catch error if place itself not found (e.g. by single())
+            except APIError as e:
                 logger.error(
-                    f"_update_parent_place_status: APIError fetching current status for place {place_id}: {e.message}"
+                    f"_update_parent_place_status: APIError fetching current status for place {place_id} to revert: {e.message}"
                 )
-                new_status_val = (
-                    PlaceStatus.PENDING
-                )  # Default if current status cannot be fetched
+                new_status_val = PlaceStatus.PENDING
             except Exception as e:
                 logger.error(
-                    f"_update_parent_place_status: Unexpected error fetching current status for place {place_id}: {e}",
+                    f"_update_parent_place_status: Unexpected error fetching current status for place {place_id} to revert: {e}",
                     exc_info=True,
                 )
                 new_status_val = PlaceStatus.PENDING
 
     logger.info(
-        f"_update_parent_place_status: Determined new status for place {place_id}: {new_status_val.value}"
+        f"_update_parent_place_status: Determined final new status for place {place_id}: {new_status_val.value}"
     )
 
     try:
@@ -152,10 +158,8 @@ async def _update_parent_place_status(
         update_status_response: APIResponse = await asyncio.to_thread(
             update_query.execute
         )
-        # For update, data might be empty if returning=minimal (default) or if no rows matched.
-        # An error would be an APIError exception.
         logger.info(
-            f"_update_parent_place_status: Parent Place {place_id} status DB update processed. Data count: {len(update_status_response.data) if update_status_response.data else '0 (or minimal return)'}"
+            f"Place {place_id} status update to {new_status_val.value} processed by DB. Response data count: {len(update_status_response.data) if update_status_response.data else '0 (or minimal return)'}"
         )
     except APIError as e:
         logger.error(
@@ -184,9 +188,7 @@ async def create_visit(
         query = db.table(VISITS_TABLE).insert(visit_data, returning="representation")
         response: APIResponse = await asyncio.to_thread(query.execute)
 
-        if (
-            response.data
-        ):  # Insert with returning="representation" should have data on success
+        if response.data:
             created_visit_data = response.data[0]
             validated_visit = VisitInDB(**created_visit_data)
             logger.info(
@@ -196,7 +198,7 @@ async def create_visit(
                 db, place_id=visit_create.place_id, user_id=user_id
             )
             return validated_visit
-        else:  # Should ideally be caught by APIError if insert fails due to DB constraint/RLS
+        else:
             logger.error(
                 f"CRUD Visits: Failed to create visit for place {visit_create.place_id} - no data returned and no APIError raised."
             )
@@ -217,7 +219,6 @@ async def create_visit(
 async def get_visit_by_id(
     db: SupabaseClient, visit_id: int, user_id: uuid.UUID
 ) -> VisitInDB | None:
-    logger.debug(f"CRUD Visits: Getting visit by ID: {visit_id} for user {user_id}")
     try:
         query = (
             db.table(VISITS_TABLE)
@@ -229,14 +230,8 @@ async def get_visit_by_id(
         response: APIResponse = await asyncio.to_thread(query.execute)
         if response.data:
             return VisitInDB(**response.data)
-        # If maybe_single() finds no data, response.data is None, no error is raised by default.
-        logger.debug(
-            f"CRUD Visits: Visit ID {visit_id} not found for user {user_id} (or RLS)."
-        )
         return None
-    except (
-        APIError
-    ) as e:  # Should catch if .single() was used and no row found, or other DB errors
+    except APIError as e:
         logger.error(
             f"CRUD Visits: APIError in get_visit_by_id for ID {visit_id}: {e.message}"
         )
@@ -252,9 +247,6 @@ async def get_visit_by_id(
 async def get_visits_for_place(
     db: SupabaseClient, place_id: int, user_id: uuid.UUID
 ) -> List[Visit]:
-    logger.debug(
-        f"CRUD Visits: Fetching visits for place ID {place_id}, user {user_id}"
-    )
     visits_list: List[Visit] = []
     try:
         query = (
@@ -264,7 +256,6 @@ async def get_visits_for_place(
             .eq("user_id", str(user_id))
         )
         response: APIResponse = await asyncio.to_thread(query.execute)
-
         if response.data:
             for visit_data in response.data:
                 try:
@@ -273,7 +264,6 @@ async def get_visits_for_place(
                     logger.error(
                         f"CRUD Visits: Pydantic validation for visit data failed: {val_err}, data: {visit_data}"
                     )
-        # No APIError means query was successful, even if it returned an empty list.
 
         now = datetime.now(timezone.utc)
         future_visits = sorted(
@@ -311,7 +301,6 @@ async def update_visit(
     logger.info(
         f"CRUD Visits: Attempting to update visit ID {visit_id} for user {user_id}"
     )
-
     current_visit = await get_visit_by_id(db=db, visit_id=visit_id, user_id=user_id)
     if not current_visit:
         logger.warning(
@@ -320,15 +309,11 @@ async def update_visit(
         return None
 
     update_data_dict = visit_update.model_dump(exclude_unset=True, exclude_none=False)
-
     old_image_url = current_visit.image_url
     new_image_url_from_payload = update_data_dict.get("image_url")
 
     if image_file:
         if old_image_url and db_service:
-            logger.info(
-                f"CRUD Visits: Deleting old image '{old_image_url}' for visit {visit_id}"
-            )
             await _delete_storage_object(old_image_url, db_service)
 
         file_extension = (
@@ -339,10 +324,8 @@ async def update_visit(
         allowed_extensions = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
         if file_extension not in allowed_extensions:
             file_extension = ".jpg"
-
         image_path_on_storage = f"places/{user_id}/{place_id}/visits/{visit_id}/{uuid.uuid4()}{file_extension}"
         content = await image_file.read()
-
         try:
             storage_from = db.storage.from_(settings.SUPABASE_BUCKET_NAME)
             file_options = {
@@ -362,26 +345,19 @@ async def update_visit(
             update_data_dict["image_url"] = (
                 str(public_url_response) if public_url_response else None
             )
-            if not update_data_dict["image_url"]:
+            if not update_data_dict["image_url"] and db_service:
                 logger.error(
-                    f"CRUD Visits: Image for visit {visit_id} uploaded, but failed to get public URL."
+                    f"CRUD Visits: Image for visit {visit_id} uploaded, but failed to get public URL. Deleting orphaned file."
                 )
-                if db_service:
-                    await _delete_storage_object(image_path_on_storage, db_service)
-        except Exception as img_e:  # Catch broad storage exceptions
+                await _delete_storage_object(image_path_on_storage, db_service)
+        except Exception as img_e:
             logger.error(
                 f"CRUD Visits: Failed to upload image for visit {visit_id}: {img_e}",
                 exc_info=True,
             )
-            update_data_dict.pop(
-                "image_url", None
-            )  # Don't try to set a failed image_url
-
+            update_data_dict.pop("image_url", None)
     elif "image_url" in update_data_dict and new_image_url_from_payload is None:
         if old_image_url and db_service:
-            logger.info(
-                f"CRUD Visits: Explicitly removing image '{old_image_url}' for visit {visit_id}"
-            )
             await _delete_storage_object(old_image_url, db_service)
         update_data_dict["image_url"] = None
     elif "image_url" not in update_data_dict and old_image_url:
@@ -391,9 +367,6 @@ async def update_visit(
         k: v for k, v in update_data_dict.items() if k != "updated_at"
     }
     if not meaningful_changes and not image_file:
-        logger.info(
-            f"CRUD Visits: No data changes for visit {visit_id}. Checking if status update needed due to date change."
-        )
         if (
             visit_update.visit_datetime is not None
             and visit_update.visit_datetime != current_visit.visit_datetime
@@ -411,26 +384,17 @@ async def update_visit(
             .eq("user_id", str(user_id))
         )
         response: APIResponse = await asyncio.to_thread(query_builder.execute)
-        # An update that matches no rows (e.g. RLS or wrong ID) will not raise APIError but response.data will be empty.
-        # An actual DB error (constraint violation) WILL raise APIError.
-        if not response.data:  # Check if any rows were actually updated
-            logger.warning(
-                f"CRUD Visits: Update for visit ID {visit_id} affected 0 rows. Visit may not exist or RLS issue."
+        if not response.data and not hasattr(response, "error"):
+            logger.info(
+                f"CRUD Visits: Update for visit ID {visit_id} processed (0 rows in response data, typical for update)."
             )
-            # Re-fetch to confirm existence, if it exists, then no actual change was made or RLS.
-            # If it doesn't exist, then this update effectively failed.
-            check_visit = await get_visit_by_id(
-                db=db, visit_id=visit_id, user_id=user_id
+        elif response.data:
+            logger.info(
+                f"CRUD Visits: Successfully updated visit ID {visit_id} (with data)."
             )
-            if not check_visit:
-                return None  # Visit disappeared or was never there for this user
 
-        logger.info(
-            f"CRUD Visits: Successfully processed update for visit ID {visit_id}"
-        )
         await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
         return await get_visit_by_id(db=db, visit_id=visit_id, user_id=user_id)
-
     except APIError as e:
         logger.error(f"CRUD Visits: APIError updating visit ID {visit_id}: {e.message}")
         return None
@@ -449,14 +413,16 @@ async def delete_visit(
     place_id: int,
     db_service: Optional[SupabaseClient] = None,
 ) -> bool:
-    logger.warning(f"CRUD Visits: Deleting visit ID {visit_id} for user {user_id}")
-
+    logger.warning(
+        f"CRUD Visits: Attempting to delete visit ID {visit_id} for user {user_id}, place {place_id}"
+    )
     visit_to_delete = await get_visit_by_id(db=db, visit_id=visit_id, user_id=user_id)
     if not visit_to_delete:
-        logger.error(
-            f"CRUD Visits: Delete failed. Visit ID {visit_id} not found or not owned by user {user_id}."
+        logger.info(
+            f"CRUD Visits: Visit ID {visit_id} not found for user {user_id} during delete attempt. Assuming already gone."
         )
-        return False  # Already gone or not accessible
+        await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
+        return True
 
     if visit_to_delete.image_url and db_service:
         logger.info(
@@ -465,34 +431,56 @@ async def delete_visit(
         await _delete_storage_object(visit_to_delete.image_url, db_service)
 
     try:
-        query = (
+        delete_query = (
             db.table(VISITS_TABLE)
             .delete()
             .eq("id", visit_id)
             .eq("user_id", str(user_id))
         )
-        response: APIResponse = await asyncio.to_thread(query.execute)
+        delete_response: APIResponse = await asyncio.to_thread(delete_query.execute)
 
-        # If delete is successful and matches rows, response.data contains the deleted records.
-        # If no rows match, response.data is empty, no error.
-        if response.data:
-            logger.info(f"CRUD Visits: Successfully deleted visit ID {visit_id}.")
-            await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
-            return True
-        else:  # No data returned, means no rows matched the delete criteria (already deleted or RLS issue)
-            logger.warning(
-                f"CRUD Visits: Delete for visit {visit_id} affected 0 rows. Assuming already deleted or RLS issue."
+        if delete_response.data:
+            logger.info(
+                f"CRUD Visits: Successfully deleted visit ID {visit_id} from DB. Response data count: {len(delete_response.data)}"
             )
-            # We should still update parent place status in case this call was to ensure it's gone
-            await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
-            return True  # Consider it "successfully gone"
+        else:
+            logger.warning(
+                f"CRUD Visits: Delete query for visit {visit_id} affected 0 rows or returned minimal. Assuming gone or RLS issue."
+            )
+
+        try:
+            remaining_visits_query = (
+                db.table(VISITS_TABLE)
+                .select("id, visit_datetime")
+                .eq("place_id", place_id)
+                .eq("user_id", str(user_id))
+            )
+            remaining_visits_response: APIResponse = await asyncio.to_thread(
+                remaining_visits_query.execute
+            )
+            logger.info(
+                f"CRUD Visits: delete_visit - Remaining visits for place {place_id} after delete op: {remaining_visits_response.data}"
+            )
+        except Exception as e_dbg:
+            logger.error(
+                f"CRUD Visits: delete_visit - Error fetching remaining visits for debug: {e_dbg}"
+            )
+
+        await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
+        return True
 
     except APIError as e:
         logger.error(f"CRUD Visits: APIError deleting visit {visit_id}: {e.message}")
+        await _update_parent_place_status(
+            db, place_id=place_id, user_id=user_id
+        )  # Attempt status update even on error
         return False
     except Exception as e:
         logger.error(
             f"CRUD Visits: General Exception deleting visit ID {visit_id}: {e}",
             exc_info=True,
         )
+        await _update_parent_place_status(
+            db, place_id=place_id, user_id=user_id
+        )  # Attempt status update even on error
         return False

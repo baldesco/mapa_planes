@@ -93,7 +93,12 @@ const visitForm = {
   },
 
   populateForm(placeData, visitData = null) {
-    if (!this.elements.form) return false;
+    if (!this.elements.form || !placeData || !placeData.id) {
+      console.error(
+        "Visit Form: Cannot populate - missing form or valid placeData."
+      );
+      return false;
+    }
     this.currentPlaceData = placeData;
     this.currentVisitData = visitData;
 
@@ -110,7 +115,6 @@ const visitForm = {
       this.elements.placeIdInput.value = placeData.id;
 
     if (visitData) {
-      // Editing existing visit
       if (this.elements.formTitle)
         this.elements.formTitle.textContent = "Edit Visit for:";
       if (this.elements.visitIdInput)
@@ -147,7 +151,6 @@ const visitForm = {
         });
       }
     } else {
-      // Planning new visit
       if (this.elements.formTitle)
         this.elements.formTitle.textContent = "Plan New Visit for:";
       if (this.elements.visitIdInput) this.elements.visitIdInput.value = "";
@@ -167,7 +170,18 @@ const visitForm = {
 
   async handleSubmit(event) {
     event.preventDefault();
-    if (!this.elements.form || !this.currentPlaceData) return;
+    if (
+      !this.elements.form ||
+      !this.currentPlaceData ||
+      !this.currentPlaceData.id
+    ) {
+      setStatusMessage(
+        this.elements.statusMessage,
+        "Error: Missing place information for the visit.",
+        "error"
+      );
+      return;
+    }
 
     setStatusMessage(this.elements.statusMessage, "Saving visit...", "loading");
     if (this.elements.submitBtn) this.elements.submitBtn.disabled = true;
@@ -175,8 +189,8 @@ const visitForm = {
     const formData = new FormData(this.elements.form);
     const placeId = this.currentPlaceData.id;
     const visitId = this.currentVisitData ? this.currentVisitData.id : null;
-    const dateValue = formData.get("visit_date");
-    const timeValue = formData.get("visit_time");
+    const dateValue = this.elements.dateInput.value;
+    const timeValue = this.elements.timeInput.value;
 
     if (!dateValue || !timeValue) {
       setStatusMessage(
@@ -198,10 +212,7 @@ const visitForm = {
       return;
     }
     const visit_datetime_iso = localDateTime.toISOString();
-    console.log(
-      "VisitForm: Scheduling visit with visit_datetime (ISO UTC):",
-      visit_datetime_iso
-    );
+    // console.log("VisitForm: Scheduling visit with visit_datetime (ISO UTC):", visit_datetime_iso); // Keep for debugging if status issue persists
 
     const reminderEnabled = this.elements.reminderEnabledCheckbox
       ? this.elements.reminderEnabledCheckbox.checked

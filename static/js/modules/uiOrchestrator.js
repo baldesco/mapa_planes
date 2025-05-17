@@ -113,7 +113,7 @@ const uiOrchestrator = {
     if (this.isMapReady && this.elements.mapContainer) {
       this.setupResizeObserver();
     }
-    console.log("UI Orchestrator: Initialization complete.");
+    // console.log("UI Orchestrator: Initialization complete."); // Production: remove or make conditional
   },
 
   cacheDOMElements() {
@@ -174,7 +174,7 @@ const uiOrchestrator = {
         this.allUserTags = [];
       }
     } else {
-      console.warn("User tags data element not found.");
+      // console.warn("User tags data element not found."); // Production: remove or make conditional
       this.allUserTags = [];
     }
   },
@@ -233,9 +233,7 @@ const uiOrchestrator = {
 
   handleMapPinClick(lat, lng) {
     if (!pinningUI.isActive || !pinningUI.updateCoordsCallback) {
-      console.warn(
-        "handleMapPinClick called but pinning not active or callback missing."
-      );
+      // console.warn("handleMapPinClick called but pinning not active or callback missing."); // Production: remove
       return;
     }
     pinningUI.updateCoordsCallback({ latitude: lat, longitude: lng });
@@ -266,7 +264,8 @@ const uiOrchestrator = {
         const placeDataForCall = self.currentPlaceForVisitModal;
         if (placeDataForCall && placeDataForCall.id) {
           self.hideVisitsListModal();
-          self.showPlanVisitForm(placeDataForCall, null);
+          const clonedPlaceData = JSON.parse(JSON.stringify(placeDataForCall));
+          self.showPlanVisitForm(clonedPlaceData, null);
         } else {
           alert(
             "Error: Place context lost or invalid for planning another visit (pre-call check)."
@@ -281,6 +280,7 @@ const uiOrchestrator = {
   },
 
   hideAllSectionsAndModals() {
+    // console.debug("UI Orchestrator: Hiding all sections and modals."); // Production: remove
     if (this.elements.addPlaceWrapper)
       this.elements.addPlaceWrapper.style.display = "none";
     if (this.elements.editPlaceSection)
@@ -674,18 +674,10 @@ const uiOrchestrator = {
       if (response.ok || response.status === 204) {
         setStatusMessage(
           this.elements.visitsListStatus,
-          "Visit deleted successfully.",
+          "Visit deleted successfully! Refreshing...",
           "success"
         );
-        if (
-          this.currentPlaceForVisitModal &&
-          this.currentPlaceForVisitModal.id
-        ) {
-          this.showVisitsListModal(this.currentPlaceForVisitModal);
-        } else {
-          // Fallback if context is lost
-          this.handleVisitSaved(); // Reload page
-        }
+        this.handleVisitSaved(); // This will call window.location.reload()
       } else {
         const errData = await response
           .json()
@@ -703,11 +695,7 @@ const uiOrchestrator = {
   },
 
   handleVisitSaved(savedVisitData) {
-    // A full reload is the simplest way to ensure all data (place status, visit lists) is fresh.
-    console.log(
-      "Visit saved/updated, will refresh page to show changes:",
-      savedVisitData
-    );
+    // console.log("Visit saved/updated, will refresh page to show changes:", savedVisitData); // Production: remove
     window.location.reload();
   },
 };
