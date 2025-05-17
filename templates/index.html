@@ -49,7 +49,7 @@
                     <label for="status">Status:</label>
                     <select id="status" name="status" onchange="this.form.submit()">
                         <option value="" {% if not current_status %}selected{% endif %}>All</option>
-                        {% for stat_val in statuses %} {# Changed from 'stat' to 'stat_val' to avoid conflict #}
+                        {% for stat_val in statuses %}
                         <option value="{{ stat_val }}" {% if stat_val==current_status %}selected{% endif %}>{{
                             stat_val|replace('_', ' ')|capitalize }}</option>
                         {% endfor %}
@@ -97,7 +97,6 @@
                         <input type="hidden" id="address" name="address">
                         <input type="hidden" id="city" name="city">
                         <input type="hidden" id="country" name="country">
-                        <!-- timezone_iana will be set by backend based on coords -->
                     </div>
                     <label for="add-category">Category:</label>
                     <select id="add-category" name="category" required>
@@ -108,8 +107,7 @@
                     <label for="add-status">Initial Status:</label>
                     <select id="add-status" name="status" required>
                         {% for stat_val in statuses %}
-                        {% if stat_val != 'visited' and stat_val != 'pending_scheduled' %} {# Don't allow setting these
-                        initially #}
+                        {% if stat_val != 'visited' and stat_val != 'pending_scheduled' %}
                         <option value="{{ stat_val }}" {% if stat_val=='pending' %}selected{% endif %}>{{
                             stat_val|replace('_', ' ')|capitalize }}</option>
                         {% endif %}
@@ -146,7 +144,6 @@
                         <input type="hidden" id="edit-address" name="address">
                         <input type="hidden" id="edit-city" name="city">
                         <input type="hidden" id="edit-country" name="country">
-                        <!-- timezone_iana will be updated by backend if coords change -->
                     </div>
                     <label for="edit-category">Category:</label>
                     <select id="edit-category" name="category" required>
@@ -170,28 +167,37 @@
             </form>
         </section>
 
-        <!-- Plan/Edit Visit Form Section (NEW) -->
         <section class="form-section" id="plan-visit-section" style="display: none;">
-            <form id="plan-visit-form" action="" method="post"> <!-- Action will be set by JS -->
+            <form id="plan-visit-form" action="" method="post">
                 <fieldset>
                     <h2>Plan/Edit Visit for: <span id="plan-visit-place-title"></span></h2>
                     <input type="hidden" id="plan-visit-place-id" name="place_id">
-                    <input type="hidden" id="plan-visit-id" name="visit_id"> <!-- For editing existing visit -->
+                    <input type="hidden" id="plan-visit-id" name="visit_id">
 
-                    <label for="visit-date">Date of Visit:</label>
-                    <input type="date" id="visit-date" name="visit_date" required>
-
-                    <label for="visit-time">Time of Visit (Local to Place):</label>
-                    <input type="time" id="visit-time" name="visit_time" required>
-                    <!-- Note: timezone_iana of the place will be used by backend to interpret this local time -->
+                    <div class="form-row">
+                        <div>
+                            <label for="visit-date">Date of Visit:</label>
+                            <div class="input-with-icon">
+                                <i class="fas fa-calendar-alt input-icon"></i>
+                                <input type="date" id="visit-date" name="visit_date" required>
+                            </div>
+                        </div>
+                        <div>
+                            <label for="visit-time">Time of Visit (Local to Place):</label>
+                            <div class="input-with-icon">
+                                <i class="fas fa-clock input-icon"></i>
+                                <input type="time" id="visit-time" name="visit_time" required>
+                            </div>
+                        </div>
+                    </div>
 
                     <div class="form-group reminder-group">
                         <input type="checkbox" id="visit-reminder-enabled" name="reminder_enabled" value="true">
                         <label for="visit-reminder-enabled" class="inline-label">Send Email Reminder(s)</label>
                     </div>
 
-                    <div id="visit-reminder-options" style="display: none; margin-left: 20px; margin-bottom: 15px;">
-                        <p style="margin-bottom: 5px; font-size: 0.9em;">Remind me:</p>
+                    <div id="visit-reminder-options" style="display: none;">
+                        <p>Remind me:</p>
                         <div>
                             <input type="checkbox" id="reminder-offset-48" name="reminder_offsets" value="48">
                             <label for="reminder-offset-48" class="inline-label">48 hours before</label>
@@ -214,7 +220,6 @@
             </form>
         </section>
 
-        <!-- Add/Edit Visit Review / Image Form Section (was review-image-section) -->
         <section class="form-section" id="visit-review-image-section" style="display: none;">
             <form id="visit-review-image-form" action="" method="post" enctype="multipart/form-data">
                 <fieldset>
@@ -228,7 +233,7 @@
                     <label for="visit-review-text">Review Text:</label>
                     <textarea id="visit-review-text" name="review_text" rows="5" maxlength="1000"></textarea>
 
-                    <label for="visit-rating">Rating:</label>
+                    <label for="visit-review-rating">Rating:</label>
                     <div class="rating-stars" id="visit-review-rating-stars">
                         <span class="star" data-value="1"><i class="far fa-star"></i></span>
                         <span class="star" data-value="2"><i class="far fa-star"></i></span>
@@ -260,7 +265,6 @@
             </form>
         </section>
 
-        <!-- See Review Modal Section (will be adapted for seeing a specific VISIT's review) -->
         <section class="modal-section" id="see-visit-review-section" style="display: none;">
             <fieldset>
                 <h2>Review for Visit to: <span id="see-visit-review-place-title"></span></h2>
@@ -279,13 +283,11 @@
             </fieldset>
         </section>
 
-        <!-- Visits List Modal (NEW - for displaying all visits of a place) -->
         <section class="modal-section" id="visits-list-modal" style="display: none;">
             <fieldset>
                 <h2>Visits for: <span id="visits-list-place-title"></span></h2>
                 <div id="visits-list-status" class="status-message"></div>
                 <div class="modal-content" id="visits-list-content">
-                    <!-- Visits will be dynamically inserted here by JS -->
                     <p>Loading visits...</p>
                 </div>
                 <div class="modal-actions">
@@ -295,7 +297,6 @@
                 </div>
             </fieldset>
         </section>
-
 
         <div id="pinning-map-container">
             <div id="pinning-map"></div>

@@ -162,15 +162,15 @@ def generate_map_html(
                 popup_parts.append("</div>")
 
                 popup_parts.append("<div class='popup-actions'>")
-                edit_place_onclick = f"window.parent.showEditPlaceForm('{js_object_string_for_html_attr}');"  # Corrected variable name
+                edit_place_onclick = f"window.parent.showEditPlaceForm('{js_object_string_for_html_attr}');"
                 popup_parts.append(
                     f'<button type="button" class="popup-btn-edit-place" onclick="{edit_place_onclick}" title="Edit Place Details">Edit Place</button>'
                 )
-                plan_visit_onclick = f"window.parent.showPlanVisitForm('{js_object_string_for_html_attr}');"  # Corrected variable name
+                plan_visit_onclick = f"window.parent.showPlanVisitForm('{js_object_string_for_html_attr}');"
                 popup_parts.append(
                     f'<button type="button" class="popup-btn-plan-visit" onclick="{plan_visit_onclick}" title="Plan a New Visit">Plan Visit</button>'
                 )
-                view_visits_onclick = f"window.parent.showVisitsListModal('{js_object_string_for_html_attr}');"  # Corrected variable name
+                view_visits_onclick = f"window.parent.showVisitsListModal('{js_object_string_for_html_attr}');"
                 popup_parts.append(
                     f'<button type="button" class="popup-btn-view-visits" onclick="{view_visits_onclick}" title="View All Visits">View Visits</button>'
                 )

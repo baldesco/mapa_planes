@@ -11,6 +11,7 @@
     box-shadow: var(--box-shadow);
     border: 1px solid var(--border-color);
     margin-bottom: 30px;
+    /* display: none; is handled by ui.js */
 }
 
 .modal-section fieldset {
@@ -22,7 +23,6 @@
 .modal-section h2 {
     font-size: 1.5em;
     margin-top: 0;
-    /* Ensure no extra top margin */
     margin-bottom: 20px;
     font-weight: 500;
     color: var(--primary-color-dark);
@@ -36,7 +36,6 @@
     font-size: 0.9em;
     color: var(--text-muted);
     margin-top: -15px;
-    /* Pull up closer to title */
     margin-bottom: 15px;
 }
 
@@ -45,18 +44,22 @@
 .modal-content {
     max-height: 450px;
     overflow-y: auto;
-    padding-right: 10px;
-    /* Space for scrollbar, less than before */
+    /* padding-right: 10px; /* Removed, handled by item padding or if scrollbar is overlay */
     margin-bottom: 20px;
     border: 1px solid var(--tertiary-color);
-    /* Subtle border for content area */
     border-radius: 4px;
-    padding: 15px;
+    /* padding: 15px; /* Removed, list items will have padding */
     background-color: #fdfdfd;
-    /* Slightly off-white for content */
 }
 
 /* Specific elements within the See Visit Review modal */
+#see-visit-review-section .modal-content {
+    /* Add padding back if needed for this specific modal */
+    padding: 15px;
+    padding-right: 10px;
+    /* For scrollbar if content overflows */
+}
+
 #see-visit-review-section h3 {
     font-size: 1.2em;
     color: var(--primary-color);
@@ -95,9 +98,7 @@
     text-align: right;
     border-top: 1px solid #eee;
     padding-top: 20px;
-    /* Increased padding */
     margin-top: 20px;
-    /* Increased margin */
     display: flex;
     justify-content: flex-end;
     gap: 10px;
@@ -111,9 +112,8 @@
 /* --- Styles for Visits List Modal --- */
 #visits-list-modal .modal-content {
     max-height: 60vh;
-    /* More dynamic height */
-    padding: 10px;
-    /* Less padding for list items to use their own */
+    padding: 0;
+    /* List items will have their own padding */
 }
 
 .visits-ul {
@@ -130,42 +130,36 @@
 }
 
 .visit-item:first-child {
-    border-top: 1px solid var(--tertiary-color);
-    /* Add top border to first item */
+    /* border-top: 1px solid var(--tertiary-color); /* Optional */
+}
+
+.visit-item:last-child {
+    border-bottom: none;
 }
 
 .visit-item strong {
-    /* Date/Time */
     font-weight: 500;
     color: var(--primary-color-dark);
-    /* Darker for more emphasis */
     display: block;
-    /* Make it take full width before review snippet */
     margin-bottom: 4px;
 }
 
 .visit-item em {
-    /* Review title snippet */
     color: #555;
-    /* Slightly darker than text-muted */
     display: block;
     margin-top: 2px;
     font-size: 0.9em;
     margin-bottom: 8px;
-    /* Space before actions */
 }
 
 .future-visit {
     background-color: var(--primary-color-light);
-    /* Using theme color */
     border-left: 4px solid var(--primary-color);
-    padding-left: 12px;
-    /* Adjust to align with non-future items if needed */
-    margin-left: -16px;
-    /* Counteract padding for alignment with modal-content padding */
-    padding-right: 12px;
-    margin-right: -11px;
-    /* Counteract padding-right of modal-content */
+    /* Adjust padding to align text content, not the entire block background */
+    padding-left: calc(15px + 8px);
+    /* Original item padding + extra for indent */
+    margin-left: -15px;
+    /* Counteract original item padding for full-bleed border */
 }
 
 .future-visit strong {
@@ -175,10 +169,8 @@
 .future-tag {
     font-size: 0.8em;
     font-weight: 600;
-    /* Bolder */
     color: var(--primary-color-dark);
     background-color: #fff;
-    /* White background for contrast on green */
     border: 1px solid var(--primary-color-light);
     padding: 1px 5px;
     border-radius: 4px;
@@ -198,10 +190,8 @@
     padding: 5px 12px !important;
     font-size: 0.85em !important;
     font-weight: 500 !important;
-    /* Slightly bolder */
     border-radius: 4px !important;
     line-height: 1.4;
-    /* Adjust line height for small buttons */
 }
 
 .small-btn.edit-visit-schedule-btn {
@@ -271,7 +261,12 @@
         max-height: 55vh;
     }
 
-    /* Adjust for smaller screens */
+    #visits-list-modal .modal-content {
+        max-height: 70vh;
+    }
+
+    /* Allow more height for visits list on mobile */
+
     .modal-actions {
         flex-direction: column;
         align-items: stretch;
@@ -289,6 +284,4 @@
     .visit-item-actions {
         justify-content: flex-start;
     }
-
-    /* Align to start on small screens */
 }
