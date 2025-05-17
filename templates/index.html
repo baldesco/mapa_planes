@@ -7,22 +7,17 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mapa Planes</title>
     <link rel="icon" href="{{ url_for('static', path='/penguin_favicon.png') }}" type="image/png">
-    <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
         integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
         integrity="sha512-iecdLmaskl7CVkqkXNQ/ZH/XLlvWZOJyj7Yy7tcenmpD1ypASozpmT/E0iPtmFIB46ZmdtAc9eNBvH0H/ZpiBw=="
         crossorigin="anonymous" referrerpolicy="no-referrer" />
-    <!-- Tagify CSS -->
     <link href="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.css" rel="stylesheet" type="text/css" />
-    <!-- Main App CSS -->
     <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
 </head>
 
 <body>
     <div class="container">
-        <!-- Header Section -->
         <header class="main-header">
             <h1>🐧 Dos en la ciudad 🦖</h1>
             {% if user_email %}
@@ -38,7 +33,6 @@
             {% endif %}
         </header>
 
-        <!-- Controls Section -->
         <section class="controls-section filter-section">
             <form id="filter-form" method="get" action="{{ request.url_for('serve_root_page') }}">
                 <div>
@@ -55,13 +49,12 @@
                     <label for="status">Status:</label>
                     <select id="status" name="status" onchange="this.form.submit()">
                         <option value="" {% if not current_status %}selected{% endif %}>All</option>
-                        {% for stat in statuses %}
-                        <option value="{{ stat }}" {% if stat==current_status %}selected{% endif %}>{{ stat|replace('_',
-                            ' ')|capitalize }}</option>
+                        {% for stat_val in statuses %} {# Changed from 'stat' to 'stat_val' to avoid conflict #}
+                        <option value="{{ stat_val }}" {% if stat_val==current_status %}selected{% endif %}>{{
+                            stat_val|replace('_', ' ')|capitalize }}</option>
                         {% endfor %}
                     </select>
                 </div>
-                <!-- Tag Filter Input -->
                 <div class="tag-filter-container">
                     <label for="tag-filter-input">Tags:</label>
                     <input id="tag-filter-input" name="tags" placeholder="Filter by tags..."
@@ -74,7 +67,6 @@
             <button type="button" id="toggle-add-place-form-btn">Add New Place</button>
         </section>
 
-        <!-- Main Map Display (Folium) -->
         <section id="map">
             {% autoescape false %}
             {{ map_html if map_html else '<p style="text-align: center; padding: 20px; color: red;">Map could not be
@@ -82,14 +74,12 @@
             {% endautoescape %}
         </section>
 
-        <!-- Add Place Form Section -->
         <section id="add-place-wrapper-section" class="form-section">
             <form id="add-place-form" action="{{ request.url_for('handle_create_new_place_form') }}" method="post">
                 <fieldset>
                     <legend>Add New Place</legend>
                     <label for="name">Place Name:</label>
                     <input type="text" id="name" name="name" required maxlength="100">
-
                     <label for="address-input">Location:</label>
                     <div class="address-input-row">
                         <input type="text" id="address-input" placeholder="Enter address or place name">
@@ -98,9 +88,7 @@
                     <button type="button" id="pin-on-map-btn">Pin Location on Map</button>
                     <div id="map-pin-instruction" class="map-pin-instruction">Drag the pin on the map below to the
                         desired location, then click Confirm.</div>
-
                     <div id="geocode-status" class="status-message"></div>
-
                     <div id="coords-section" class="coords-section">
                         <p><strong>Selected Location:</strong> <span id="display-address">(Coordinates below)</span></p>
                         <p>Coords: (<span id="display-lat"></span>, <span id="display-lon"></span>)</p>
@@ -109,25 +97,24 @@
                         <input type="hidden" id="address" name="address">
                         <input type="hidden" id="city" name="city">
                         <input type="hidden" id="country" name="country">
+                        <!-- timezone_iana will be set by backend based on coords -->
                     </div>
-
                     <label for="add-category">Category:</label>
                     <select id="add-category" name="category" required>
                         {% for cat in categories %}
                         <option value="{{ cat }}">{{ cat|capitalize }}</option>
                         {% endfor %}
                     </select>
-
                     <label for="add-status">Initial Status:</label>
                     <select id="add-status" name="status" required>
-                        {% for stat in statuses %}
-                        {% if stat != 'visited' %}
-                        <option value="{{ stat }}" {% if stat=='pending' %}selected{% endif %}>{{ stat|replace('_', '
-                            ')|capitalize }}</option>
+                        {% for stat_val in statuses %}
+                        {% if stat_val != 'visited' and stat_val != 'pending_scheduled' %} {# Don't allow setting these
+                        initially #}
+                        <option value="{{ stat_val }}" {% if stat_val=='pending' %}selected{% endif %}>{{
+                            stat_val|replace('_', ' ')|capitalize }}</option>
                         {% endif %}
                         {% endfor %}
                     </select>
-
                     <div class="form-actions">
                         <button type="submit" id="add-place-submit-btn" disabled>Add Place</button>
                         <button type="button" class="cancel-btn" id="add-place-cancel-btn">Cancel</button>
@@ -136,14 +123,12 @@
             </form>
         </section>
 
-        <!-- Edit Place Form Section -->
         <section class="form-section" id="edit-place-section">
             <form id="edit-place-form" action="" method="post">
                 <fieldset>
                     <h2>Edit Place: <span id="edit-place-form-title"></span></h2>
                     <label for="edit-name">Place Name:</label>
                     <input type="text" id="edit-name" name="name" required maxlength="100">
-
                     <label for="edit-address-input">Update Location:</label>
                     <div class="address-input-row">
                         <input type="text" id="edit-address-input" placeholder="Enter new address to re-geocode">
@@ -152,9 +137,7 @@
                     <button type="button" id="edit-pin-on-map-btn">Pin New Location</button>
                     <div id="edit-map-pin-instruction" class="map-pin-instruction">Drag the pin on the map below to the
                         new location, then click Confirm.</div>
-
                     <div id="edit-geocode-status" class="status-message"></div>
-
                     <div id="edit-coords-section" class="coords-section">
                         <p>Current Coords: (<span id="edit-display-lat"></span>, <span id="edit-display-lon"></span>)
                         </p>
@@ -163,26 +146,22 @@
                         <input type="hidden" id="edit-address" name="address">
                         <input type="hidden" id="edit-city" name="city">
                         <input type="hidden" id="edit-country" name="country">
+                        <!-- timezone_iana will be updated by backend if coords change -->
                     </div>
-
                     <label for="edit-category">Category:</label>
                     <select id="edit-category" name="category" required>
                         {% for cat in categories %}
                         <option value="{{ cat }}">{{ cat|capitalize }}</option>
                         {% endfor %}
                     </select>
-
                     <label for="edit-status">Status:</label>
                     <select id="edit-status" name="status" required>
-                        {% for stat in statuses %}
-                        <option value="{{ stat }}">{{ stat|replace('_', ' ')|capitalize }}</option>
+                        {% for stat_val in statuses %}
+                        <option value="{{ stat_val }}">{{ stat_val|replace('_', ' ')|capitalize }}</option>
                         {% endfor %}
                     </select>
-
-                    <!-- Tags Input -->
                     <label for="edit-tags-input">Tags:</label>
                     <input id="edit-tags-input" name="tags_input" placeholder="Add tags...">
-
                     <div class="form-actions">
                         <button type="submit" id="edit-place-submit-btn">Save Changes</button>
                         <button type="button" class="cancel-btn">Cancel</button>
@@ -191,69 +170,133 @@
             </form>
         </section>
 
-        <!-- Add/Edit Review / Image Form Section -->
-        <section class="form-section" id="review-image-section">
-            <form id="review-image-form" action="" method="post" enctype="multipart/form-data">
+        <!-- Plan/Edit Visit Form Section (NEW) -->
+        <section class="form-section" id="plan-visit-section" style="display: none;">
+            <form id="plan-visit-form" action="" method="post"> <!-- Action will be set by JS -->
                 <fieldset>
-                    <h2>Add/Edit Review for: <span id="review-form-title"></span></h2>
-                    <label for="review-title">Review Title:</label>
-                    <input type="text" id="review-title" name="review_title" maxlength="150">
+                    <h2>Plan/Edit Visit for: <span id="plan-visit-place-title"></span></h2>
+                    <input type="hidden" id="plan-visit-place-id" name="place_id">
+                    <input type="hidden" id="plan-visit-id" name="visit_id"> <!-- For editing existing visit -->
 
-                    <label for="review-text">Review Text:</label>
-                    <textarea id="review-text" name="review_text" rows="5" maxlength="1000"></textarea>
+                    <label for="visit-date">Date of Visit:</label>
+                    <input type="date" id="visit-date" name="visit_date" required>
 
-                    <label for="rating">Rating:</label>
-                    <div class="rating-stars" id="review-rating-stars">
+                    <label for="visit-time">Time of Visit (Local to Place):</label>
+                    <input type="time" id="visit-time" name="visit_time" required>
+                    <!-- Note: timezone_iana of the place will be used by backend to interpret this local time -->
+
+                    <div class="form-group reminder-group">
+                        <input type="checkbox" id="visit-reminder-enabled" name="reminder_enabled" value="true">
+                        <label for="visit-reminder-enabled" class="inline-label">Send Email Reminder(s)</label>
+                    </div>
+
+                    <div id="visit-reminder-options" style="display: none; margin-left: 20px; margin-bottom: 15px;">
+                        <p style="margin-bottom: 5px; font-size: 0.9em;">Remind me:</p>
+                        <div>
+                            <input type="checkbox" id="reminder-offset-48" name="reminder_offsets" value="48">
+                            <label for="reminder-offset-48" class="inline-label">48 hours before</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="reminder-offset-24" name="reminder_offsets" value="24">
+                            <label for="reminder-offset-24" class="inline-label">24 hours before</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="reminder-offset-12" name="reminder_offsets" value="12">
+                            <label for="reminder-offset-12" class="inline-label">12 hours before</label>
+                        </div>
+                    </div>
+                    <div id="plan-visit-status" class="status-message"></div>
+                    <div class="form-actions">
+                        <button type="submit" id="plan-visit-submit-btn">Save Visit</button>
+                        <button type="button" class="cancel-btn" id="plan-visit-cancel-btn">Cancel</button>
+                    </div>
+                </fieldset>
+            </form>
+        </section>
+
+        <!-- Add/Edit Visit Review / Image Form Section (was review-image-section) -->
+        <section class="form-section" id="visit-review-image-section" style="display: none;">
+            <form id="visit-review-image-form" action="" method="post" enctype="multipart/form-data">
+                <fieldset>
+                    <h2>Add/Edit Review for Visit to: <span id="visit-review-place-title"></span></h2>
+                    <p>on <span id="visit-review-datetime-display"></span></p>
+                    <input type="hidden" id="visit-review-visit-id" name="visit_id">
+
+                    <label for="visit-review-title">Review Title:</label>
+                    <input type="text" id="visit-review-title" name="review_title" maxlength="150">
+
+                    <label for="visit-review-text">Review Text:</label>
+                    <textarea id="visit-review-text" name="review_text" rows="5" maxlength="1000"></textarea>
+
+                    <label for="visit-rating">Rating:</label>
+                    <div class="rating-stars" id="visit-review-rating-stars">
                         <span class="star" data-value="1"><i class="far fa-star"></i></span>
                         <span class="star" data-value="2"><i class="far fa-star"></i></span>
                         <span class="star" data-value="3"><i class="far fa-star"></i></span>
                         <span class="star" data-value="4"><i class="far fa-star"></i></span>
                         <span class="star" data-value="5"><i class="far fa-star"></i></span>
                     </div>
-                    <input type="hidden" id="review-rating" name="rating">
+                    <input type="hidden" id="visit-review-rating" name="rating">
 
-                    <label for="review-image">Upload/Replace Image (Optional):</label>
-                    <input type="file" id="review-image" name="image"
+                    <label for="visit-review-image">Upload/Replace Image for this Visit (Optional):</label>
+                    <input type="file" id="visit-review-image" name="image"
                         accept="image/jpeg, image/png, image/gif, image/webp">
                     <p class="password-hint">Max file size ~5MB recommended.</p>
 
-                    <div id="current-image-review-section">
-                        <label>Current Image:</label>
-                        <img id="current-image-review-thumb" src="" alt="Current place image">
+                    <div id="current-visit-image-review-section" style="display:none;">
+                        <label>Current Visit Image:</label>
+                        <img id="current-visit-image-review-thumb" src="" alt="Current visit image">
                         <div>
-                            <input type="checkbox" id="review-remove-image" name="remove_image" value="yes">
-                            <label for="review-remove-image">Remove Current Image</label>
+                            <input type="checkbox" id="visit-review-remove-image" name="remove_image" value="yes">
+                            <label for="visit-review-remove-image">Remove Current Visit Image</label>
                         </div>
                     </div>
-
+                    <div id="visit-review-status" class="status-message"></div>
                     <div class="form-actions">
-                        <button type="submit" id="review-image-submit-btn">Save Review & Image</button>
-                        <button type="button" class="cancel-btn">Cancel</button>
+                        <button type="submit" id="visit-review-image-submit-btn">Save Review & Image</button>
+                        <button type="button" class="cancel-btn" id="visit-review-cancel-btn">Cancel</button>
                     </div>
                 </fieldset>
             </form>
         </section>
 
-        <!-- See Review Modal Section -->
-        <section class="modal-section" id="see-review-section">
+        <!-- See Review Modal Section (will be adapted for seeing a specific VISIT's review) -->
+        <section class="modal-section" id="see-visit-review-section" style="display: none;">
             <fieldset>
-                <h2>Review: <span id="see-review-place-title"></span></h2>
+                <h2>Review for Visit to: <span id="see-visit-review-place-title"></span></h2>
+                <p>on <span id="see-visit-review-datetime-display"></span></p>
                 <div class="modal-content">
-                    <div id="see-review-rating-display" class="rating-stars-display"></div>
-                    <h3 id="see-review-display-title"></h3>
-                    <p id="see-review-display-text"></p>
-                    <img id="see-review-display-image" src="" alt="Review image" />
+                    <div id="see-visit-review-rating-display" class="rating-stars-display"></div>
+                    <h3 id="see-visit-review-display-title"></h3>
+                    <p id="see-visit-review-display-text"></p>
+                    <img id="see-visit-review-display-image" src="" alt="Visit review image" />
                 </div>
                 <div class="modal-actions">
-                    <button type="button" id="see-review-edit-btn" class="edit-review-btn">Edit Review</button>
-                    <button type="button" class="cancel-btn">Close</button>
+                    <button type="button" id="see-visit-review-edit-btn" class="edit-review-btn">Edit This Visit's
+                        Review</button>
+                    <button type="button" class="cancel-btn" id="see-visit-review-close-btn">Close</button>
                 </div>
             </fieldset>
         </section>
 
-        <!-- Image Overlay Placeholder -->
+        <!-- Visits List Modal (NEW - for displaying all visits of a place) -->
+        <section class="modal-section" id="visits-list-modal" style="display: none;">
+            <fieldset>
+                <h2>Visits for: <span id="visits-list-place-title"></span></h2>
+                <div id="visits-list-status" class="status-message"></div>
+                <div class="modal-content" id="visits-list-content">
+                    <!-- Visits will be dynamically inserted here by JS -->
+                    <p>Loading visits...</p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="visits-list-plan-new-btn" class="popup-btn-plan-visit">Plan Another
+                        Visit</button>
+                    <button type="button" class="cancel-btn" id="visits-list-close-btn">Close</button>
+                </div>
+            </fieldset>
+        </section>
 
-        <!-- Pinning Map Container (Defined once, moved by pinningUI.js) -->
+
         <div id="pinning-map-container">
             <div id="pinning-map"></div>
             <div id="pinning-map-controls">
@@ -261,21 +304,13 @@
                 <button type="button" id="cancel-pin-btn">Cancel Pinning</button>
             </div>
         </div>
+    </div>
 
-    </div> <!-- /container -->
-
-    <!-- Embed user tags data for JavaScript -->
-    <script id="user-tags-data" type="application/json">
-        {{ all_user_tags_json | safe }}
-    </script>
-
-    <!-- Leaflet JS -->
+    <script id="user-tags-data" type="application/json">{{ all_user_tags_json | safe }}</script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-    <!-- Tagify JS -->
     <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
     <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify/dist/tagify.polyfills.min.js"></script>
-    <!-- Main App JS -->
     <script type="module" src="{{ url_for('static', path='/js/main.js') }}"></script>
 </body>
 

@@ -1,14 +1,19 @@
 /* Styles for modal dialogs (See Review) and image overlay */
 
-/* Base modal section style (used by See Review) */
+/* Base modal section style (used by See Review & Visits List) */
 .modal-section {
     /* display: none; is handled by ui.js */
-    /* General padding/border/bg defined in layout.css or forms.css */
-    max-width: 600px;
-    /* Limit modal width */
+    max-width: 650px;
+    /* Slightly wider for visits list */
     margin-left: auto;
-    /* Center if container allows */
     margin-right: auto;
+    background-color: var(--white);
+    padding: 25px 30px;
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    border: 1px solid var(--border-color);
+    margin-bottom: 30px;
+    /* Consistent with form-sections */
 }
 
 .modal-section fieldset {
@@ -18,7 +23,6 @@
 }
 
 .modal-section h2 {
-    /* Modal Title */
     font-size: 1.5em;
     margin-bottom: 20px;
     font-weight: 500;
@@ -31,17 +35,14 @@
 /* Scrollable content area within the modal */
 .modal-content {
     max-height: 450px;
-    /* Limit height and enable scroll */
     overflow-y: auto;
     padding-right: 15px;
-    /* Space for scrollbar */
     margin-bottom: 20px;
-    /* Space before actions */
 }
 
-/* Specific elements within the See Review modal */
-#see-review-section h3 {
-    /* Review Title */
+/* Specific elements within the See Visit Review modal */
+#see-visit-review-section h3 {
+    /* Was #see-review-section */
     font-size: 1.2em;
     color: var(--primary-color);
     margin-top: 0;
@@ -49,22 +50,19 @@
     font-weight: 500;
 }
 
-#see-review-section p {
-    /* Review Text */
+#see-visit-review-section p {
+    /* Was #see-review-section */
     margin: 0 0 12px 0;
     white-space: pre-wrap;
-    /* Preserve line breaks in review */
     word-wrap: break-word;
     color: var(--text-color);
 }
 
-#see-review-display-image {
-    /* Image within See Review modal */
+#see-visit-review-display-image {
+    /* Was #see-review-display-image */
     display: none;
-    /* Hidden by default */
     max-width: 100%;
     max-height: 300px;
-    /* Limit image height */
     height: auto;
     border-radius: 6px;
     margin-top: 15px;
@@ -72,81 +70,181 @@
     margin-right: auto;
     border: 1px solid var(--border-color);
     cursor: pointer;
-    /* Indicate clickable for overlay */
     transition: transform 0.2s ease-in-out;
 }
 
-#see-review-display-image:hover {
+#see-visit-review-display-image:hover {
     transform: scale(1.03);
 }
 
 /* Action buttons area at the bottom of the modal */
 .modal-actions {
     text-align: right;
-    /* Align buttons to the right */
     border-top: 1px solid #eee;
     padding-top: 15px;
     margin-top: 15px;
-}
-
-.modal-actions button {
-    margin-left: 10px;
+    display: flex;
+    /* Added for better button alignment */
+    justify-content: flex-end;
+    /* Align buttons to the right */
+    gap: 10px;
     /* Space between buttons */
 }
 
+.modal-actions button {
+    margin-left: 0;
+    /* Remove default margin-left if using gap */
+}
 
-/* Image Overlay */
+
+/* --- Styles for Visits List Modal --- */
+#visits-list-modal .modal-content {
+    max-height: 50vh;
+    /* Adjust as needed, viewport relative */
+}
+
+.visits-ul {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.visit-item {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--tertiary-color);
+    font-size: 0.95em;
+}
+
+.visit-item:last-child {
+    border-bottom: none;
+}
+
+.visit-item strong {
+    font-weight: 500;
+    color: var(--primary-color);
+}
+
+.visit-item em {
+    /* Review title snippet */
+    color: var(--text-muted);
+    display: block;
+    margin-top: 3px;
+    font-size: 0.9em;
+}
+
+.future-visit {
+    background-color: #e8f5e9;
+    /* Light green for future visits */
+    padding-left: 10px;
+    /* Indent slightly */
+    margin-left: -10px;
+    /* Counteract padding for alignment */
+    border-left: 3px solid var(--primary-color);
+}
+
+.future-tag {
+    font-size: 0.8em;
+    font-weight: 500;
+    color: var(--primary-color-dark);
+    background-color: var(--primary-color-light);
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.visit-item-actions {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    /* Space between small buttons */
+}
+
+/* General small button style for visit item actions */
+.small-btn {
+    padding: 4px 10px !important;
+    /* Override general button padding */
+    font-size: 0.8em !important;
+    /* Override general button font-size */
+    font-weight: 400 !important;
+    border-radius: 4px !important;
+    /* Specific colors can be added or use existing button classes */
+}
+
+.small-btn.edit-visit-schedule-btn {
+    background-color: var(--info-color);
+}
+
+.small-btn.edit-visit-schedule-btn:hover {
+    background-color: var(--info-color-hover);
+}
+
+.small-btn.review-visit-btn {
+    background-color: var(--see-review-bg);
+    /* Using a less prominent color */
+}
+
+.small-btn.review-visit-btn:hover {
+    background-color: var(--see-review-hover-bg);
+}
+
+.small-btn.delete-visit-btn {
+    background-color: var(--error-color);
+}
+
+.small-btn.delete-visit-btn:hover {
+    background-color: var(--danger-color-hover);
+}
+
+
+/* Image Overlay (No changes from before) */
 .image-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1050;
-    /* Ensure it's above other content */
-    cursor: pointer;
-    /* Indicate clickable background to close */
-    opacity: 0;
-    transition: opacity 0.3s ease-in-out;
-    padding: 20px;
-    /* Padding around the image */
+    /* ... existing styles ... */
+    /* ... */
 }
 
 .image-overlay.visible {
-    opacity: 1;
+    /* ... */
 }
 
 .image-overlay img {
-    display: block;
-    max-width: 95%;
-    max-height: 95%;
-    object-fit: contain;
-    /* Scale image while preserving aspect ratio */
-    border-radius: 4px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
-    cursor: default;
-    /* Default cursor for the image itself */
+    /* ... */
 }
 
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+    .modal-section {
+        padding: 20px;
+        max-width: 95%;
+    }
+
     .modal-content {
         max-height: 350px;
+        /* Or adjust for visits list: max-height: 60vh; */
     }
 
     .modal-actions {
-        text-align: center;
-        /* Center buttons on smaller screens */
+        flex-direction: column;
+        /* Stack buttons on small screens */
+        align-items: stretch;
+        /* Make buttons full width */
     }
 
     .modal-actions button {
-        width: auto;
-        /* Allow buttons to size naturally */
-        margin: 5px;
+        width: 100%;
+        margin-bottom: 8px;
+        /* Space between stacked buttons */
+    }
+
+    .modal-actions button:last-child {
+        margin-bottom: 0;
+    }
+
+    .visit-item-actions {
+        justify-content: center;
+        /* Center small buttons if they wrap */
     }
 }

@@ -1,66 +1,97 @@
 /**
  * reviewForm.js
- * Manages interactions and state for the Add/Edit Review & Image form.
+ * Manages interactions and state for the Add/Edit Review & Image form FOR A VISIT.
  */
+import apiClient from "../apiClient.js"; // For submitting the form via API
+import { setStatusMessage } from "../components/statusMessages.js";
 
 const reviewForm = {
   elements: {
-    form: null,
     wrapper: null,
-    cancelBtn: null,
-    formTitle: null,
+    form: null,
+    formTitlePlaceSpan: null, // To show the place name
+    visitDateTimeSpan: null, // To show the visit date/time
+    visitIdInput: null, // Hidden input for the visit ID being reviewed
     titleInput: null,
     textInput: null,
     ratingStarsContainer: null,
-    ratingInput: null, // Hidden input for rating value
+    ratingInput: null,
     imageInput: null,
     removeImageCheckbox: null,
     currentImageSection: null,
     currentImageThumb: null,
+    statusMessage: null,
     submitBtn: null,
+    cancelBtn: null,
   },
-  hideCallback: null, // Function provided by orchestrator to hide this form
-  currentPlaceData: null, // Store data of the place being reviewed
+  hideCallback: null,
+  onReviewSavedCallback: null, // Callback to uiOrchestrator after saving
+  currentVisitData: null, // Store data of the visit being reviewed
+  currentPlaceName: null, // Store parent place name for display
 
-  init(showFn, hideFn) {
-    console.debug("Review Form: Initializing...");
+  init(hideFn, onSaveFn) {
+    console.debug("Visit Review Form: Initializing...");
     this.hideCallback = hideFn;
+    this.onReviewSavedCallback = onSaveFn; // This will likely be uiOrchestrator.handleVisitSaved
     this.cacheDOMElements();
     this.setupEventListeners();
-    this.setupRatingStars(); // Initialize interactive stars
+    this.setupRatingStars();
   },
 
   cacheDOMElements() {
-    this.elements.wrapper = document.getElementById("review-image-section");
-    if (!this.elements.wrapper) return;
+    this.elements.wrapper = document.getElementById(
+      "visit-review-image-section"
+    ); // ID updated in HTML
+    if (!this.elements.wrapper) {
+      console.error(
+        "Visit Review Form: Wrapper element #visit-review-image-section not found."
+      );
+      return;
+    }
+    this.elements.form = document.getElementById("visit-review-image-form"); // ID updated
+    this.elements.formTitlePlaceSpan = document.getElementById(
+      "visit-review-place-title"
+    ); // ID updated
+    this.elements.visitDateTimeSpan = document.getElementById(
+      "visit-review-datetime-display"
+    ); // ID updated
+    this.elements.visitIdInput = document.getElementById(
+      "visit-review-visit-id"
+    ); // ID updated
 
-    this.elements.form = document.getElementById("review-image-form");
-    this.elements.cancelBtn =
-      this.elements.wrapper.querySelector("button.cancel-btn");
-    this.elements.formTitle = document.getElementById("review-form-title");
-    this.elements.titleInput = document.getElementById("review-title");
-    this.elements.textInput = document.getElementById("review-text");
+    this.elements.titleInput = document.getElementById("visit-review-title"); // ID updated
+    this.elements.textInput = document.getElementById("visit-review-text"); // ID updated
     this.elements.ratingStarsContainer = document.getElementById(
-      "review-rating-stars"
-    );
-    this.elements.ratingInput = document.getElementById("review-rating");
-    this.elements.imageInput = document.getElementById("review-image");
+      "visit-review-rating-stars"
+    ); // ID updated
+    this.elements.ratingInput = document.getElementById("visit-review-rating"); // ID updated
+    this.elements.imageInput = document.getElementById("visit-review-image"); // ID updated
     this.elements.removeImageCheckbox = document.getElementById(
-      "review-remove-image"
-    );
+      "visit-review-remove-image"
+    ); // ID updated
     this.elements.currentImageSection = document.getElementById(
-      "current-image-review-section"
-    );
+      "current-visit-image-review-section"
+    ); // ID updated
     this.elements.currentImageThumb = document.getElementById(
-      "current-image-review-thumb"
-    );
+      "current-visit-image-review-thumb"
+    ); // ID updated
+    this.elements.statusMessage = document.getElementById(
+      "visit-review-status"
+    ); // ID updated
     this.elements.submitBtn = document.getElementById(
-      "review-image-submit-btn"
-    );
+      "visit-review-image-submit-btn"
+    ); // ID updated
+    this.elements.cancelBtn = document.getElementById(
+      "visit-review-cancel-btn"
+    ); // ID updated
   },
 
   setupEventListeners() {
     if (!this.elements.form) return;
+
+    this.elements.form.addEventListener("submit", (event) =>
+      this.handleSubmit(event)
+    );
 
     if (this.elements.cancelBtn && this.hideCallback) {
       this.elements.cancelBtn.addEventListener("click", () =>
@@ -68,15 +99,11 @@ const reviewForm = {
       );
     }
 
-    // Optional: Add listener to clear file input if remove checkbox is checked?
     if (this.elements.removeImageCheckbox && this.elements.imageInput) {
       this.elements.removeImageCheckbox.addEventListener("change", (event) => {
-        if (event.target.checked) {
-          this.elements.imageInput.value = ""; // Clear file selection if removing
-        }
+        if (event.target.checked) this.elements.imageInput.value = "";
       });
     }
-    // Optional: Uncheck remove checkbox if a new file is selected
     if (this.elements.imageInput && this.elements.removeImageCheckbox) {
       this.elements.imageInput.addEventListener("change", (event) => {
         if (event.target.files && event.target.files.length > 0) {
@@ -84,68 +111,169 @@ const reviewForm = {
         }
       });
     }
-
-    // Form submission is handled by uiOrchestrator's setupFormSubmission
   },
 
-  /** Populates the form with data for the place being reviewed/edited */
-  populateForm(placeData) {
-    if (!this.elements.form) {
-      console.error("Review form elements not cached.");
+  populateForm(visitData, placeName = "this place") {
+    if (!this.elements.form || !visitData || !visitData.id) {
+      console.error(
+        "Visit Review Form: Cannot populate - missing form, visitData, or visit ID."
+      );
       return false;
     }
-    if (!placeData || typeof placeData !== "object") {
-      console.error("Invalid placeData provided to populateForm:", placeData);
-      return false;
-    }
-
-    this.currentPlaceData = placeData;
+    this.currentVisitData = visitData;
+    this.currentPlaceName = placeName;
     const els = this.elements;
 
-    try {
-      els.formTitle.textContent = `"${placeData.name || "Unknown"}"`;
-      els.titleInput.value = placeData.review_title || "";
-      els.textInput.value = placeData.review || "";
+    els.form.reset(); // Clear previous state
+    setStatusMessage(els.statusMessage, "", "info");
 
-      // Handle rating (expecting null or number, store as string or "")
-      const currentRating =
-        placeData.rating !== null && placeData.rating !== undefined
-          ? String(placeData.rating)
-          : "";
-      els.ratingInput.value = currentRating;
-      this.updateRatingStars(els.ratingStarsContainer, currentRating); // Update visual stars
+    if (els.formTitlePlaceSpan)
+      els.formTitlePlaceSpan.textContent = `"${this.currentPlaceName}"`;
+    if (els.visitIdInput) els.visitIdInput.value = visitData.id;
 
-      // Reset file input and checkbox
-      els.imageInput.value = "";
-      els.removeImageCheckbox.checked = false;
+    if (els.visitDateTimeSpan && visitData.visit_datetime) {
+      const visitDate = new Date(visitData.visit_datetime);
+      const formattedDate = visitDate.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const formattedTime = visitDate.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      els.visitDateTimeSpan.textContent = `${formattedDate} at ${formattedTime}`;
+    }
 
-      // Show current image preview if available
-      if (placeData.image_url && placeData.image_url.startsWith("http")) {
-        if (els.currentImageThumb)
-          els.currentImageThumb.src = placeData.image_url;
-        if (els.currentImageSection)
-          els.currentImageSection.style.display = "block";
+    if (els.titleInput) els.titleInput.value = visitData.review_title || "";
+    if (els.textInput) els.textInput.value = visitData.review_text || "";
+
+    const currentRating =
+      visitData.rating !== null && visitData.rating !== undefined
+        ? String(visitData.rating)
+        : "";
+    if (els.ratingInput) els.ratingInput.value = currentRating;
+    this.updateRatingStars(els.ratingStarsContainer, currentRating);
+
+    if (els.imageInput) els.imageInput.value = ""; // Clear file input
+    if (els.removeImageCheckbox) els.removeImageCheckbox.checked = false;
+
+    if (els.currentImageSection && els.currentImageThumb) {
+      if (visitData.image_url && visitData.image_url.startsWith("http")) {
+        els.currentImageThumb.src = visitData.image_url;
+        els.currentImageThumb.alt = `Image for visit to ${this.currentPlaceName}`;
+        els.currentImageSection.style.display = "block";
       } else {
-        if (els.currentImageSection)
-          els.currentImageSection.style.display = "none";
-        if (els.currentImageThumb) els.currentImageThumb.src = "";
+        els.currentImageThumb.src = "";
+        els.currentImageSection.style.display = "none";
       }
+    }
 
-      // Reset submit button and set form action
+    if (els.submitBtn) {
       els.submitBtn.disabled = false;
       els.submitBtn.textContent = "Save Review & Image";
-      els.form.action = `/places/${placeData.id}/review-image`;
+    }
+    // Form action is not set here, submission is handled via JS to PUT /api/v1/visits/{visit_id}
+    return true;
+  },
 
-      return true; // Indicate success
-    } catch (e) {
-      console.error("Error populating review form fields:", e);
-      this.currentPlaceData = null;
-      return false; // Indicate failure
+  async handleSubmit(event) {
+    event.preventDefault();
+    if (
+      !this.elements.form ||
+      !this.currentVisitData ||
+      !this.currentVisitData.id
+    ) {
+      console.error(
+        "Visit Review Form: Cannot submit, current visit data or ID missing."
+      );
+      setStatusMessage(
+        this.elements.statusMessage,
+        "Error: Missing visit information.",
+        "error"
+      );
+      return;
+    }
+
+    setStatusMessage(
+      this.elements.statusMessage,
+      "Saving review...",
+      "loading"
+    );
+    if (this.elements.submitBtn) this.elements.submitBtn.disabled = true;
+
+    const visitId = this.currentVisitData.id;
+    const formData = new FormData(); // Use FormData for multipart/form-data
+
+    // Append fields from the form
+    // Note: VisitUpdate model on backend expects these fields.
+    // We are sending them as Form data due to potential image_file.
+    if (this.elements.titleInput.value)
+      formData.append("review_title", this.elements.titleInput.value);
+    if (this.elements.textInput.value)
+      formData.append("review_text", this.elements.textInput.value);
+    if (this.elements.ratingInput.value)
+      formData.append("rating", this.elements.ratingInput.value);
+
+    // Image handling
+    if (
+      this.elements.imageInput &&
+      this.elements.imageInput.files &&
+      this.elements.imageInput.files[0]
+    ) {
+      formData.append("image_file", this.elements.imageInput.files[0]);
+    } else if (
+      this.elements.removeImageCheckbox &&
+      this.elements.removeImageCheckbox.checked
+    ) {
+      formData.append("image_url_action", "remove");
+    }
+    // No need to append visit_datetime or reminder fields here, they are updated by visitForm.js
+
+    try {
+      const apiUrl = `/api/v1/visits/${visitId}`;
+      // apiClient.put expects JSON, but we need to send FormData
+      // So, we use apiClient.fetch directly or a new apiClient.putForm method
+      const response = await apiClient.fetch(apiUrl, {
+        method: "PUT",
+        body: formData,
+        // Content-Type is set automatically by browser for FormData
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        setStatusMessage(
+          this.elements.statusMessage,
+          "Review saved successfully!",
+          "success"
+        );
+        if (this.onReviewSavedCallback) {
+          this.onReviewSavedCallback(result); // Pass updated visit data
+        }
+        setTimeout(() => {
+          if (this.hideCallback) this.hideCallback();
+        }, 1500);
+      } else {
+        setStatusMessage(
+          this.elements.statusMessage,
+          result.detail || "Failed to save review.",
+          "error"
+        );
+        if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
+      }
+    } catch (error) {
+      console.error("Error saving visit review:", error);
+      setStatusMessage(
+        this.elements.statusMessage,
+        "An error occurred. Please try again.",
+        "error"
+      );
+      if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
     }
   },
 
-  // --- Rating Stars Logic ---
-  // (Copied from the original ui.js, now encapsulated here)
+  // --- Rating Stars Logic (copied from old reviewForm, no changes needed) ---
   setupRatingStars() {
     this.setupInteractiveStars(
       this.elements.ratingStarsContainer,
@@ -163,11 +291,8 @@ const reviewForm = {
       star.addEventListener("click", (e) => {
         e.stopPropagation();
         const value = star.dataset.value;
-        if (hiddenInput.value === value) {
-          setRating("");
-        } else {
-          setRating(value);
-        }
+        if (hiddenInput.value === value) setRating("");
+        else setRating(value);
       });
       star.addEventListener("mouseover", () =>
         this.highlightStars(container, star.dataset.value)
@@ -176,7 +301,7 @@ const reviewForm = {
         this.updateRatingStars(container, hiddenInput.value)
       );
     });
-    this.updateRatingStars(container, hiddenInput.value); // Initial setup
+    this.updateRatingStars(container, hiddenInput.value);
   },
   highlightStars(container, value) {
     if (!container) return;
@@ -199,7 +324,6 @@ const reviewForm = {
     if (!container) return;
     this.highlightStars(container, parseInt(selectedValue, 10) || 0);
   },
-  // --- End Rating Stars Logic ---
 };
 
 export default reviewForm;

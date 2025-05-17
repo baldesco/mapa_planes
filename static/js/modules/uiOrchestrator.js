@@ -6,11 +6,14 @@
 
 import addPlaceForm from "./forms/addPlaceForm.js";
 import editPlaceForm from "./forms/editPlaceForm.js";
-import reviewForm from "./forms/reviewForm.js";
+import reviewForm from "./forms/reviewForm.js"; // Will be adapted for visit reviews
+import visitForm from "./forms/visitForm.js"; // NEW: For planning/editing visits
 import modals from "./components/modals.js";
 import pinningUI from "./components/pinningUI.js";
 import mapHandler from "./mapHandler.js";
 import tagInput from "./components/tagInput.js";
+import { setStatusMessage } from "./components/statusMessages.js"; // Import for modals
+import apiClient from "./apiClient.js"; // Import apiClient for handleDeleteVisit
 
 function debounce(func, wait) {
   let timeout;
@@ -26,33 +29,36 @@ function debounce(func, wait) {
 
 const uiOrchestrator = {
   elements: {
-    // Main section wrappers
     toggleAddPlaceBtn: null,
     addPlaceWrapper: null,
     editPlaceSection: null,
-    reviewImageSection: null,
-    seeReviewSection: null,
-    // Map container
+    visitReviewImageSection: null,
+    seeVisitReviewSection: null,
+    planVisitSection: null,
+    visitsListModal: null,
+    visitsListContent: null,
+    visitsListPlaceTitle: null,
+    visitsListStatus: null,
+    visitsListCloseBtn: null,
+    visitsListPlanNewBtn: null,
     mapContainer: null,
     mapIframe: null,
-    // Pinning map container
     pinningMapContainer: null,
-    // Tag inputs
     tagFilterInput: null,
     editTagsInput: null,
   },
   isMapReady: false,
   debouncedInvalidateMapSize: null,
-  allUserTags: [], // Store all tags for suggestions
+  allUserTags: [],
+  currentPlaceForVisitModal: null,
 
   init(mapReadyStatus = false) {
     console.debug("UI Orchestrator: Initializing...");
     this.isMapReady = mapReadyStatus;
-    this.cacheDOMElements(); // Cache elements including iframe
-    this.loadUserTags(); // Load tags from embedded data
-    this.hideAllSections();
+    this.cacheDOMElements();
+    this.loadUserTags();
+    this.hideAllSectionsAndModals();
 
-    // Initialize sub-modules
     addPlaceForm.init(
       this.isMapReady,
       this.showAddPlaceForm.bind(this),
@@ -64,13 +70,16 @@ const uiOrchestrator = {
       this.hideEditPlaceForm.bind(this)
     );
     reviewForm.init(
-      this.showReviewForm.bind(this),
-      this.hideReviewForm.bind(this)
+      this.showVisitReviewForm.bind(this),
+      this.hideVisitReviewForm.bind(this)
     );
-    modals.init(this.showReviewForm.bind(this));
+    visitForm.init(
+      this.hidePlanVisitForm.bind(this),
+      this.handleVisitSaved.bind(this)
+    );
+    modals.init(this.showVisitReviewForm.bind(this)); // Pass callback for "Edit Review" from modal
     pinningUI.init(this.isMapReady);
 
-    // Initialize Tagify components
     if (this.elements.tagFilterInput) {
       tagInput.init("tag-filter-input", this.allUserTags, {
         editTags: false,
@@ -78,13 +87,11 @@ const uiOrchestrator = {
         hooks: {
           add: [
             () => {
-              console.debug("Filter tag added");
               document.getElementById("filter-form")?.submit();
             },
           ],
           remove: [
             () => {
-              console.debug("Filter tag removed");
               document.getElementById("filter-form")?.submit();
             },
           ],
@@ -94,22 +101,18 @@ const uiOrchestrator = {
 
     this.setupEventListeners();
 
-    // Make global functions available on the parent window
     window.attachMapClickListener = this.attachMapClickListener.bind(this);
-    window.isPinningActive = () => pinningUI.isActive; // Check pinning state
-    window.handleMapPinClick = this.handleMapPinClick.bind(this); // Handle click event during pinning
+    window.isPinningActive = () => pinningUI.isActive;
+    window.handleMapPinClick = this.handleMapPinClick.bind(this);
     window.showEditPlaceForm = this.showEditPlaceForm.bind(this);
-    window.showReviewForm = this.showReviewForm.bind(this);
-    window.showSeeReviewModal = modals.showSeeReviewModal.bind(modals);
     window.showImageOverlay = modals.showImageOverlay.bind(modals);
+    window.showPlanVisitForm = this.showPlanVisitForm.bind(this);
+    window.showVisitsListModal = this.showVisitsListModal.bind(this);
+    window.showSeeVisitReviewModal = modals.showSeeReviewModal.bind(modals);
+    window.showVisitReviewForm = this.showVisitReviewForm.bind(this);
 
-    // Setup Resize Observer
     if (this.isMapReady && this.elements.mapContainer) {
       this.setupResizeObserver();
-    } else if (!this.elements.mapContainer) {
-      console.warn(
-        "UI Orchestrator: #map container not found for ResizeObserver."
-      );
     }
 
     console.log("UI Orchestrator: Initialization complete.");
@@ -124,22 +127,36 @@ const uiOrchestrator = {
     );
     this.elements.editPlaceSection =
       document.getElementById("edit-place-section");
-    this.elements.reviewImageSection = document.getElementById(
-      "review-image-section"
+    this.elements.visitReviewImageSection = document.getElementById(
+      "visit-review-image-section"
     );
-    this.elements.seeReviewSection =
-      document.getElementById("see-review-section");
+    this.elements.seeVisitReviewSection = document.getElementById(
+      "see-visit-review-section"
+    );
+    this.elements.planVisitSection =
+      document.getElementById("plan-visit-section");
+    this.elements.visitsListModal =
+      document.getElementById("visits-list-modal");
+    if (this.elements.visitsListModal) {
+      this.elements.visitsListContent = document.getElementById(
+        "visits-list-content"
+      );
+      this.elements.visitsListPlaceTitle = document.getElementById(
+        "visits-list-place-title"
+      );
+      this.elements.visitsListStatus =
+        document.getElementById("visits-list-status");
+      this.elements.visitsListCloseBtn = document.getElementById(
+        "visits-list-close-btn"
+      );
+      this.elements.visitsListPlanNewBtn = document.getElementById(
+        "visits-list-plan-new-btn"
+      );
+    }
     this.elements.mapContainer = document.getElementById("map");
-    // Try to find the iframe within the map container
     if (this.elements.mapContainer) {
-      // Use a more robust selector if the structure changes
       this.elements.mapIframe =
         this.elements.mapContainer.querySelector("iframe");
-      if (!this.elements.mapIframe) {
-        console.warn(
-          "UI Orchestrator: Could not find iframe inside #map container."
-        );
-      }
     }
     this.elements.pinningMapContainer = document.getElementById(
       "pinning-map-container"
@@ -154,17 +171,60 @@ const uiOrchestrator = {
       try {
         const tagsData = JSON.parse(tagsDataElement.textContent || "[]");
         this.allUserTags = tagsData.map((tag) => tag.name);
-        console.log(
-          `Loaded ${this.allUserTags.length} user tags for suggestions.`
-        );
       } catch (e) {
-        console.error("Failed to parse embedded user tags data:", e);
         this.allUserTags = [];
       }
     } else {
-      console.warn("User tags data element not found.");
       this.allUserTags = [];
     }
+  },
+  setupResizeObserver() {
+    if (!this.elements.mapContainer) return;
+    this.debouncedInvalidateMapSize = debounce(
+      mapHandler.invalidateMapSize.bind(mapHandler),
+      250
+    );
+    const resizeObserver = new ResizeObserver(() => {
+      this.debouncedInvalidateMapSize();
+    });
+    resizeObserver.observe(this.elements.mapContainer);
+  },
+  attachMapClickListener(mapVarName) {
+    if (!this.elements.mapIframe || !this.elements.mapIframe.contentWindow) {
+      console.error(
+        "Cannot attach listener: Map iframe or its contentWindow not found."
+      );
+      return;
+    }
+    const iframeWindow = this.elements.mapIframe.contentWindow;
+    const tryAttach = () => {
+      try {
+        const mapInstance = iframeWindow[mapVarName];
+        if (mapInstance && typeof mapInstance.on === "function") {
+          const listener = (e) => {
+            if (window.isPinningActive()) {
+              window.handleMapPinClick(e.latlng.lat, e.latlng.lng);
+            }
+          };
+          mapInstance.on("click", listener);
+          return true;
+        }
+        return false;
+      } catch (err) {
+        return false;
+      }
+    };
+    if (!tryAttach()) {
+      setTimeout(() => {
+        if (!tryAttach()) {
+          console.error(`Failed to attach listener to '${mapVarName}'`);
+        }
+      }, 1500);
+    }
+  },
+  handleMapPinClick(lat, lng) {
+    if (!pinningUI.isActive || !pinningUI.updateCoordsCallback) return;
+    pinningUI.updateCoordsCallback({ latitude: lat, longitude: lng });
   },
 
   setupEventListeners() {
@@ -172,170 +232,49 @@ const uiOrchestrator = {
       this.elements.toggleAddPlaceBtn.addEventListener("click", () => {
         const isHidden =
           !this.elements.addPlaceWrapper ||
-          this.elements.addPlaceWrapper.style.display === "none" ||
-          this.elements.addPlaceWrapper.style.display === "";
-        if (isHidden) {
-          this.showAddPlaceForm();
-        } else {
-          this.hideAddPlaceForm();
+          this.elements.addPlaceWrapper.style.display === "none";
+        if (isHidden) this.showAddPlaceForm();
+        else this.hideAddPlaceForm();
+      });
+    }
+    if (this.elements.visitsListCloseBtn) {
+      this.elements.visitsListCloseBtn.addEventListener("click", () =>
+        this.hideVisitsListModal()
+      );
+    }
+    if (this.elements.visitsListPlanNewBtn) {
+      this.elements.visitsListPlanNewBtn.addEventListener("click", () => {
+        if (this.currentPlaceForVisitModal) {
+          this.hideVisitsListModal();
+          this.showPlanVisitForm(this.currentPlaceForVisitModal);
         }
       });
     }
   },
 
-  setupResizeObserver() {
-    if (!this.elements.mapContainer) return;
-    this.debouncedInvalidateMapSize = debounce(
-      mapHandler.invalidateMapSize.bind(mapHandler),
-      250
-    );
-    const resizeObserver = new ResizeObserver((entries) => {
-      for (let entry of entries) {
-        this.debouncedInvalidateMapSize();
-      }
-    });
-    resizeObserver.observe(this.elements.mapContainer);
-    console.log("UI Orchestrator: ResizeObserver attached to #map container.");
-  },
-
-  /**
-   * Attaches the click listener to the Leaflet map inside the iframe.
-   * Called by the script injected from mapping.py.
-   * @param {string} mapVarName - The JavaScript variable name of the map instance inside the iframe.
-   */
-  attachMapClickListener(mapVarName) {
-    console.debug(
-      `UI Orchestrator: Received request to attach listener to map var '${mapVarName}'`
-    );
-    if (!this.elements.mapIframe || !this.elements.mapIframe.contentWindow) {
-      console.error(
-        "Cannot attach listener: Map iframe or its contentWindow not found."
-      );
-      // Attempt to find iframe again if caching failed initially
-      if (this.elements.mapContainer) {
-        this.elements.mapIframe =
-          this.elements.mapContainer.querySelector("iframe");
-        if (
-          !this.elements.mapIframe ||
-          !this.elements.mapIframe.contentWindow
-        ) {
-          console.error(
-            "Still cannot find iframe or contentWindow after re-check."
-          );
-          return;
-        }
-        console.log("Found iframe on second attempt.");
-      } else {
-        return; // Give up if map container isn't even cached
-      }
-    }
-
-    const iframeWindow = this.elements.mapIframe.contentWindow;
-
-    // Function to perform the attachment
-    const tryAttach = () => {
-      try {
-        // Access the map instance using window[varName] inside the iframe's context
-        const mapInstance = iframeWindow[mapVarName];
-        if (mapInstance && typeof mapInstance.on === "function") {
-          console.log(
-            `Attaching click listener to map '${mapVarName}' in iframe.`
-          );
-          // Define the listener function *here* in the parent scope
-          const listener = (e) => {
-            // Use the globally exposed function to check pinning state
-            if (window.isPinningActive()) {
-              console.log(
-                "Parent Script (Map Event): Map clicked while pinning active. Lat:",
-                e.latlng.lat,
-                "Lng:",
-                e.latlng.lng
-              );
-              // Use the globally exposed handler
-              window.handleMapPinClick(e.latlng.lat, e.latlng.lng);
-            }
-          };
-          // Remove previous listener if any? Might not be necessary if instance is recreated.
-          // mapInstance.off('click', listener); // Be careful with listener references
-          mapInstance.on("click", listener);
-          return true; // Indicate success
-        } else {
-          console.warn(
-            `Map instance '${mapVarName}' not found or not ready in iframe yet.`
-          );
-          return false; // Indicate failure
-        }
-      } catch (err) {
-        console.error(
-          `Error attaching map click listener to '${mapVarName}':`,
-          err
-        );
-        return false; // Indicate failure
-      }
-    };
-
-    // Try immediately, and retry if it fails initially
-    if (!tryAttach()) {
-      console.log("Retrying listener attachment after delay...");
-      setTimeout(() => {
-        if (!tryAttach()) {
-          console.error(
-            `Failed to attach listener to '${mapVarName}' even after delay.`
-          );
-        }
-      }, 1500); // Increase delay further
-    }
-  },
-
-  /**
-   * Handles the map click event when pinning is active.
-   * Called by the listener attached in attachMapClickListener.
-   * @param {number} lat - Latitude of the click.
-   * @param {number} lng - Longitude of the click.
-   */
-  handleMapPinClick(lat, lng) {
-    // Use pinningUI directly as it holds the state and callback
-    if (!pinningUI.isActive || !pinningUI.updateCoordsCallback) {
-      console.warn(
-        "handleMapPinClick called but pinning not active or callback missing."
-      );
-      return;
-    }
-    console.log(
-      `Handling map pin click at [${lat}, ${lng}] for form: ${pinningUI.activeFormType}`
-    );
-    // Update the coordinates display/hidden inputs on the active form
-    pinningUI.updateCoordsCallback({ latitude: lat, longitude: lng });
-    // Deactivate pinning after click? Let's keep the confirm button workflow for now.
-  },
-
-  hideAllSections() {
-    console.debug("UI Orchestrator: Hiding all sections.");
+  hideAllSectionsAndModals() {
     if (this.elements.addPlaceWrapper)
       this.elements.addPlaceWrapper.style.display = "none";
     if (this.elements.editPlaceSection)
       this.elements.editPlaceSection.style.display = "none";
-    if (this.elements.reviewImageSection)
-      this.elements.reviewImageSection.style.display = "none";
-    if (this.elements.seeReviewSection)
-      this.elements.seeReviewSection.style.display = "none";
-
+    if (this.elements.visitReviewImageSection)
+      this.elements.visitReviewImageSection.style.display = "none";
+    if (this.elements.seeVisitReviewSection)
+      this.elements.seeVisitReviewSection.style.display = "none";
+    if (this.elements.planVisitSection)
+      this.elements.planVisitSection.style.display = "none";
+    if (this.elements.visitsListModal)
+      this.elements.visitsListModal.style.display = "none";
     pinningUI.deactivatePinning();
-
-    if (this.elements.pinningMapContainer) {
+    if (this.elements.pinningMapContainer)
       this.elements.pinningMapContainer.style.display = "none";
-    }
-
-    if (this.elements.toggleAddPlaceBtn) {
+    if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
-    }
     tagInput.destroy("edit-tags-input");
   },
 
-  // --- Show/Hide Methods ---
-  // (No changes needed in show/hide methods)
   showAddPlaceForm() {
-    this.hideAllSections();
+    this.hideAllSectionsAndModals();
     addPlaceForm.resetForm();
     if (this.elements.addPlaceWrapper) {
       this.elements.addPlaceWrapper.style.display = "block";
@@ -356,28 +295,17 @@ const uiOrchestrator = {
   },
   showEditPlaceForm(placeDataInput) {
     let placeData;
-    if (typeof placeDataInput === "string") {
-      try {
-        placeData = JSON.parse(placeDataInput);
-      } catch (e) {
-        console.error(
-          "UI Orchestrator: Failed to parse placeData JSON for edit form:",
-          e
-        );
-        alert("Error: Could not read place data to edit.");
-        return;
-      }
-    } else if (typeof placeDataInput === "object" && placeDataInput !== null) {
-      placeData = placeDataInput;
-    } else {
-      console.error(
-        "UI Orchestrator: Invalid data type received for edit form:",
-        placeDataInput
-      );
-      alert("Internal Error: Invalid data for edit form.");
+    try {
+      placeData =
+        typeof placeDataInput === "string"
+          ? JSON.parse(placeDataInput)
+          : placeDataInput;
+    } catch (e) {
+      console.error("showEditPlaceForm: Invalid placeData", e);
       return;
     }
-    this.hideAllSections();
+
+    this.hideAllSectionsAndModals();
     if (editPlaceForm.populateForm(placeData)) {
       if (this.elements.editPlaceSection) {
         this.elements.editPlaceSection.style.display = "block";
@@ -394,8 +322,6 @@ const uiOrchestrator = {
           block: "start",
         });
       }
-    } else {
-      console.error("UI Orchestrator: Failed to populate edit form.");
     }
   },
   hideEditPlaceForm() {
@@ -406,49 +332,282 @@ const uiOrchestrator = {
     pinningUI.deactivateIfActiveFor("edit");
     tagInput.destroy("edit-tags-input");
   },
-  showReviewForm(placeDataInput) {
+
+  showPlanVisitForm(placeDataInput, visitToEdit = null) {
     let placeData;
-    if (typeof placeDataInput === "string") {
-      try {
-        placeData = JSON.parse(placeDataInput);
-      } catch (e) {
-        console.error(
-          "UI Orchestrator: Failed to parse placeData JSON for review form:",
-          e
-        );
-        alert("Error: Could not read place data for review.");
-        return;
-      }
-    } else if (typeof placeDataInput === "object" && placeDataInput !== null) {
-      placeData = placeDataInput;
-    } else {
-      console.error(
-        "UI Orchestrator: Invalid data type received for review form:",
-        placeDataInput
-      );
-      alert("Internal Error: Invalid data for review form.");
+    try {
+      placeData =
+        typeof placeDataInput === "string"
+          ? JSON.parse(placeDataInput)
+          : placeDataInput;
+    } catch (e) {
+      console.error("showPlanVisitForm: Invalid placeData", e);
       return;
     }
-    this.hideAllSections();
-    if (reviewForm.populateForm(placeData)) {
-      if (this.elements.reviewImageSection) {
-        this.elements.reviewImageSection.style.display = "block";
-        if (this.elements.toggleAddPlaceBtn)
-          this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
-        this.elements.reviewImageSection.scrollIntoView({
+
+    if (!placeData || !placeData.id) {
+      alert("Cannot plan a visit without valid place information.");
+      return;
+    }
+
+    this.hideAllSectionsAndModals();
+    if (visitForm.populateForm(placeData, visitToEdit)) {
+      if (this.elements.planVisitSection) {
+        this.elements.planVisitSection.style.display = "block";
+        this.elements.planVisitSection.scrollIntoView({
           behavior: "smooth",
           block: "start",
         });
       }
-    } else {
-      console.error("UI Orchestrator: Failed to populate review form.");
     }
   },
-  hideReviewForm() {
-    if (this.elements.reviewImageSection)
-      this.elements.reviewImageSection.style.display = "none";
-    if (this.elements.toggleAddPlaceBtn)
-      this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
+  hidePlanVisitForm() {
+    if (this.elements.planVisitSection)
+      this.elements.planVisitSection.style.display = "none";
+  },
+
+  showVisitReviewForm(visitDataInput, placeName = "this place") {
+    let visitData;
+    try {
+      visitData =
+        typeof visitDataInput === "string"
+          ? JSON.parse(visitDataInput)
+          : visitDataInput;
+    } catch (e) {
+      console.error("showVisitReviewForm: Invalid visitData", e);
+      return;
+    }
+
+    if (!visitData || !visitData.id) {
+      alert("Cannot add/edit review without valid visit information.");
+      return;
+    }
+
+    this.hideAllSectionsAndModals();
+    if (reviewForm.populateForm(visitData, placeName)) {
+      // reviewForm.populateForm needs to be adapted
+      if (this.elements.visitReviewImageSection) {
+        this.elements.visitReviewImageSection.style.display = "block";
+        this.elements.visitReviewImageSection.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      }
+    }
+  },
+  hideVisitReviewForm() {
+    if (this.elements.visitReviewImageSection)
+      this.elements.visitReviewImageSection.style.display = "none";
+  },
+
+  async showVisitsListModal(placeDataInput) {
+    let placeData;
+    try {
+      placeData =
+        typeof placeDataInput === "string"
+          ? JSON.parse(placeDataInput)
+          : placeDataInput;
+    } catch (e) {
+      console.error("showVisitsListModal: Invalid placeData", e);
+      return;
+    }
+
+    if (
+      !placeData ||
+      !placeData.id ||
+      !this.elements.visitsListModal ||
+      !this.elements.visitsListContent ||
+      !this.elements.visitsListPlaceTitle ||
+      !this.elements.visitsListStatus
+    )
+      return;
+
+    this.currentPlaceForVisitModal = placeData;
+    this.hideAllSectionsAndModals();
+    this.elements.visitsListPlaceTitle.textContent = `"${
+      placeData.name || "Unknown Place"
+    }"`;
+    this.elements.visitsListContent.innerHTML = "<p>Loading visits...</p>";
+    setStatusMessage(this.elements.visitsListStatus, "", "info");
+    this.elements.visitsListModal.style.display = "block";
+    this.elements.visitsListModal.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
+
+    try {
+      const response = await apiClient.get(
+        `/api/v1/places/${placeData.id}/visits`
+      );
+      if (!response.ok) {
+        const errData = await response
+          .json()
+          .catch(() => ({ detail: "Failed to load visits." }));
+        throw new Error(errData.detail || `Error ${response.status}`);
+      }
+      const visits = await response.json();
+      this.renderVisitsList(visits, placeData);
+    } catch (error) {
+      this.elements.visitsListContent.innerHTML = `<p class="error-message">Could not load visits: ${error.message}</p>`;
+    }
+  },
+  hideVisitsListModal() {
+    if (this.elements.visitsListModal)
+      this.elements.visitsListModal.style.display = "none";
+    this.elements.visitsListContent.innerHTML = "";
+    this.currentPlaceForVisitModal = null;
+  },
+
+  renderVisitsList(visits, placeData) {
+    if (!this.elements.visitsListContent) return;
+    if (!visits || visits.length === 0) {
+      this.elements.visitsListContent.innerHTML =
+        "<p>No visits recorded for this place yet.</p>";
+      return;
+    }
+    let html = '<ul class="visits-ul">';
+    const now = new Date();
+    visits.forEach((visit) => {
+      const visitDate = new Date(visit.visit_datetime);
+      const isFuture = visitDate >= now;
+      const formattedDate = visitDate.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      });
+      const formattedTime = visitDate.toLocaleTimeString(undefined, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      html += `<li class="visit-item ${isFuture ? "future-visit" : ""}">`;
+      html += `<strong>${formattedDate} at ${formattedTime}</strong> ${
+        isFuture ? '<span class="future-tag">(Upcoming)</span>' : ""
+      }<br>`;
+      if (visit.review_title) {
+        html += `<em>${this.escapeHTML(visit.review_title)}</em><br>`;
+      } else if (visit.rating || visit.review_text) {
+        html += `<em>(Review present)</em><br>`;
+      }
+      const visitJson = this.escapeHTML(JSON.stringify(visit));
+      const placeNameString = placeData.name || "this place";
+      const placeNameAttr = this.escapeHTML(JSON.stringify(placeNameString));
+      html += `<div class="visit-item-actions">
+                    <button type="button" class="small-btn edit-visit-schedule-btn" data-visit='${visitJson}' title="Edit Visit Date/Time/Reminders">Edit Schedule</button>
+                    <button type="button" class="small-btn review-visit-btn" data-visit='${visitJson}' data-placename='${placeNameAttr}' title="Add/Edit Review for this Visit">${
+        visit.review_title || visit.review_text || visit.rating
+          ? "Edit/See Review"
+          : "Add Review"
+      }</button>
+                    <button type="button" class="small-btn delete-visit-btn" data-visit-id="${
+                      visit.id
+                    }" title="Delete this Visit">Delete Visit</button>
+                 </div></li>`;
+    });
+    html += "</ul>";
+    this.elements.visitsListContent.innerHTML = html;
+    this.elements.visitsListContent
+      .querySelectorAll(".edit-visit-schedule-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const visitData = JSON.parse(e.currentTarget.dataset.visit);
+          this.hideVisitsListModal();
+          this.showPlanVisitForm(this.currentPlaceForVisitModal, visitData);
+        });
+      });
+    this.elements.visitsListContent
+      .querySelectorAll(".review-visit-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const visitData = JSON.parse(e.currentTarget.dataset.visit);
+          const placeName = JSON.parse(e.currentTarget.dataset.placename);
+          this.hideVisitsListModal();
+          if (
+            visitData.review_title ||
+            visitData.review_text ||
+            visitData.rating ||
+            visitData.image_url
+          ) {
+            modals.showSeeReviewModal(visitData, placeName);
+          } else {
+            this.showVisitReviewForm(visitData, placeName);
+          }
+        });
+      });
+    this.elements.visitsListContent
+      .querySelectorAll(".delete-visit-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", (e) =>
+          this.handleDeleteVisit(e.currentTarget.dataset.visitId)
+        );
+      });
+  },
+
+  // escapeHTML(str) {
+  //   if (str === null || str === undefined) return '';
+  //   return String(str).replace(/[&<>"']/g, function (match) {
+  //       return { '&': '&', '<': '<', '>': '>', '"': '"', "'": ''' }[match];
+  //   });
+  // },
+
+  escapeHTML(str) {
+    if (str === null || str === undefined) return "";
+    return String(str).replace(
+      /[&<>"']/g,
+      (match) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        }[match])
+    );
+  },
+
+  async handleDeleteVisit(visitId) {
+    if (!visitId || !this.elements.visitsListStatus) return; // Added check for visitsListStatus
+    if (
+      !confirm(
+        "Are you sure you want to delete this visit? This cannot be undone."
+      )
+    )
+      return;
+
+    setStatusMessage(
+      this.elements.visitsListStatus,
+      "Deleting visit...",
+      "loading"
+    );
+    try {
+      const response = await apiClient.delete(`/api/v1/visits/${visitId}`); // apiClient was missing
+      if (response.ok || response.status === 204) {
+        setStatusMessage(
+          this.elements.visitsListStatus,
+          "Visit deleted successfully.",
+          "success"
+        );
+        if (this.currentPlaceForVisitModal) {
+          this.showVisitsListModal(this.currentPlaceForVisitModal);
+        }
+        this.handleVisitSaved();
+      } else {
+        const errData = await response
+          .json()
+          .catch(() => ({ detail: "Failed to delete visit." }));
+        throw new Error(errData.detail || `Error ${response.status}`);
+      }
+    } catch (error) {
+      setStatusMessage(
+        this.elements.visitsListStatus,
+        `Error: ${error.message}`,
+        "error"
+      );
+    }
+  },
+
+  handleVisitSaved(savedVisitData) {
+    console.log("Visit saved/updated, refreshing map data:", savedVisitData);
+    window.location.reload();
   },
 };
 
