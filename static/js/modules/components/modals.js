@@ -19,7 +19,7 @@ const modals = {
   },
   currentVisitDataForReviewModal: null,
   currentPlaceNameForReviewModal: null,
-  editVisitReviewCallback: null,
+  editVisitReviewCallback: null, // This will be uiOrchestrator.showVisitReviewForm
 
   init(editReviewFn) {
     this.editVisitReviewCallback = editReviewFn;
@@ -32,7 +32,7 @@ const modals = {
       "see-visit-review-section"
     );
     if (!this.elements.seeVisitReviewSection) {
-      // console.warn("Modals: See Visit Review section element not found."); // Optional warning
+      // console.warn("Modals: See Visit Review section element not found."); // Optional for dev
       return;
     }
     this.elements.seeVisitReviewPlaceTitle = document.getElementById(
@@ -146,6 +146,7 @@ const modals = {
     try {
       if (els.seeVisitReviewPlaceTitle)
         els.seeVisitReviewPlaceTitle.textContent = `"${this.currentPlaceNameForReviewModal}"`;
+
       if (els.seeVisitReviewDateTime && visitData.visit_datetime) {
         const visitDate = new Date(visitData.visit_datetime);
         const formattedDate = visitDate.toLocaleDateString(undefined, {
@@ -161,6 +162,7 @@ const modals = {
       } else if (els.seeVisitReviewDateTime) {
         els.seeVisitReviewDateTime.textContent = "(Date/Time not available)";
       }
+
       this.displayStaticRatingStars(
         els.seeVisitReviewRatingDisplay,
         visitData.rating

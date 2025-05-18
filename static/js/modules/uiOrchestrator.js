@@ -8,6 +8,7 @@ import addPlaceForm from "./forms/addPlaceForm.js";
 import editPlaceForm from "./forms/editPlaceForm.js";
 import reviewForm from "./forms/reviewForm.js";
 import visitForm from "./forms/visitForm.js";
+import icsCustomizeForm from "./forms/icsCustomizeForm.js";
 import modals from "./components/modals.js";
 import pinningUI from "./components/pinningUI.js";
 import mapHandler from "./mapHandler.js";
@@ -41,6 +42,7 @@ const uiOrchestrator = {
     visitsListStatus: null,
     visitsListCloseBtn: null,
     visitsListPlanNewBtn: null,
+    icsCustomizeModal: null,
     mapContainer: null,
     mapIframe: null,
     pinningMapContainer: null,
@@ -69,14 +71,17 @@ const uiOrchestrator = {
       this.hideEditPlaceForm.bind(this)
     );
     reviewForm.init(
+      // Pass hide callback and save callback
       this.hideVisitReviewForm.bind(this),
       this.handleVisitSaved.bind(this)
     );
     visitForm.init(
+      // Pass hide callback and save callback
       this.hidePlanVisitForm.bind(this),
       this.handleVisitSaved.bind(this)
     );
-    modals.init(this.showVisitReviewForm.bind(this));
+    icsCustomizeForm.init(this.hideIcsCustomizeModal.bind(this));
+    modals.init(this.showVisitReviewForm.bind(this)); // For "Edit Review" from modal
     pinningUI.init(this.isMapReady);
 
     if (this.elements.tagFilterInput) {
@@ -100,20 +105,21 @@ const uiOrchestrator = {
 
     this.setupEventListeners();
 
+    // Expose necessary functions globally for iframe/popup interaction
     window.attachMapClickListener = this.attachMapClickListener.bind(this);
     window.isPinningActive = () => pinningUI.isActive;
     window.handleMapPinClick = this.handleMapPinClick.bind(this);
     window.showEditPlaceForm = this.showEditPlaceForm.bind(this);
-    window.showImageOverlay = modals.showImageOverlay.bind(this);
+    window.showImageOverlay = modals.showImageOverlay.bind(modals);
     window.showPlanVisitForm = this.showPlanVisitForm.bind(this);
     window.showVisitsListModal = this.showVisitsListModal.bind(this);
     window.showSeeVisitReviewModal = modals.showSeeReviewModal.bind(modals);
     window.showVisitReviewForm = this.showVisitReviewForm.bind(this);
+    window.showIcsCustomizeModal = this.showIcsCustomizeModal.bind(this);
 
     if (this.isMapReady && this.elements.mapContainer) {
       this.setupResizeObserver();
     }
-    // console.log("UI Orchestrator: Initialization complete."); // Production: remove or make conditional
   },
 
   cacheDOMElements() {
@@ -151,6 +157,9 @@ const uiOrchestrator = {
         "visits-list-plan-new-btn"
       );
     }
+    this.elements.icsCustomizeModal = document.getElementById(
+      "ics-customize-modal"
+    );
     this.elements.mapContainer = document.getElementById("map");
     if (this.elements.mapContainer) {
       this.elements.mapIframe =
@@ -174,7 +183,6 @@ const uiOrchestrator = {
         this.allUserTags = [];
       }
     } else {
-      // console.warn("User tags data element not found."); // Production: remove or make conditional
       this.allUserTags = [];
     }
   },
@@ -233,7 +241,6 @@ const uiOrchestrator = {
 
   handleMapPinClick(lat, lng) {
     if (!pinningUI.isActive || !pinningUI.updateCoordsCallback) {
-      // console.warn("handleMapPinClick called but pinning not active or callback missing."); // Production: remove
       return;
     }
     pinningUI.updateCoordsCallback({ latitude: lat, longitude: lng });
@@ -268,10 +275,10 @@ const uiOrchestrator = {
           self.showPlanVisitForm(clonedPlaceData, null);
         } else {
           alert(
-            "Error: Place context lost or invalid for planning another visit (pre-call check)."
+            "Error: Place context lost or invalid for planning another visit."
           );
           console.error(
-            "Plan Another Visit: placeDataForCall is null, undefined, or lacks an ID.",
+            "Plan Another Visit: currentPlaceForVisitModal is null, undefined, or lacks an ID.",
             placeDataForCall
           );
         }
@@ -280,7 +287,6 @@ const uiOrchestrator = {
   },
 
   hideAllSectionsAndModals() {
-    // console.debug("UI Orchestrator: Hiding all sections and modals."); // Production: remove
     if (this.elements.addPlaceWrapper)
       this.elements.addPlaceWrapper.style.display = "none";
     if (this.elements.editPlaceSection)
@@ -293,6 +299,8 @@ const uiOrchestrator = {
       this.elements.planVisitSection.style.display = "none";
     if (this.elements.visitsListModal)
       this.elements.visitsListModal.style.display = "none";
+    if (this.elements.icsCustomizeModal)
+      this.elements.icsCustomizeModal.style.display = "none";
     pinningUI.deactivatePinning();
     if (this.elements.pinningMapContainer)
       this.elements.pinningMapContainer.style.display = "none";
@@ -321,6 +329,7 @@ const uiOrchestrator = {
     if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
     pinningUI.deactivateIfActiveFor("add");
+    window.location.reload(); // Refresh after closing add form
   },
 
   showEditPlaceForm(placeDataInput) {
@@ -377,6 +386,7 @@ const uiOrchestrator = {
       this.elements.editPlaceSection.style.display = "none";
     pinningUI.deactivateIfActiveFor("edit");
     tagInput.destroy("edit-tags-input");
+    window.location.reload(); // Refresh after closing edit form
   },
 
   showPlanVisitForm(placeDataInput, visitToEdit = null) {
@@ -423,8 +433,10 @@ const uiOrchestrator = {
   },
 
   hidePlanVisitForm() {
-    if (this.elements.planVisitSection)
+    if (this.elements.planVisitSection) {
       this.elements.planVisitSection.style.display = "none";
+    }
+    window.location.reload(); // Refresh after closing plan/edit visit form
   },
 
   showVisitReviewForm(visitDataInput, placeName = "this place") {
@@ -469,8 +481,10 @@ const uiOrchestrator = {
   },
 
   hideVisitReviewForm() {
-    if (this.elements.visitReviewImageSection)
+    if (this.elements.visitReviewImageSection) {
       this.elements.visitReviewImageSection.style.display = "none";
+    }
+    window.location.reload(); // Refresh after closing review form
   },
 
   async showVisitsListModal(placeDataInput) {
@@ -507,7 +521,7 @@ const uiOrchestrator = {
     }
 
     this.currentPlaceForVisitModal = placeData;
-    this.hideAllSectionsAndModals();
+    this.hideAllSectionsAndModals(); // Hide other forms before showing modal
     this.elements.visitsListPlaceTitle.textContent = `"${
       placeData.name || "Unknown Place"
     }"`;
@@ -543,6 +557,7 @@ const uiOrchestrator = {
     if (this.elements.visitsListContent)
       this.elements.visitsListContent.innerHTML = "";
     this.currentPlaceForVisitModal = null;
+    // No automatic reload here, user might open another modal or form
   },
 
   renderVisitsList(visits, placeData) {
@@ -576,8 +591,11 @@ const uiOrchestrator = {
         html += `<em>(Review present)</em><br>`;
       }
       const visitJson = this.escapeHTML(JSON.stringify(visit));
-      const placeNameString = placeData.name || "this place";
-      const placeNameAttr = this.escapeHTML(JSON.stringify(placeNameString));
+      const placeJson = this.escapeHTML(JSON.stringify(placeData));
+      const placeNameAttr = this.escapeHTML(
+        JSON.stringify(placeData.name || "this place")
+      );
+
       html += `<div class="visit-item-actions">
                     <button type="button" class="small-btn edit-visit-schedule-btn" data-visit='${visitJson}' title="Edit Visit Date/Time/Reminders">Edit Schedule</button>
                     <button type="button" class="small-btn review-visit-btn" data-visit='${visitJson}' data-placename='${placeNameAttr}' title="Add/Edit Review for this Visit">${
@@ -587,8 +605,11 @@ const uiOrchestrator = {
       }</button>
                     <button type="button" class="small-btn delete-visit-btn" data-visit-id="${
                       visit.id
-                    }" title="Delete this Visit">Delete Visit</button>
-                 </div></li>`;
+                    }" title="Delete this Visit">Delete Visit</button>`;
+      if (isFuture) {
+        html += `<button type="button" class="small-btn add-to-calendar-btn" data-visit='${visitJson}' data-place='${placeJson}' title="Add to Calendar"><i class="fas fa-calendar-plus"></i> Calendar</button>`;
+      }
+      html += `</div></li>`;
     });
     html += "</ul>";
     this.elements.visitsListContent.innerHTML = html;
@@ -641,6 +662,45 @@ const uiOrchestrator = {
           this.handleDeleteVisit(e.currentTarget.dataset.visitId)
         );
       });
+    this.elements.visitsListContent
+      .querySelectorAll(".add-to-calendar-btn")
+      .forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          const visitData = JSON.parse(e.currentTarget.dataset.visit);
+          const parentPlaceData = JSON.parse(e.currentTarget.dataset.place);
+          this.showIcsCustomizeModal(visitData, parentPlaceData);
+        });
+      });
+  },
+
+  showIcsCustomizeModal(visitData, placeData) {
+    if (!visitData || !visitData.id || !placeData || !placeData.id) {
+      console.error("showIcsCustomizeModal: Missing visit or place data.");
+      alert("Cannot generate calendar event: essential data missing.");
+      return;
+    }
+    this.hideAllSectionsAndModals();
+    if (icsCustomizeForm.populateForm(visitData, placeData)) {
+      if (this.elements.icsCustomizeModal) {
+        this.elements.icsCustomizeModal.style.display = "block";
+        this.elements.icsCustomizeModal.scrollIntoView({
+          behavior: "smooth",
+          block: "center",
+        });
+      }
+    } else {
+      console.error(
+        "UI Orchestrator: Failed to populate ICS customization modal."
+      );
+    }
+  },
+
+  hideIcsCustomizeModal() {
+    if (this.elements.icsCustomizeModal) {
+      this.elements.icsCustomizeModal.style.display = "none";
+    }
+    // Consider if a reload is needed after closing ICS modal, e.g., if user might expect main list to update.
+    // For now, no automatic reload here.
   },
 
   escapeHTML(str) {
@@ -677,7 +737,7 @@ const uiOrchestrator = {
           "Visit deleted successfully! Refreshing...",
           "success"
         );
-        this.handleVisitSaved(); // This will call window.location.reload()
+        this.handleVisitSaved(); // Reloads the page
       } else {
         const errData = await response
           .json()
@@ -695,7 +755,7 @@ const uiOrchestrator = {
   },
 
   handleVisitSaved(savedVisitData) {
-    // console.log("Visit saved/updated, will refresh page to show changes:", savedVisitData); // Production: remove
+    // console.log("Visit saved/updated, will refresh page to show changes:", savedVisitData);
     window.location.reload();
   },
 };

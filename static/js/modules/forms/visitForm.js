@@ -15,12 +15,11 @@ const visitForm = {
     visitIdInput: null,
     dateInput: null,
     timeInput: null,
-    reminderEnabledCheckbox: null,
-    reminderOptionsDiv: null,
-    reminderOffsetCheckboxes: [],
     statusMessage: null,
     submitBtn: null,
     cancelBtn: null,
+    calendarActionDiv: null,
+    addToCalendarBtn: null,
   },
   currentPlaceData: null,
   currentVisitData: null,
@@ -51,20 +50,15 @@ const visitForm = {
     this.elements.visitIdInput = document.getElementById("plan-visit-id");
     this.elements.dateInput = document.getElementById("visit-date");
     this.elements.timeInput = document.getElementById("visit-time");
-    this.elements.reminderEnabledCheckbox = document.getElementById(
-      "visit-reminder-enabled"
-    );
-    this.elements.reminderOptionsDiv = document.getElementById(
-      "visit-reminder-options"
-    );
-    this.elements.reminderOffsetCheckboxes = Array.from(
-      this.elements.reminderOptionsDiv?.querySelectorAll(
-        'input[name="reminder_offsets"]'
-      ) || []
-    );
     this.elements.statusMessage = document.getElementById("plan-visit-status");
     this.elements.submitBtn = document.getElementById("plan-visit-submit-btn");
     this.elements.cancelBtn = document.getElementById("plan-visit-cancel-btn");
+    this.elements.calendarActionDiv = document.getElementById(
+      "plan-visit-calendar-action"
+    );
+    this.elements.addToCalendarBtn = document.getElementById(
+      "plan-visit-add-to-calendar-btn"
+    );
   },
 
   setupEventListeners() {
@@ -72,27 +66,40 @@ const visitForm = {
     this.elements.form.addEventListener("submit", (event) =>
       this.handleSubmit(event)
     );
+
     if (this.elements.cancelBtn && this.hideCallback) {
-      this.elements.cancelBtn.addEventListener("click", () =>
-        this.hideCallback()
-      );
+      this.elements.cancelBtn.addEventListener("click", () => {
+        if (this.elements.calendarActionDiv)
+          this.elements.calendarActionDiv.style.display = "none";
+        this.hideCallback(); // This will trigger uiOrchestrator.hidePlanVisitForm -> window.location.reload()
+      });
     }
-    if (
-      this.elements.reminderEnabledCheckbox &&
-      this.elements.reminderOptionsDiv
-    ) {
-      this.elements.reminderEnabledCheckbox.addEventListener(
-        "change",
-        (event) => {
-          this.elements.reminderOptionsDiv.style.display = event.target.checked
-            ? "block"
-            : "none";
+
+    if (this.elements.addToCalendarBtn) {
+      this.elements.addToCalendarBtn.addEventListener("click", () => {
+        if (this.currentVisitData && this.currentPlaceData) {
+          if (window.showIcsCustomizeModal) {
+            window.showIcsCustomizeModal(
+              this.currentVisitData,
+              this.currentPlaceData
+            );
+          } else {
+            console.error(
+              "showIcsCustomizeModal function not found on window."
+            );
+            alert("Error: Calendar feature not available.");
+          }
+        } else {
+          console.error(
+            "Add to Calendar: Missing currentVisitData or currentPlaceData."
+          );
+          alert("Error: Cannot add to calendar, visit/place data is missing.");
         }
-      );
+      });
     }
   },
 
-  populateForm(placeData, visitData = null) {
+  populateForm(placeData, visitDataToEdit = null) {
     if (!this.elements.form || !placeData || !placeData.id) {
       console.error(
         "Visit Form: Cannot populate - missing form or valid placeData."
@@ -100,12 +107,12 @@ const visitForm = {
       return false;
     }
     this.currentPlaceData = placeData;
-    this.currentVisitData = visitData;
+    this.currentVisitData = visitDataToEdit;
 
     this.elements.form.reset();
-    if (this.elements.reminderOptionsDiv)
-      this.elements.reminderOptionsDiv.style.display = "none";
     setStatusMessage(this.elements.statusMessage, "", "info");
+    if (this.elements.calendarActionDiv)
+      this.elements.calendarActionDiv.style.display = "none";
 
     if (this.elements.placeTitleSpan)
       this.elements.placeTitleSpan.textContent = `"${
@@ -114,41 +121,24 @@ const visitForm = {
     if (this.elements.placeIdInput)
       this.elements.placeIdInput.value = placeData.id;
 
-    if (visitData) {
+    if (visitDataToEdit) {
       if (this.elements.formTitle)
         this.elements.formTitle.textContent = "Edit Visit for:";
       if (this.elements.visitIdInput)
-        this.elements.visitIdInput.value = visitData.id;
+        this.elements.visitIdInput.value = visitDataToEdit.id;
       if (this.elements.submitBtn)
         this.elements.submitBtn.textContent = "Save Changes";
 
-      if (this.elements.dateInput && visitData.visit_datetime) {
-        this.elements.dateInput.value = new Date(visitData.visit_datetime)
+      if (this.elements.dateInput && visitDataToEdit.visit_datetime) {
+        this.elements.dateInput.value = new Date(visitDataToEdit.visit_datetime)
           .toISOString()
           .split("T")[0];
       }
-      if (this.elements.timeInput && visitData.visit_datetime) {
-        const timeStr = new Date(visitData.visit_datetime)
+      if (this.elements.timeInput && visitDataToEdit.visit_datetime) {
+        const timeStr = new Date(visitDataToEdit.visit_datetime)
           .toTimeString()
           .split(" ")[0];
         this.elements.timeInput.value = timeStr.substring(0, 5);
-      }
-      if (this.elements.reminderEnabledCheckbox) {
-        this.elements.reminderEnabledCheckbox.checked =
-          visitData.reminder_enabled || false;
-        if (this.elements.reminderOptionsDiv)
-          this.elements.reminderOptionsDiv.style.display =
-            visitData.reminder_enabled ? "block" : "none";
-      }
-      if (
-        this.elements.reminderOffsetCheckboxes.length > 0 &&
-        visitData.reminder_offsets_hours
-      ) {
-        this.elements.reminderOffsetCheckboxes.forEach((cb) => {
-          cb.checked = visitData.reminder_offsets_hours.includes(
-            parseInt(cb.value)
-          );
-        });
       }
     } else {
       if (this.elements.formTitle)
@@ -185,10 +175,13 @@ const visitForm = {
 
     setStatusMessage(this.elements.statusMessage, "Saving visit...", "loading");
     if (this.elements.submitBtn) this.elements.submitBtn.disabled = true;
+    if (this.elements.calendarActionDiv)
+      this.elements.calendarActionDiv.style.display = "none";
 
-    const formData = new FormData(this.elements.form);
     const placeId = this.currentPlaceData.id;
-    const visitId = this.currentVisitData ? this.currentVisitData.id : null;
+    const visitIdBeingEdited = this.currentVisitData
+      ? this.currentVisitData.id
+      : null;
     const dateValue = this.elements.dateInput.value;
     const timeValue = this.elements.timeInput.value;
 
@@ -212,30 +205,21 @@ const visitForm = {
       return;
     }
     const visit_datetime_iso = localDateTime.toISOString();
-    // console.log("VisitForm: Scheduling visit with visit_datetime (ISO UTC):", visit_datetime_iso); // Keep for debugging if status issue persists
-
-    const reminderEnabled = this.elements.reminderEnabledCheckbox
-      ? this.elements.reminderEnabledCheckbox.checked
-      : false;
-    let reminderOffsets = [];
-    if (reminderEnabled && this.elements.reminderOffsetCheckboxes.length > 0) {
-      this.elements.reminderOffsetCheckboxes.forEach((cb) => {
-        if (cb.checked) reminderOffsets.push(parseInt(cb.value));
-      });
-    }
+    // For debugging status issues:
+    // console.log("VisitForm: Scheduling visit with visit_datetime (ISO UTC):", visit_datetime_iso);
 
     const payload = {
       place_id: parseInt(placeId),
       visit_datetime: visit_datetime_iso,
-      reminder_enabled: reminderEnabled,
-      reminder_offsets_hours:
-        reminderOffsets.length > 0 ? reminderOffsets : null,
     };
 
     let response;
     try {
-      if (visitId) {
-        response = await apiClient.put(`/api/v1/visits/${visitId}`, payload);
+      if (visitIdBeingEdited) {
+        response = await apiClient.put(
+          `/api/v1/visits/${visitIdBeingEdited}`,
+          payload
+        );
       } else {
         response = await apiClient.post(
           `/api/v1/places/${placeId}/visits`,
@@ -243,28 +227,38 @@ const visitForm = {
         );
       }
       const result = await response.json();
+
       if (response.ok) {
+        this.currentVisitData = result;
         setStatusMessage(
           this.elements.statusMessage,
-          `Visit ${visitId ? "updated" : "scheduled"} successfully!`,
+          `Visit ${visitIdBeingEdited ? "updated" : "scheduled"} successfully!`,
           "success"
         );
-        if (this.onVisitSavedCallback) this.onVisitSavedCallback(result);
-        setTimeout(() => {
-          if (this.hideCallback) this.hideCallback();
-        }, 1500);
+
+        const savedVisitDate = new Date(this.currentVisitData.visit_datetime);
+        if (savedVisitDate >= new Date() && this.elements.calendarActionDiv) {
+          this.elements.calendarActionDiv.style.display = "block";
+        } else if (this.elements.calendarActionDiv) {
+          this.elements.calendarActionDiv.style.display = "none";
+        }
+
+        if (this.onVisitSavedCallback) {
+          this.onVisitSavedCallback(result);
+        }
+        if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
       } else {
         setStatusMessage(
           this.elements.statusMessage,
           result.detail ||
-            `Failed to ${visitId ? "update" : "schedule"} visit.`,
+            `Failed to ${visitIdBeingEdited ? "update" : "schedule"} visit.`,
           "error"
         );
         if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
       }
     } catch (error) {
       console.error(
-        `Error ${visitId ? "updating" : "scheduling"} visit:`,
+        `Error ${visitIdBeingEdited ? "updating" : "scheduling"} visit:`,
         error
       );
       setStatusMessage(

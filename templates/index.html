@@ -1,4 +1,3 @@
-<!-- File: /templates/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 
@@ -191,27 +190,18 @@
                         </div>
                     </div>
 
-                    <div class="form-group reminder-group">
-                        <input type="checkbox" id="visit-reminder-enabled" name="reminder_enabled" value="true">
-                        <label for="visit-reminder-enabled" class="inline-label">Send Email Reminder(s)</label>
+                    <p style="font-size: 0.9em; color: var(--text-muted); margin-top: 20px; margin-bottom: 10px;">
+                        After saving this visit, you can add it to your personal calendar. You can do it here or from the "View Visits" list.
+                    </p>
+
+                    <div id="plan-visit-status" class="status-message"></div>
+
+                    <div id="plan-visit-calendar-action" style="display:none; margin-top: 15px; text-align: center;">
+                        <button type="button" id="plan-visit-add-to-calendar-btn" class="button-secondary">
+                            <i class="fas fa-calendar-plus"></i> Add to Calendar
+                        </button>
                     </div>
 
-                    <div id="visit-reminder-options" style="display: none;">
-                        <p>Remind me:</p>
-                        <div>
-                            <input type="checkbox" id="reminder-offset-48" name="reminder_offsets" value="48">
-                            <label for="reminder-offset-48" class="inline-label">48 hours before</label>
-                        </div>
-                        <div>
-                            <input type="checkbox" id="reminder-offset-24" name="reminder_offsets" value="24">
-                            <label for="reminder-offset-24" class="inline-label">24 hours before</label>
-                        </div>
-                        <div>
-                            <input type="checkbox" id="reminder-offset-12" name="reminder_offsets" value="12">
-                            <label for="reminder-offset-12" class="inline-label">12 hours before</label>
-                        </div>
-                    </div>
-                    <div id="plan-visit-status" class="status-message"></div>
                     <div class="form-actions">
                         <button type="submit" id="plan-visit-submit-btn">Save Visit</button>
                         <button type="button" class="cancel-btn" id="plan-visit-cancel-btn">Cancel</button>
@@ -226,13 +216,10 @@
                     <h2>Add/Edit Review for Visit to: <span id="visit-review-place-title"></span></h2>
                     <p>on <span id="visit-review-datetime-display"></span></p>
                     <input type="hidden" id="visit-review-visit-id" name="visit_id">
-
                     <label for="visit-review-title">Review Title:</label>
                     <input type="text" id="visit-review-title" name="review_title" maxlength="150">
-
                     <label for="visit-review-text">Review Text:</label>
                     <textarea id="visit-review-text" name="review_text" rows="5" maxlength="1000"></textarea>
-
                     <label for="visit-review-rating">Rating:</label>
                     <div class="rating-stars" id="visit-review-rating-stars">
                         <span class="star" data-value="1"><i class="far fa-star"></i></span>
@@ -242,12 +229,10 @@
                         <span class="star" data-value="5"><i class="far fa-star"></i></span>
                     </div>
                     <input type="hidden" id="visit-review-rating" name="rating">
-
                     <label for="visit-review-image">Upload/Replace Image for this Visit (Optional):</label>
                     <input type="file" id="visit-review-image" name="image"
                         accept="image/jpeg, image/png, image/gif, image/webp">
                     <p class="password-hint">Max file size ~5MB recommended.</p>
-
                     <div id="current-visit-image-review-section" style="display:none;">
                         <label>Current Visit Image:</label>
                         <img id="current-visit-image-review-thumb" src="" alt="Current visit image">
@@ -296,6 +281,67 @@
                     <button type="button" class="cancel-btn" id="visits-list-close-btn">Close</button>
                 </div>
             </fieldset>
+        </section>
+
+        <section class="modal-section" id="ics-customize-modal" style="display: none;">
+            <form id="ics-customize-form">
+                <fieldset>
+                    <h2>Calendar Event Details for <span id="ics-modal-visit-title">Visit</span></h2>
+                    <input type="hidden" id="ics-visit-id" name="visit_id">
+
+                    <div>
+                        <label for="ics-event-name">Event Name:</label>
+                        <input type="text" id="ics-event-name" name="event_name" required maxlength="200">
+                    </div>
+
+                    <div class="form-row" style="margin-top: 15px;">
+                        <div>
+                            <label for="ics-duration-value">Duration:</label>
+                            <input type="number" id="ics-duration-value" name="duration_value" value="1" min="1"
+                                max="999" required
+                                style="width: 80px; text-align: right; padding-right: 5px; height: 45px; vertical-align: middle;">
+                        </div>
+                        <div style="align-self: flex-end;">
+                            <label for="ics-duration-unit" class="sr-only">Duration Unit:</label>
+                            <select id="ics-duration-unit" name="duration_unit"
+                                style="height: 45px; vertical-align: middle;">
+                                <option value="hours" selected>Hour(s)</option>
+                                <option value="minutes">Minute(s)</option>
+                                <option value="days">Day(s)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div
+                        style="margin-top: 20px; margin-bottom: 20px; padding:15px; background-color: #f8f9fa; border-radius: 6px; border: 1px solid var(--border-color);">
+                        <p style="font-size: 0.95em; color: var(--text-muted); margin-bottom: 10px; font-weight:500;">
+                            Include Reminders in Calendar Event:</p>
+                        <div>
+                            <input type="checkbox" id="ics-remind-1-day" name="remind_1_day_before" value="true"
+                                checked>
+                            <label for="ics-remind-1-day" class="inline-label">1 day before</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="ics-remind-2-hours" name="remind_2_hours_before" value="true"
+                                checked>
+                            <label for="ics-remind-2-hours" class="inline-label">2 hours before</label>
+                        </div>
+                        <div>
+                            <input type="checkbox" id="ics-remind-15-mins" name="remind_15_mins_before" value="true">
+                            <label for="ics-remind-15-mins" class="inline-label">15 minutes before</label>
+                        </div>
+                    </div>
+                    <div id="ics-customize-status" class="status-message"></div>
+                    <div id="ics-instructions" class="instructions-message"
+                        style="display:none; margin-top:10px; padding:10px; background-color: #eef; border-radius:4px;">
+                        {/* Instructions will be injected here by JS */}
+                    </div>
+                    <div class="form-actions">
+                        <button type="submit" id="ics-download-btn">Download .ics File</button>
+                        <button type="button" class="cancel-btn" id="ics-customize-cancel-btn">Cancel</button>
+                    </div>
+                </fieldset>
+            </form>
         </section>
 
         <div id="pinning-map-container">

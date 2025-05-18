@@ -17,3 +17,7 @@ email-validator>=2.0.0 # For Pydantic EmailStr validation
 #--- Environment Loading ---
 python-dotenv>=1.0.0 # For loading .env files
 gunicorn>=20.1.0,<22.0.0 # Production ASGI server process manager
+
+# Timezones and calendar
+ics>=0.7
+pytz>=2023.3

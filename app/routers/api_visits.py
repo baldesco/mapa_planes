@@ -6,13 +6,18 @@ from fastapi import (
     UploadFile,
     File,
     Form,
-    Response,  # Added Response import
+    Response,
 )
 from typing import List, Optional
 from supabase import Client as SupabaseClient
 import uuid
-import json  # Added json import
-from datetime import datetime  # Added datetime import
+import json
+import re
+from datetime import datetime, timezone, timedelta
+
+from ics import Calendar, Event
+from ics.alarm import DisplayAlarm
+import pytz
 
 from app.crud import visits as crud_visits
 from app.crud import places as crud_places
@@ -22,7 +27,7 @@ from app.auth.dependencies import get_current_active_user, get_db
 from app.db.setup import get_supabase_service_client
 from app.core.config import logger
 
-router = APIRouter(prefix="/api/v1", tags=["API - Visits"])
+router = APIRouter(prefix="/api/v1", tags=["API - Visits & Calendar"])
 
 
 @router.post(
@@ -46,10 +51,10 @@ async def create_new_visit_for_place(
         )
 
     if visit_in.place_id != place_id:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Path place_id and payload place_id mismatch.",
+        logger.warning(
+            f"Payload place_id {visit_in.place_id} differs from path place_id {place_id}. Using path."
         )
+        visit_in.place_id = place_id
 
     logger.info(
         f"API Create visit request for place {place_id} by user {current_user.email}"
@@ -109,18 +114,14 @@ async def get_visit_details(
 @router.put("/visits/{visit_id}", response_model=models_visits.Visit)
 async def update_existing_visit(
     visit_id: int,
-    visit_datetime: Optional[datetime] = Form(None),  # Ensure datetime is imported
+    visit_datetime: Optional[datetime] = Form(None),
     review_title: Optional[str] = Form(None),
     review_text: Optional[str] = Form(None),
     rating: Optional[int] = Form(None),
     reminder_enabled: Optional[bool] = Form(None),
-    # Expect reminder_offsets_hours as a list of integers directly from the form if possible,
-    # or handle JSON string if client sends it that way.
-    # For simplicity with Form, let's assume client might send multiple form fields for this
-    # or a single comma-separated string. If JSON string is preferred:
     reminder_offsets_hours_str: Optional[str] = Form(
         None, alias="reminder_offsets_hours"
-    ),  # e.g., "12,24,48" or JSON "[12,24,48]"
+    ),
     image_url_action: Optional[str] = Form(
         None, description="'remove' to delete image, or keep empty"
     ),
@@ -155,12 +156,13 @@ async def update_existing_visit(
     parsed_offsets: Optional[List[int]] = None
     if reminder_offsets_hours_str is not None:
         try:
-            # Attempt to parse as JSON array first
-            if reminder_offsets_hours_str.startswith(
+            if reminder_offsets_hours_str.strip().startswith(
                 "["
-            ) and reminder_offsets_hours_str.endswith("]"):
+            ) and reminder_offsets_hours_str.strip().endswith("]"):
                 offsets_list = json.loads(reminder_offsets_hours_str)
-            else:  # Try parsing as comma-separated string
+            elif reminder_offsets_hours_str.strip() == "":
+                offsets_list = []
+            else:
                 offsets_list = [
                     int(s.strip())
                     for s in reminder_offsets_hours_str.split(",")
@@ -172,18 +174,16 @@ async def update_existing_visit(
                 and all(isinstance(i, int) for i in offsets_list)
             ):
                 raise ValueError("reminder_offsets_hours must be a list of integers.")
-            parsed_offsets = offsets_list
+            parsed_offsets = offsets_list if offsets_list else None
         except (json.JSONDecodeError, ValueError) as e:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Invalid format for reminder_offsets_hours (expected comma-separated integers or JSON array): {e}",
+                detail=f"Invalid format for reminder_offsets_hours: {e}",
             )
 
-    if parsed_offsets is not None:  # Only add to payload if successfully parsed
+    if parsed_offsets is not None:
         update_payload_dict["reminder_offsets_hours"] = parsed_offsets
-    elif (
-        reminder_offsets_hours_str == ""
-    ):  # Explicitly empty string means clear the offsets
+    elif reminder_offsets_hours_str == "":
         update_payload_dict["reminder_offsets_hours"] = None
 
     if image_url_action == "remove":
@@ -246,3 +246,129 @@ async def delete_existing_visit(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to delete visit."
         )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/visits/{visit_id}/calendar_event", response_class=Response)
+async def generate_calendar_event_for_visit(
+    visit_id: int,
+    customization_data: models_visits.CalendarEventCustomization,
+    db: SupabaseClient = Depends(get_db),
+    current_user: UserInToken = Depends(get_current_active_user),
+):
+    logger.info(f"API: Generating ICS for visit {visit_id}, user {current_user.email}")
+
+    visit = await crud_visits.get_visit_by_id(
+        db=db, visit_id=visit_id, user_id=current_user.id
+    )
+    if not visit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Visit not found or access denied.",
+        )
+
+    place = await crud_places.get_place_by_id(
+        db=db, place_id=visit.place_id, user_id=current_user.id
+    )
+    if not place:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Associated place not found."
+        )
+
+    visit_dt_utc = visit.visit_datetime
+    if visit_dt_utc.tzinfo is None:
+        visit_dt_utc = visit_dt_utc.replace(tzinfo=timezone.utc)
+
+    duration_delta = timedelta()
+    if customization_data.duration_unit == "minutes":
+        duration_delta = timedelta(minutes=customization_data.duration_value)
+    elif customization_data.duration_unit == "hours":
+        duration_delta = timedelta(hours=customization_data.duration_value)
+    elif customization_data.duration_unit == "days":
+        duration_delta = timedelta(days=customization_data.duration_value)
+
+    event_dt_end_utc = visit_dt_utc + duration_delta
+
+    cal = Calendar()
+    event = Event()
+    event.uid = f"{visit.id}-{uuid.uuid4()}@mapaplanes.app"
+    event.name = customization_data.event_name
+
+    description_parts = [f"Visit to {place.name}."]
+    if visit.review_title:
+        description_parts.append(f"Note: {visit.review_title}")
+    event.description = "\n".join(description_parts)
+
+    location_parts = []
+    if place.name:
+        location_parts.append(place.name)
+    if place.address:
+        location_parts.append(place.address)
+    if place.city:
+        location_parts.append(place.city)
+    if place.country:
+        location_parts.append(place.country)
+    event.location = ", ".join(filter(None, location_parts))
+
+    if place.latitude is not None and place.longitude is not None:
+        event.geo = (place.latitude, place.longitude)
+
+    if place.timezone_iana:
+        try:
+            local_tz = pytz.timezone(place.timezone_iana)
+            event.begin = visit_dt_utc.astimezone(local_tz)
+            event.end = event_dt_end_utc.astimezone(local_tz)
+        except pytz.UnknownTimeZoneError:
+            logger.warning(
+                f"Unknown timezone_iana '{place.timezone_iana}' for place {place.id}. Defaulting event to UTC."
+            )
+            event.begin = visit_dt_utc
+            event.end = event_dt_end_utc
+    else:
+        event.begin = visit_dt_utc
+        event.end = event_dt_end_utc
+
+    if customization_data.remind_1_day_before:
+        alarm = DisplayAlarm(
+            trigger=timedelta(days=-1), display_text=f"Reminder: {event.name}"
+        )
+        event.alarms.append(alarm)
+    if customization_data.remind_2_hours_before:
+        alarm = DisplayAlarm(
+            trigger=timedelta(hours=-2), display_text=f"Reminder: {event.name}"
+        )
+        event.alarms.append(alarm)
+    if customization_data.remind_15_mins_before:
+        alarm = DisplayAlarm(
+            trigger=timedelta(minutes=-15), display_text=f"Reminder: {event.name}"
+        )
+        event.alarms.append(alarm)
+
+    cal.events.add(event)
+    ics_content = cal.serialize()
+
+    # Sanitize place name for filename
+    place_name_part = "".join(c if c.isalnum() else "_" for c in place.name[:30])
+    place_name_part = re.sub(
+        r"_+", "_", place_name_part
+    )  # Replace multiple underscores
+    place_name_part = place_name_part.strip("_")  # Strip leading/trailing underscores
+    if not place_name_part:  # Fallback if name was all non-alphanumeric
+        place_name_part = "event_details"
+
+    base_filename = f"mapa_planes_visit_{visit.id}_{place_name_part}"
+    # This check was slightly redundant if strip already handled it, but safe.
+    if base_filename.endswith("_"):
+        base_filename = base_filename.rstrip("_")
+
+    final_filename = f"{base_filename}.ics"
+    final_filename = "calendar_event.ics"
+
+    content_disposition_header = f'attachment; filename="{final_filename}"'
+    logger.info(f"Final filename for download: '{final_filename}'")
+    logger.info(f"Content-Disposition header being set: '{content_disposition_header}'")
+
+    return Response(
+        content=ics_content,
+        media_type="text/calendar",
+        headers={"Content-Disposition": f'attachment; filename="{final_filename}"'},
+    )

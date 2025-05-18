@@ -25,7 +25,7 @@ const reviewForm = {
     cancelBtn: null,
   },
   hideCallback: null,
-  onReviewSavedCallback: null,
+  onReviewSavedCallback: null, // This is uiOrchestrator.handleVisitSaved
   currentVisitData: null,
   currentPlaceName: null,
 
@@ -200,8 +200,6 @@ const reviewForm = {
       formData.append("review_text", this.elements.textInput.value.trim());
     if (this.elements.ratingInput.value)
       formData.append("rating", this.elements.ratingInput.value);
-    // If a field should be explicitly nulled, the backend API for PUT should handle missing fields as "no change"
-    // or accept nulls. Our VisitUpdate model uses Optional, so missing fields are fine.
 
     if (
       this.elements.imageInput &&
@@ -230,10 +228,10 @@ const reviewForm = {
           "Review saved successfully!",
           "success"
         );
-        if (this.onReviewSavedCallback) this.onReviewSavedCallback(result);
-        setTimeout(() => {
-          if (this.hideCallback) this.hideCallback();
-        }, 1500);
+        if (this.onReviewSavedCallback) {
+          this.onReviewSavedCallback(result);
+        }
+        // No automatic hide timeout here, page reload from onReviewSavedCallback will handle it
       } else {
         setStatusMessage(
           this.elements.statusMessage,
@@ -261,6 +259,7 @@ const reviewForm = {
       this.elements.ratingInput
     );
   },
+
   setupInteractiveStars(container, hiddenInput) {
     if (!container || !hiddenInput) return;
     const stars = container.querySelectorAll(".star");
@@ -284,6 +283,7 @@ const reviewForm = {
     });
     this.updateRatingStars(container, hiddenInput.value);
   },
+
   highlightStars(container, value) {
     if (!container) return;
     const stars = container.querySelectorAll(".star");
@@ -301,6 +301,7 @@ const reviewForm = {
       }
     });
   },
+
   updateRatingStars(container, selectedValue) {
     if (!container) return;
     this.highlightStars(container, parseInt(selectedValue, 10) || 0);
