@@ -140,6 +140,11 @@ const visitForm = {
           .split(" ")[0];
         this.elements.timeInput.value = timeStr.substring(0, 5);
       }
+      // Show calendar button if existing visit is in the future
+      const savedVisitDate = new Date(visitDataToEdit.visit_datetime);
+      if (savedVisitDate >= new Date() && this.elements.calendarActionDiv) {
+        this.elements.calendarActionDiv.style.display = "block";
+      }
     } else {
       if (this.elements.formTitle)
         this.elements.formTitle.textContent = "Plan New Visit for:";
@@ -175,6 +180,7 @@ const visitForm = {
 
     setStatusMessage(this.elements.statusMessage, "Saving visit...", "loading");
     if (this.elements.submitBtn) this.elements.submitBtn.disabled = true;
+    // Keep calendarActionDiv hidden initially during save, show on success if applicable
     if (this.elements.calendarActionDiv)
       this.elements.calendarActionDiv.style.display = "none";
 
@@ -205,37 +211,53 @@ const visitForm = {
       return;
     }
     const visit_datetime_iso = localDateTime.toISOString();
-    // For debugging status issues:
-    // console.log("VisitForm: Scheduling visit with visit_datetime (ISO UTC):", visit_datetime_iso);
 
     const payload = {
       place_id: parseInt(placeId),
       visit_datetime: visit_datetime_iso,
     };
+    if (this.currentVisitData) {
+      if (this.currentVisitData.reminder_enabled !== undefined) {
+        payload.reminder_enabled = this.currentVisitData.reminder_enabled;
+      }
+      if (this.currentVisitData.reminder_offsets_hours !== undefined) {
+        payload.reminder_offsets_hours =
+          this.currentVisitData.reminder_offsets_hours;
+      }
+    }
 
     let response;
     try {
       if (visitIdBeingEdited) {
-        response = await apiClient.put(
+        // For PUT, send all editable fields from the VisitUpdate model
+        // The current PUT endpoint for visits expects FormData, so this needs to be FormData
+        const formData = new FormData();
+        formData.append("visit_datetime", visit_datetime_iso);
+
+        response = await apiClient.fetch(
           `/api/v1/visits/${visitIdBeingEdited}`,
-          payload
+          {
+            method: "PUT",
+            body: formData,
+          }
         );
       } else {
         response = await apiClient.post(
           `/api/v1/places/${placeId}/visits`,
-          payload
+          payload // POST to create visit accepts JSON
         );
       }
       const result = await response.json();
 
       if (response.ok) {
-        this.currentVisitData = result;
+        this.currentVisitData = result; // Update currentVisitData with the saved one
         setStatusMessage(
           this.elements.statusMessage,
           `Visit ${visitIdBeingEdited ? "updated" : "scheduled"} successfully!`,
           "success"
         );
 
+        // Check if the saved visit is in the future and show calendar button
         const savedVisitDate = new Date(this.currentVisitData.visit_datetime);
         if (savedVisitDate >= new Date() && this.elements.calendarActionDiv) {
           this.elements.calendarActionDiv.style.display = "block";
@@ -244,9 +266,15 @@ const visitForm = {
         }
 
         if (this.onVisitSavedCallback) {
-          this.onVisitSavedCallback(result);
+          this.onVisitSavedCallback(result); // Notify orchestrator, but it won't reload
         }
-        if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
+        // Update form title if it was a new visit that's now saved (has an ID)
+        if (!visitIdBeingEdited && this.elements.formTitle) {
+          this.elements.formTitle.textContent = "Edit Visit for:";
+        }
+        if (this.elements.visitIdInput && this.currentVisitData.id) {
+          this.elements.visitIdInput.value = this.currentVisitData.id;
+        }
       } else {
         setStatusMessage(
           this.elements.statusMessage,
@@ -254,7 +282,6 @@ const visitForm = {
             `Failed to ${visitIdBeingEdited ? "update" : "schedule"} visit.`,
           "error"
         );
-        if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
       }
     } catch (error) {
       console.error(
@@ -266,6 +293,7 @@ const visitForm = {
         `An error occurred. Please try again.`,
         "error"
       );
+    } finally {
       if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
     }
   },

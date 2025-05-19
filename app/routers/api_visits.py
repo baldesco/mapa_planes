@@ -125,7 +125,7 @@ async def update_existing_visit(
     image_url_action: Optional[str] = Form(
         None, description="'remove' to delete image, or keep empty"
     ),
-    image_file: Optional[UploadFile] = File(None, alias="image"),
+    image_file: Optional[UploadFile] = File(None, alias="image_file"),
     db: SupabaseClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
     db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
@@ -208,8 +208,17 @@ async def update_existing_visit(
     )
 
     if updated_visit is None:
+        check_visit = await crud_visits.get_visit_by_id(
+            db=db, visit_id=visit_id, user_id=current_user.id
+        )
+        if not check_visit:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Visit not found or access denied after update attempt.",
+            )
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Could not update visit."
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Could not update visit. Data might be invalid or unchanged.",
         )
     return models_visits.Visit(**updated_visit.model_dump())
 
@@ -242,9 +251,17 @@ async def delete_existing_visit(
         db_service=db_service,
     )
     if not success:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail="Failed to delete visit."
+        check_again = await crud_visits.get_visit_by_id(
+            db=db, visit_id=visit_id, user_id=current_user.id
         )
+        if check_again:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to delete visit.",
+            )
+        else:
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -346,29 +363,24 @@ async def generate_calendar_event_for_visit(
     cal.events.add(event)
     ics_content = cal.serialize()
 
-    # Sanitize place name for filename
     place_name_part = "".join(c if c.isalnum() else "_" for c in place.name[:30])
-    place_name_part = re.sub(
-        r"_+", "_", place_name_part
-    )  # Replace multiple underscores
-    place_name_part = place_name_part.strip("_")  # Strip leading/trailing underscores
-    if not place_name_part:  # Fallback if name was all non-alphanumeric
+    place_name_part = re.sub(r"_+", "_", place_name_part)
+    place_name_part = place_name_part.strip("_")
+    if not place_name_part:
         place_name_part = "event_details"
 
     base_filename = f"mapa_planes_visit_{visit.id}_{place_name_part}"
-    # This check was slightly redundant if strip already handled it, but safe.
     if base_filename.endswith("_"):
         base_filename = base_filename.rstrip("_")
 
     final_filename = f"{base_filename}.ics"
-    final_filename = "calendar_event.ics"
 
-    content_disposition_header = f'attachment; filename="{final_filename}"'
-    logger.info(f"Final filename for download: '{final_filename}'")
-    logger.info(f"Content-Disposition header being set: '{content_disposition_header}'")
+    final_filename = re.sub(r"[ \.]+$", "", final_filename)
+
+    content_disposition_header = f"attachment; filename={final_filename}"
 
     return Response(
         content=ics_content,
         media_type="text/calendar",
-        headers={"Content-Disposition": f'attachment; filename="{final_filename}"'},
+        headers={"Content-Disposition": content_disposition_header},
     )

@@ -70,15 +70,11 @@ const uiOrchestrator = {
       this.showEditPlaceForm.bind(this),
       this.hideEditPlaceForm.bind(this)
     );
-    reviewForm.init(
-      // Pass hide callback and save callback
-      this.hideVisitReviewForm.bind(this),
-      this.handleVisitSaved.bind(this)
+    reviewForm.init(this.hideVisitReviewForm.bind(this), (savedData) =>
+      this.handleVisitSaved(savedData, "reviewForm")
     );
-    visitForm.init(
-      // Pass hide callback and save callback
-      this.hidePlanVisitForm.bind(this),
-      this.handleVisitSaved.bind(this)
+    visitForm.init(this.hidePlanVisitForm.bind(this), (savedData) =>
+      this.handleVisitSaved(savedData, "visitForm")
     );
     icsCustomizeForm.init(this.hideIcsCustomizeModal.bind(this));
     modals.init(this.showVisitReviewForm.bind(this)); // For "Edit Review" from modal
@@ -699,8 +695,7 @@ const uiOrchestrator = {
     if (this.elements.icsCustomizeModal) {
       this.elements.icsCustomizeModal.style.display = "none";
     }
-    // Consider if a reload is needed after closing ICS modal, e.g., if user might expect main list to update.
-    // For now, no automatic reload here.
+    // No automatic reload here. If a reload is needed, the user will close the parent form (e.g. Plan Visit form)
   },
 
   escapeHTML(str) {
@@ -734,10 +729,49 @@ const uiOrchestrator = {
       if (response.ok || response.status === 204) {
         setStatusMessage(
           this.elements.visitsListStatus,
-          "Visit deleted successfully! Refreshing...",
+          "Visit deleted successfully! Refreshing list...",
           "success"
         );
-        this.handleVisitSaved(); // Reloads the page
+        // Instead of full reload, re-fetch and re-render visits for the current place
+        if (
+          this.currentPlaceForVisitModal &&
+          this.currentPlaceForVisitModal.id
+        ) {
+          const updatedPlaceDataResponse = await apiClient.get(
+            `/api/v1/places/${this.currentPlaceForVisitModal.id}`
+          );
+          if (updatedPlaceDataResponse.ok) {
+            const updatedPlaceData = await updatedPlaceDataResponse.json();
+            this.currentPlaceForVisitModal = updatedPlaceData; // Update with latest place data (e.g. status)
+            // Re-fetch visits for the current place and re-render
+            const visitsResponse = await apiClient.get(
+              `/api/v1/places/${this.currentPlaceForVisitModal.id}/visits`
+            );
+            if (visitsResponse.ok) {
+              const visits = await visitsResponse.json();
+              this.renderVisitsList(visits, this.currentPlaceForVisitModal);
+              setStatusMessage(
+                this.elements.visitsListStatus,
+                "Visit list updated.",
+                "success"
+              );
+            } else {
+              setStatusMessage(
+                this.elements.visitsListStatus,
+                "Could not refresh visit list.",
+                "error"
+              );
+            }
+          } else {
+            setStatusMessage(
+              this.elements.visitsListStatus,
+              "Could not refresh place data.",
+              "error"
+            );
+          }
+        } else {
+          this.handleVisitSaved(null, "visitForm");
+        }
       } else {
         const errData = await response
           .json()
@@ -754,9 +788,21 @@ const uiOrchestrator = {
     }
   },
 
-  handleVisitSaved(savedVisitData) {
-    // console.log("Visit saved/updated, will refresh page to show changes:", savedVisitData);
-    window.location.reload();
+  handleVisitSaved(savedVisitData, sourceForm = "unknown") {
+    console.log(
+      `Visit saved/updated from ${sourceForm}. Data:`,
+      savedVisitData
+    );
+    // Only reload if the source is not 'visitForm' (Plan/Edit Visit Form)
+    // or if explicitly needed for other forms.
+    if (sourceForm !== "visitForm") {
+      console.log(`Reloading page due to save from ${sourceForm}.`);
+      window.location.reload();
+    } else {
+      console.log(
+        `Save from ${sourceForm} - page will not auto-reload. Form remains open.`
+      );
+    }
   },
 };
 
