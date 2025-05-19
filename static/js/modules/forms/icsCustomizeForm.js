@@ -131,12 +131,16 @@ const icsCustomizeForm = {
         month: "short",
         day: "numeric",
       });
-      this.elements.visitTitleSpan.textContent = `"${placeData.name}" on ${formattedDate}`;
+      this.elements.visitTitleSpan.textContent = `"${
+        placeData.name || "Event"
+      }" on ${formattedDate}`;
     }
     if (this.elements.visitIdInput)
       this.elements.visitIdInput.value = visitData.id;
     if (this.elements.eventNameInput)
-      this.elements.eventNameInput.value = `Visit: ${placeData.name}`;
+      this.elements.eventNameInput.value = `Visit: ${
+        placeData.name || "Selected Place"
+      }`;
     if (this.elements.durationValueInput)
       this.elements.durationValueInput.value = "2"; // Default duration
     if (this.elements.durationUnitSelect)
@@ -167,52 +171,68 @@ const icsCustomizeForm = {
     const visit = this.currentVisitData;
 
     const startDateTime = new Date(visit.visit_datetime);
-    let endDateTime = new Date(startDateTime);
+    let endDateTime = new Date(startDateTime.getTime());
 
     if (durationUnit === "minutes") {
-      endDateTime.setMinutes(startDateTime.getMinutes() + durationValue);
+      endDateTime.setUTCMinutes(startDateTime.getUTCMinutes() + durationValue);
     } else if (durationUnit === "hours") {
-      endDateTime.setHours(startDateTime.getHours() + durationValue);
+      endDateTime.setUTCHours(startDateTime.getUTCHours() + durationValue);
     } else if (durationUnit === "days") {
-      endDateTime.setDate(startDateTime.getDate() + durationValue);
+      endDateTime.setUTCDate(startDateTime.getUTCDate() + durationValue);
     }
 
-    let description = `Visit to ${place.name}.`;
+    let description = `Visit to ${place.name || "the selected place"}.`;
     if (visit.review_title) {
       description += `\nNote: ${visit.review_title}`;
     }
-    // Add link back to Mapa Planes place (optional, but nice)
-    // description += `\n\nView in Mapa Planes: ${window.location.origin}/#place-${place.id}`; // Example
+
+    if (place.latitude != null && place.longitude != null) {
+      const mapsUrl = `https://www.google.com/maps?q=${place.latitude},${place.longitude}`;
+      description += `\n\nView on Map: ${mapsUrl}`;
+    }
+    // Example deep link back to your app (if you implement such routes)
+    // description += `\n\nView in Mapa Planes: ${window.location.origin}/places/${place.id}/visits/${visit.id}`;
 
     let locationString = "";
     const addressParts = [];
 
-    // Use display_name from geocoding if available and seems complete
-    if (place.display_name && place.display_name.includes(place.name || "")) {
-      // Basic check
-      locationString = place.display_name;
-    } else {
-      if (place.name) addressParts.push(place.name);
-      if (place.address) addressParts.push(place.address);
-      if (place.city) addressParts.push(place.city);
-      if (place.country) addressParts.push(place.country);
-      locationString = addressParts.join(", ");
+    // Try to use a comprehensive display_name if available
+    if (place.display_name && place.display_name.length > 5) {
+      // A simple check to see if display_name might be better than constructing it
+      const nameInDisplay = place.name
+        ? place.display_name.includes(place.name)
+        : false;
+      const addressInDisplay = place.address
+        ? place.display_name.includes(place.address)
+        : false;
+      if (nameInDisplay || addressInDisplay) {
+        locationString = place.display_name;
+      }
     }
 
-    // If no good address string, and we have coordinates, use them.
+    // If display_name wasn't suitable, construct from parts
+    if (!locationString) {
+      if (place.name) addressParts.push(place.name);
+      // Avoid duplicating name if it's likely part of the address
+      if (
+        place.address &&
+        (!place.name || !place.address.includes(place.name))
+      ) {
+        addressParts.push(place.address);
+      }
+      if (place.city) addressParts.push(place.city);
+      if (place.country) addressParts.push(place.country);
+      locationString = addressParts.filter(Boolean).join(", "); // Filter out empty parts
+    }
+
+    // Fallback to coordinates for the location parameter if the address string is still weak
     if (
-      !locationString.trim() &&
+      (!locationString || locationString.length < 5) &&
       place.latitude != null &&
       place.longitude != null
     ) {
       locationString = `${place.latitude},${place.longitude}`;
     }
-    // If we have an address AND coordinates, the address is usually better for the 'location' field
-    // of calendar links. The .ics file handles GEO tag separately.
-    // For Google/Outlook, if we want to ensure map linking, we could append coords to address,
-    // but it might make the location field look messy.
-    // Example: locationString += ` (Geo: ${place.latitude},${place.longitude})`;
-    // For now, prioritize address string.
 
     return {
       name: eventName,
@@ -220,7 +240,7 @@ const icsCustomizeForm = {
       endUTC: endDateTime,
       description: description,
       location: locationString,
-      timezone: place.timezone_iana || "UTC", // Default to UTC if no place timezone
+      timezone: place.timezone_iana || "UTC",
     };
   },
 
@@ -240,7 +260,14 @@ const icsCustomizeForm = {
   },
 
   handleAddToGoogleCalendar() {
-    if (!this.currentVisitData || !this.currentPlaceData) return;
+    if (!this.currentVisitData || !this.currentPlaceData) {
+      setStatusMessage(
+        this.elements.statusMessage,
+        "Error: Missing visit or place data.",
+        "error"
+      );
+      return;
+    }
     setStatusMessage(this.elements.statusMessage, "", "info");
     if (this.elements.instructionMessageDiv)
       this.elements.instructionMessageDiv.style.display = "none";
@@ -266,16 +293,22 @@ const icsCustomizeForm = {
     );
     googleUrl.searchParams.set("details", eventDetails.description);
     if (eventDetails.location) {
-      // Only add location if it's not empty
       googleUrl.searchParams.set("location", eventDetails.location);
     }
-    googleUrl.searchParams.set("ctz", eventDetails.timezone);
+    googleUrl.searchParams.set("ctz", eventDetails.timezone); // Let Google handle display in user's chosen timezone
 
     window.open(googleUrl.toString(), "_blank");
   },
 
   handleAddToOutlookCalendar() {
-    if (!this.currentVisitData || !this.currentPlaceData) return;
+    if (!this.currentVisitData || !this.currentPlaceData) {
+      setStatusMessage(
+        this.elements.statusMessage,
+        "Error: Missing visit or place data.",
+        "error"
+      );
+      return;
+    }
     setStatusMessage(this.elements.statusMessage, "", "info");
     if (this.elements.instructionMessageDiv)
       this.elements.instructionMessageDiv.style.display = "none";
@@ -296,6 +329,7 @@ const icsCustomizeForm = {
     outlookUrl.searchParams.set("path", "/calendar/action/compose");
     outlookUrl.searchParams.set("rru", "addevent");
     outlookUrl.searchParams.set("subject", eventDetails.name);
+    // Send UTC times, Outlook will display them in the user's configured timezone.
     outlookUrl.searchParams.set(
       "startdt",
       this._formatDateForOutlook(eventDetails.startUTC) + "Z"
@@ -308,7 +342,6 @@ const icsCustomizeForm = {
     if (eventDetails.location) {
       outlookUrl.searchParams.set("location", eventDetails.location);
     }
-    // Outlook's timezone handling is best managed by sending UTC times.
 
     window.open(outlookUrl.toString(), "_blank");
   },
@@ -363,10 +396,13 @@ const icsCustomizeForm = {
         const contentDisposition = response.headers.get("content-disposition");
         let filename = "visit.ics";
         if (contentDisposition) {
+          // More robust filename extraction from Content-Disposition
           const filenameMatch = contentDisposition.match(
             /filename\*?=(?:UTF-8'')?([^;\r\n]+)|filename="?([^"]+)"?/i
           );
           if (filenameMatch) {
+            // Prefer the second group if quoted, otherwise the first (for filename*=UTF-8''...)
+            // Decode URI component for cases like filename*=UTF-8''%e2%82%ac%20event.ics
             filename = decodeURIComponent(
               filenameMatch[1] || filenameMatch[2]
             ).replace(/^"|"$/g, "");
