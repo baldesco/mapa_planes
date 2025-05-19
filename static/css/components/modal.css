@@ -147,12 +147,7 @@
     background-color: var(--primary-color-light);
     border-left: 4px solid var(--primary-color);
     padding-left: calc(15px + 8px);
-    /* Original item padding + extra for indent */
     margin-left: -15px;
-    /* Counteract original item padding for full-bleed border */
-    /* The following might be needed if modal-content has right padding and scrollbar appears */
-    /* padding-right: calc(15px + 8px); */
-    /* margin-right: -15px; */
 }
 
 .future-visit strong {
@@ -188,7 +183,6 @@
 }
 
 .small-btn i {
-    /* Style for icons inside small buttons */
     margin-right: 5px;
 }
 
@@ -220,7 +214,6 @@
     background-color: var(--primary-color);
 }
 
-/* Match primary theme */
 .small-btn.add-to-calendar-btn:hover {
     background-color: var(--primary-color-dark);
 }
@@ -265,10 +258,8 @@
     margin-top: 10px;
     border: 1px solid var(--info-color);
     background-color: var(--light-blue-bg);
-    /* Or a similar info background */
     border-radius: 4px;
     color: var(--info-color-hover);
-    /* Darker text for readability */
 }
 
 .instructions-message p {
@@ -284,6 +275,60 @@
 
 .instructions-message li {
     margin-bottom: 3px;
+}
+
+/* --- ICS Customize Modal Button Styling --- */
+#ics-customize-modal .form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+
+#ics-customize-modal .form-actions>div:first-child {
+    /* The div grouping the calendar buttons */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+#ics-customize-modal .form-actions button {
+    margin-bottom: 0;
+    padding: 10px 15px;
+    font-size: 0.9em;
+}
+
+#ics-customize-modal .form-actions button i {
+    margin-right: 8px;
+}
+
+#ics-google-calendar-btn {
+    background-color: #4285F4;
+    color: white;
+}
+
+#ics-google-calendar-btn:hover {
+    background-color: #357ae8;
+}
+
+#ics-outlook-calendar-btn {
+    background-color: #0078D4;
+    color: white;
+}
+
+#ics-outlook-calendar-btn:hover {
+    background-color: #005a9e;
+}
+
+#ics-download-btn {
+    background-color: var(--toggle-button-bg);
+    /* Using a theme color */
+    color: white;
+}
+
+#ics-download-btn:hover {
+    background-color: var(--toggle-button-hover-bg);
 }
 
 
@@ -317,5 +362,31 @@
 
     .visit-item-actions {
         justify-content: flex-start;
+    }
+
+    /* Responsive adjustments for the ICS modal buttons */
+    #ics-customize-modal .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #ics-customize-modal .form-actions>div:first-child {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    #ics-customize-modal .form-actions button {
+        /* This will apply to cancel-btn too */
+        width: 100%;
+        margin-top: 5px;
+    }
+
+    #ics-customize-modal .form-actions>div:first-child button:first-child {
+        /* First calendar button */
+        margin-top: 0;
+    }
+
+    #ics-customize-modal .form-actions .cancel-btn {
+        margin-top: 10px;
     }
 }
