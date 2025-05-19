@@ -191,7 +191,8 @@
                     </div>
 
                     <p style="font-size: 0.9em; color: var(--text-muted); margin-top: 20px; margin-bottom: 10px;">
-                        After saving this visit, you can add it to your personal calendar. You can do it here or from the "View Visits" list.
+                        After saving this visit, you can add it to your personal calendar. You can do it here or from
+                        the "View Visits" list.
                     </p>
 
                     <div id="plan-visit-status" class="status-message"></div>
@@ -284,7 +285,8 @@
         </section>
 
         <section class="modal-section" id="ics-customize-modal" style="display: none;">
-            <form id="ics-customize-form">
+            <!-- Form tag is kept for structure but submission is handled by JS per button -->
+            <form id="ics-customize-form" onsubmit="return false;">
                 <fieldset>
                     <h2>Calendar Event Details for <span id="ics-modal-visit-title">Visit</span></h2>
                     <input type="hidden" id="ics-visit-id" name="visit_id">
@@ -315,7 +317,7 @@
                     <div
                         style="margin-top: 20px; margin-bottom: 20px; padding:15px; background-color: #f8f9fa; border-radius: 6px; border: 1px solid var(--border-color);">
                         <p style="font-size: 0.95em; color: var(--text-muted); margin-bottom: 10px; font-weight:500;">
-                            Include Reminders in Calendar Event:</p>
+                            Include Reminders in Calendar Event (for .ics download only):</p>
                         <div>
                             <input type="checkbox" id="ics-remind-1-day" name="remind_1_day_before" value="true"
                                 checked>
@@ -334,10 +336,19 @@
                     <div id="ics-customize-status" class="status-message"></div>
                     <div id="ics-instructions" class="instructions-message"
                         style="display:none; margin-top:10px; padding:10px; background-color: #eef; border-radius:4px;">
-                        {/* Instructions will be injected here by JS */}
                     </div>
-                    <div class="form-actions">
-                        <button type="submit" id="ics-download-btn">Download .ics File</button>
+                    <div class="form-actions" style="justify-content: space-between;">
+                        <div>
+                            <button type="button" id="ics-download-btn" title="Download .ics file to import manually">
+                                <i class="fas fa-download"></i> Download .ics
+                            </button>
+                            <button type="button" id="ics-google-calendar-btn" title="Add to Google Calendar">
+                                <i class="fab fa-google"></i> Google Calendar
+                            </button>
+                            <button type="button" id="ics-outlook-calendar-btn" title="Add to Outlook Calendar">
+                                <i class="fab fa-microsoft"></i> Outlook Calendar
+                            </button>
+                        </div>
                         <button type="button" class="cancel-btn" id="ics-customize-cancel-btn">Cancel</button>
                     </div>
                 </fieldset>

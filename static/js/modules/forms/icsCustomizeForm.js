@@ -1,6 +1,7 @@
 /**
  * icsCustomizeForm.js
- * Manages the modal and form for customizing .ics calendar event details.
+ * Manages the modal and form for customizing .ics calendar event details,
+ * and generating direct links for Google & Outlook calendars.
  */
 import apiClient from "../apiClient.js";
 import { setStatusMessage } from "../components/statusMessages.js";
@@ -20,6 +21,8 @@ const icsCustomizeForm = {
     statusMessage: null,
     instructionMessageDiv: null,
     downloadBtn: null,
+    googleCalendarBtn: null,
+    outlookCalendarBtn: null,
     cancelBtn: null,
   },
   currentVisitData: null,
@@ -62,16 +65,36 @@ const icsCustomizeForm = {
     this.elements.instructionMessageDiv =
       document.getElementById("ics-instructions");
     this.elements.downloadBtn = document.getElementById("ics-download-btn");
+    this.elements.googleCalendarBtn = document.getElementById(
+      "ics-google-calendar-btn"
+    );
+    this.elements.outlookCalendarBtn = document.getElementById(
+      "ics-outlook-calendar-btn"
+    );
     this.elements.cancelBtn = document.getElementById(
       "ics-customize-cancel-btn"
     );
   },
 
   setupEventListeners() {
-    if (!this.elements.form) return;
-    this.elements.form.addEventListener("submit", (event) =>
-      this.handleSubmit(event)
-    );
+    if (!this.elements.modal) return;
+
+    if (this.elements.downloadBtn) {
+      this.elements.downloadBtn.addEventListener("click", () =>
+        this.handleDownloadIcs()
+      );
+    }
+    if (this.elements.googleCalendarBtn) {
+      this.elements.googleCalendarBtn.addEventListener("click", () =>
+        this.handleAddToGoogleCalendar()
+      );
+    }
+    if (this.elements.outlookCalendarBtn) {
+      this.elements.outlookCalendarBtn.addEventListener("click", () =>
+        this.handleAddToOutlookCalendar()
+      );
+    }
+
     if (this.elements.cancelBtn && this.hideCallback) {
       this.elements.cancelBtn.addEventListener("click", () => {
         if (this.elements.instructionMessageDiv)
@@ -115,10 +138,11 @@ const icsCustomizeForm = {
     if (this.elements.eventNameInput)
       this.elements.eventNameInput.value = `Visit: ${placeData.name}`;
     if (this.elements.durationValueInput)
-      this.elements.durationValueInput.value = "1";
+      this.elements.durationValueInput.value = "2"; // Default duration
     if (this.elements.durationUnitSelect)
-      this.elements.durationUnitSelect.value = "hours";
+      this.elements.durationUnitSelect.value = "hours"; // Default unit
 
+    // Default reminders (can be configured by user later if profile settings are added)
     if (this.elements.remind1DayCheckbox)
       this.elements.remind1DayCheckbox.checked = true;
     if (this.elements.remind2HoursCheckbox)
@@ -126,12 +150,143 @@ const icsCustomizeForm = {
     if (this.elements.remind15MinsCheckbox)
       this.elements.remind15MinsCheckbox.checked = true;
 
-    if (this.elements.downloadBtn) this.elements.downloadBtn.disabled = false;
+    [
+      this.elements.downloadBtn,
+      this.elements.googleCalendarBtn,
+      this.elements.outlookCalendarBtn,
+    ].forEach((btn) => {
+      if (btn) btn.disabled = false;
+    });
     return true;
   },
 
-  async handleSubmit(event) {
-    event.preventDefault();
+  _getEventDetailsFromForm() {
+    const eventName = this.elements.eventNameInput.value;
+    const durationValue = parseInt(this.elements.durationValueInput.value);
+    const durationUnit = this.elements.durationUnitSelect.value;
+
+    const startDateTime = new Date(this.currentVisitData.visit_datetime);
+    let endDateTime = new Date(startDateTime);
+
+    if (durationUnit === "minutes") {
+      endDateTime.setMinutes(startDateTime.getMinutes() + durationValue);
+    } else if (durationUnit === "hours") {
+      endDateTime.setHours(startDateTime.getHours() + durationValue);
+    } else if (durationUnit === "days") {
+      endDateTime.setDate(startDateTime.getDate() + durationValue);
+    }
+
+    let description = `Visit to ${this.currentPlaceData.name}.`;
+    if (this.currentVisitData.review_title) {
+      description += `\nNote: ${this.currentVisitData.review_title}`;
+    }
+
+    let location = this.currentPlaceData.name;
+    if (this.currentPlaceData.address)
+      location += `, ${this.currentPlaceData.address}`;
+    if (this.currentPlaceData.city)
+      location += `, ${this.currentPlaceData.city}`;
+
+    return {
+      name: eventName,
+      startUTC: startDateTime,
+      endUTC: endDateTime,
+      description: description,
+      location: location,
+      timezone: this.currentPlaceData.timezone_iana || "UTC", // Default to UTC if no place timezone
+    };
+  },
+
+  _formatDateForGoogle(date) {
+    // Expects UTC Date object
+    return date.toISOString().replace(/-|:|\.\d{3}/g, "");
+  },
+
+  _formatDateForOutlook(date) {
+    // Expects UTC Date object
+    // Outlook seems to prefer local time if timezone is specified, or UTC.
+    // For simplicity, let's send UTC and let Outlook handle it.
+    const pad = (num) => (num < 10 ? "0" + num : num);
+    return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(
+      date.getUTCDate()
+    )}T${pad(date.getUTCHours())}:${pad(date.getUTCMinutes())}:${pad(
+      date.getUTCSeconds()
+    )}`;
+  },
+
+  handleAddToGoogleCalendar() {
+    if (!this.currentVisitData || !this.currentPlaceData) return;
+    setStatusMessage(this.elements.statusMessage, "", "info"); // Clear previous messages
+    if (this.elements.instructionMessageDiv)
+      this.elements.instructionMessageDiv.style.display = "none";
+
+    const eventDetails = this._getEventDetailsFromForm();
+    if (!eventDetails.name || !eventDetails.startUTC || !eventDetails.endUTC) {
+      setStatusMessage(
+        this.elements.statusMessage,
+        "Please fill in event name and ensure dates are valid.",
+        "error"
+      );
+      return;
+    }
+
+    const googleUrl = new URL("https://www.google.com/calendar/render");
+    googleUrl.searchParams.set("action", "TEMPLATE");
+    googleUrl.searchParams.set("text", eventDetails.name);
+    googleUrl.searchParams.set(
+      "dates",
+      `${this._formatDateForGoogle(
+        eventDetails.startUTC
+      )}/${this._formatDateForGoogle(eventDetails.endUTC)}`
+    );
+    googleUrl.searchParams.set("details", eventDetails.description);
+    googleUrl.searchParams.set("location", eventDetails.location);
+    googleUrl.searchParams.set("ctz", eventDetails.timezone); // Google uses this to set the event's timezone
+
+    window.open(googleUrl.toString(), "_blank");
+  },
+
+  handleAddToOutlookCalendar() {
+    if (!this.currentVisitData || !this.currentPlaceData) return;
+    setStatusMessage(this.elements.statusMessage, "", "info");
+    if (this.elements.instructionMessageDiv)
+      this.elements.instructionMessageDiv.style.display = "none";
+
+    const eventDetails = this._getEventDetailsFromForm();
+    if (!eventDetails.name || !eventDetails.startUTC || !eventDetails.endUTC) {
+      setStatusMessage(
+        this.elements.statusMessage,
+        "Please fill in event name and ensure dates are valid.",
+        "error"
+      );
+      return;
+    }
+
+    const outlookUrl = new URL(
+      "https://outlook.live.com/calendar/0/deeplink/compose"
+    );
+    outlookUrl.searchParams.set("path", "/calendar/action/compose");
+    outlookUrl.searchParams.set("rru", "addevent");
+    outlookUrl.searchParams.set("subject", eventDetails.name);
+    // For Outlook, it's often better to provide UTC times and let it convert, or provide local time with a specific timezone parameter if available and reliable.
+    // Let's use UTC for start and end.
+    outlookUrl.searchParams.set(
+      "startdt",
+      this._formatDateForOutlook(eventDetails.startUTC) + "Z"
+    ); // Add Z for UTC
+    outlookUrl.searchParams.set(
+      "enddt",
+      this._formatDateForOutlook(eventDetails.endUTC) + "Z"
+    ); // Add Z for UTC
+    outlookUrl.searchParams.set("body", eventDetails.description);
+    outlookUrl.searchParams.set("location", eventDetails.location);
+    // Outlook's timezone handling via URL is less straightforward than Google's 'ctz'.
+    // Sending UTC times is generally the most reliable.
+
+    window.open(outlookUrl.toString(), "_blank");
+  },
+
+  async handleDownloadIcs() {
     if (
       !this.elements.form ||
       !this.currentVisitData ||
@@ -139,7 +294,7 @@ const icsCustomizeForm = {
     ) {
       setStatusMessage(
         this.elements.statusMessage,
-        "Error: Missing visit information.",
+        "Error: Missing visit information for .ics download.",
         "error"
       );
       if (this.elements.instructionMessageDiv)
@@ -154,10 +309,15 @@ const icsCustomizeForm = {
     );
     if (this.elements.instructionMessageDiv)
       this.elements.instructionMessageDiv.style.display = "none";
-    if (this.elements.downloadBtn) this.elements.downloadBtn.disabled = true;
+    [
+      this.elements.downloadBtn,
+      this.elements.googleCalendarBtn,
+      this.elements.outlookCalendarBtn,
+    ].forEach((btn) => {
+      if (btn) btn.disabled = true;
+    });
 
     const visitId = this.currentVisitData.id;
-
     const payload = {
       event_name: this.elements.eventNameInput.value,
       duration_value: parseInt(this.elements.durationValueInput.value),
@@ -204,9 +364,7 @@ const icsCustomizeForm = {
                     </ul>`;
           this.elements.instructionMessageDiv.style.display = "block";
         } else {
-          alert(
-            "Calendar file downloaded!\n\nTo add to your calendar:\n- Desktop: Double-click the .ics file or use Import.\n- Google Calendar: Settings > Import & export.\n- Outlook.com: Add calendar > Upload from file.\n- Mobile: Tap the downloaded file."
-          );
+          alert("Calendar file downloaded!");
         }
       } else {
         const result = await response
@@ -222,7 +380,13 @@ const icsCustomizeForm = {
         "error"
       );
     } finally {
-      if (this.elements.downloadBtn) this.elements.downloadBtn.disabled = false;
+      [
+        this.elements.downloadBtn,
+        this.elements.googleCalendarBtn,
+        this.elements.outlookCalendarBtn,
+      ].forEach((btn) => {
+        if (btn) btn.disabled = false;
+      });
     }
   },
 };
