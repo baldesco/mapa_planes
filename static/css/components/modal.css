@@ -1,14 +1,17 @@
 /* Styles for modal dialogs (See Review) and image overlay */
 
-/* Base modal section style (used by See Review) */
+/* Base modal section style (used by See Review & Visits List) */
 .modal-section {
-    /* display: none; is handled by ui.js */
-    /* General padding/border/bg defined in layout.css or forms.css */
-    max-width: 600px;
-    /* Limit modal width */
+    max-width: 650px;
     margin-left: auto;
-    /* Center if container allows */
     margin-right: auto;
+    background-color: var(--white);
+    padding: 25px 30px;
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    border: 1px solid var(--border-color);
+    margin-bottom: 30px;
+    /* display: none; is handled by ui.js */
 }
 
 .modal-section fieldset {
@@ -18,8 +21,8 @@
 }
 
 .modal-section h2 {
-    /* Modal Title */
     font-size: 1.5em;
+    margin-top: 0;
     margin-bottom: 20px;
     font-weight: 500;
     color: var(--primary-color-dark);
@@ -28,20 +31,32 @@
     padding-bottom: 10px;
 }
 
+/* Contextual info below modal title (e.g., visit date) */
+.modal-section h2+p {
+    font-size: 0.9em;
+    color: var(--text-muted);
+    margin-top: -15px;
+    margin-bottom: 15px;
+}
+
+
 /* Scrollable content area within the modal */
 .modal-content {
     max-height: 450px;
-    /* Limit height and enable scroll */
     overflow-y: auto;
-    padding-right: 15px;
-    /* Space for scrollbar */
     margin-bottom: 20px;
-    /* Space before actions */
+    border: 1px solid var(--tertiary-color);
+    border-radius: 4px;
+    background-color: #fdfdfd;
 }
 
-/* Specific elements within the See Review modal */
-#see-review-section h3 {
-    /* Review Title */
+/* Specific elements within the See Visit Review modal */
+#see-visit-review-section .modal-content {
+    padding: 15px;
+    padding-right: 10px;
+}
+
+#see-visit-review-section h3 {
     font-size: 1.2em;
     color: var(--primary-color);
     margin-top: 0;
@@ -49,22 +64,17 @@
     font-weight: 500;
 }
 
-#see-review-section p {
-    /* Review Text */
+#see-visit-review-section p {
     margin: 0 0 12px 0;
     white-space: pre-wrap;
-    /* Preserve line breaks in review */
     word-wrap: break-word;
     color: var(--text-color);
 }
 
-#see-review-display-image {
-    /* Image within See Review modal */
+#see-visit-review-display-image {
     display: none;
-    /* Hidden by default */
     max-width: 100%;
     max-height: 300px;
-    /* Limit image height */
     height: auto;
     border-radius: 6px;
     margin-top: 15px;
@@ -72,26 +82,140 @@
     margin-right: auto;
     border: 1px solid var(--border-color);
     cursor: pointer;
-    /* Indicate clickable for overlay */
     transition: transform 0.2s ease-in-out;
 }
 
-#see-review-display-image:hover {
+#see-visit-review-display-image:hover {
     transform: scale(1.03);
 }
 
 /* Action buttons area at the bottom of the modal */
 .modal-actions {
     text-align: right;
-    /* Align buttons to the right */
     border-top: 1px solid #eee;
-    padding-top: 15px;
-    margin-top: 15px;
+    padding-top: 20px;
+    margin-top: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
 }
 
 .modal-actions button {
-    margin-left: 10px;
-    /* Space between buttons */
+    margin-left: 0;
+}
+
+
+/* --- Styles for Visits List Modal --- */
+#visits-list-modal .modal-content {
+    max-height: 60vh;
+    padding: 0;
+}
+
+.visits-ul {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 0;
+}
+
+.visit-item {
+    padding: 12px 15px;
+    border-bottom: 1px solid var(--tertiary-color);
+    font-size: 0.95em;
+    line-height: 1.5;
+}
+
+.visit-item:last-child {
+    border-bottom: none;
+}
+
+.visit-item strong {
+    font-weight: 500;
+    color: var(--primary-color-dark);
+    display: block;
+    margin-bottom: 4px;
+}
+
+.visit-item em {
+    color: #555;
+    display: block;
+    margin-top: 2px;
+    font-size: 0.9em;
+    margin-bottom: 8px;
+}
+
+.future-visit {
+    background-color: var(--primary-color-light);
+    border-left: 4px solid var(--primary-color);
+    padding-left: calc(15px + 8px);
+    margin-left: -15px;
+}
+
+.future-visit strong {
+    color: var(--primary-color-dark);
+}
+
+.future-tag {
+    font-size: 0.8em;
+    font-weight: 600;
+    color: var(--primary-color-dark);
+    background-color: #fff;
+    border: 1px solid var(--primary-color-light);
+    padding: 1px 5px;
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+    text-transform: uppercase;
+}
+
+.visit-item-actions {
+    margin-top: 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.small-btn {
+    padding: 5px 12px !important;
+    font-size: 0.85em !important;
+    font-weight: 500 !important;
+    border-radius: 4px !important;
+    line-height: 1.4;
+}
+
+.small-btn i {
+    margin-right: 5px;
+}
+
+.small-btn.edit-visit-schedule-btn {
+    background-color: var(--info-color);
+}
+
+.small-btn.edit-visit-schedule-btn:hover {
+    background-color: var(--info-color-hover);
+}
+
+.small-btn.review-visit-btn {
+    background-color: var(--see-review-bg);
+}
+
+.small-btn.review-visit-btn:hover {
+    background-color: var(--see-review-hover-bg);
+}
+
+.small-btn.delete-visit-btn {
+    background-color: var(--error-color);
+}
+
+.small-btn.delete-visit-btn:hover {
+    background-color: var(--danger-color-hover);
+}
+
+.small-btn.add-to-calendar-btn {
+    background-color: var(--primary-color);
+}
+
+.small-btn.add-to-calendar-btn:hover {
+    background-color: var(--primary-color-dark);
 }
 
 
@@ -107,13 +231,10 @@
     align-items: center;
     justify-content: center;
     z-index: 1050;
-    /* Ensure it's above other content */
     cursor: pointer;
-    /* Indicate clickable background to close */
     opacity: 0;
     transition: opacity 0.3s ease-in-out;
     padding: 20px;
-    /* Padding around the image */
 }
 
 .image-overlay.visible {
@@ -125,28 +246,147 @@
     max-width: 95%;
     max-height: 95%;
     object-fit: contain;
-    /* Scale image while preserving aspect ratio */
     border-radius: 4px;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
     cursor: default;
-    /* Default cursor for the image itself */
+}
+
+/* Instructions message styling (for ICS download) */
+.instructions-message {
+    font-size: 0.9em;
+    padding: 10px;
+    margin-top: 10px;
+    border: 1px solid var(--info-color);
+    background-color: var(--light-blue-bg);
+    border-radius: 4px;
+    color: var(--info-color-hover);
+}
+
+.instructions-message p {
+    margin-bottom: 5px;
+    line-height: 1.4;
+}
+
+.instructions-message ul {
+    margin-top: 5px;
+    margin-bottom: 0;
+    padding-left: 20px;
+}
+
+.instructions-message li {
+    margin-bottom: 3px;
+}
+
+/* --- ICS Customize Modal Button Styling --- */
+#ics-customize-modal .form-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+}
+
+#ics-customize-modal .form-actions>div:first-child {
+    /* The div grouping the calendar buttons */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+#ics-customize-modal .form-actions button {
+    margin-bottom: 0;
+    padding: 10px 15px;
+    font-size: 0.9em;
+}
+
+#ics-customize-modal .form-actions button i {
+    margin-right: 8px;
+}
+
+#ics-google-calendar-btn {
+    background-color: #4285F4;
+    color: white;
+}
+
+#ics-google-calendar-btn:hover {
+    background-color: #357ae8;
+}
+
+#ics-outlook-calendar-btn {
+    background-color: #0078D4;
+    color: white;
+}
+
+#ics-outlook-calendar-btn:hover {
+    background-color: #005a9e;
+}
+
+#ics-download-btn {
+    background-color: var(--toggle-button-bg);
+    /* Using a theme color */
+    color: white;
+}
+
+#ics-download-btn:hover {
+    background-color: var(--toggle-button-hover-bg);
 }
 
 
-/* Responsive adjustments */
 @media (max-width: 768px) {
+    .modal-section {
+        padding: 20px;
+        max-width: 95%;
+    }
+
     .modal-content {
-        max-height: 350px;
+        max-height: 55vh;
+    }
+
+    #visits-list-modal .modal-content {
+        max-height: 70vh;
     }
 
     .modal-actions {
-        text-align: center;
-        /* Center buttons on smaller screens */
+        flex-direction: column;
+        align-items: stretch;
     }
 
     .modal-actions button {
-        width: auto;
-        /* Allow buttons to size naturally */
-        margin: 5px;
+        width: 100%;
+        margin-bottom: 8px;
+    }
+
+    .modal-actions button:last-child {
+        margin-bottom: 0;
+    }
+
+    .visit-item-actions {
+        justify-content: flex-start;
+    }
+
+    /* Responsive adjustments for the ICS modal buttons */
+    #ics-customize-modal .form-actions {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    #ics-customize-modal .form-actions>div:first-child {
+        flex-direction: column;
+        width: 100%;
+    }
+
+    #ics-customize-modal .form-actions button {
+        /* This will apply to cancel-btn too */
+        width: 100%;
+        margin-top: 5px;
+    }
+
+    #ics-customize-modal .form-actions>div:first-child button:first-child {
+        /* First calendar button */
+        margin-top: 0;
+    }
+
+    #ics-customize-modal .form-actions .cancel-btn {
+        margin-top: 10px;
     }
 }

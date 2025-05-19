@@ -1,91 +1,97 @@
 /**
  * modals.js
- * Handles showing/hiding modal dialogs like the "See Review" modal
+ * Handles showing/hiding modal dialogs like the "See Visit Review" modal
  * and the full-screen image overlay.
  */
 
 const modals = {
   elements: {
-    // See Review Modal Elements
-    seeReviewSection: null,
-    seeReviewPlaceTitle: null,
-    seeReviewRatingDisplay: null,
-    seeReviewDisplayTitle: null,
-    seeReviewDisplayText: null,
-    seeReviewDisplayImage: null,
-    seeReviewEditBtn: null,
-    seeReviewCloseBtn: null,
-    // Image Overlay (dynamically created, but we might need a reference)
+    seeVisitReviewSection: null,
+    seeVisitReviewPlaceTitle: null,
+    seeVisitReviewDateTime: null,
+    seeVisitReviewRatingDisplay: null,
+    seeVisitReviewDisplayTitle: null,
+    seeVisitReviewDisplayText: null,
+    seeVisitReviewDisplayImage: null,
+    seeVisitReviewEditBtn: null,
+    seeVisitReviewCloseBtn: null,
     imageOverlayInstance: null,
   },
-  currentPlaceDataForReviewModal: null, // Store data specifically for the review modal
-  showReviewFormCallback: null, // Function provided by orchestrator to show the edit review form
+  currentVisitDataForReviewModal: null,
+  currentPlaceNameForReviewModal: null,
+  editVisitReviewCallback: null, // This will be uiOrchestrator.showVisitReviewForm
 
-  init(showReviewFn) {
-    console.debug("Modals Component: Initializing...");
-    this.showReviewFormCallback = showReviewFn;
+  init(editReviewFn) {
+    this.editVisitReviewCallback = editReviewFn;
     this.cacheDOMElements();
     this.setupEventListeners();
   },
 
   cacheDOMElements() {
-    this.elements.seeReviewSection =
-      document.getElementById("see-review-section");
-    if (!this.elements.seeReviewSection) return; // Stop if section missing
-
-    this.elements.seeReviewPlaceTitle = document.getElementById(
-      "see-review-place-title"
+    this.elements.seeVisitReviewSection = document.getElementById(
+      "see-visit-review-section"
     );
-    this.elements.seeReviewRatingDisplay = document.getElementById(
-      "see-review-rating-display"
+    if (!this.elements.seeVisitReviewSection) {
+      // console.warn("Modals: See Visit Review section element not found."); // Optional for dev
+      return;
+    }
+    this.elements.seeVisitReviewPlaceTitle = document.getElementById(
+      "see-visit-review-place-title"
     );
-    this.elements.seeReviewDisplayTitle = document.getElementById(
-      "see-review-display-title"
+    this.elements.seeVisitReviewDateTime = document.getElementById(
+      "see-visit-review-datetime-display"
     );
-    this.elements.seeReviewDisplayText = document.getElementById(
-      "see-review-display-text"
+    this.elements.seeVisitReviewRatingDisplay = document.getElementById(
+      "see-visit-review-rating-display"
     );
-    this.elements.seeReviewDisplayImage = document.getElementById(
-      "see-review-display-image"
+    this.elements.seeVisitReviewDisplayTitle = document.getElementById(
+      "see-visit-review-display-title"
     );
-    this.elements.seeReviewEditBtn = document.getElementById(
-      "see-review-edit-btn"
+    this.elements.seeVisitReviewDisplayText = document.getElementById(
+      "see-visit-review-display-text"
     );
-    this.elements.seeReviewCloseBtn =
-      this.elements.seeReviewSection.querySelector("button.cancel-btn");
+    this.elements.seeVisitReviewDisplayImage = document.getElementById(
+      "see-visit-review-display-image"
+    );
+    this.elements.seeVisitReviewEditBtn = document.getElementById(
+      "see-visit-review-edit-btn"
+    );
+    this.elements.seeVisitReviewCloseBtn = document.getElementById(
+      "see-visit-review-close-btn"
+    );
   },
 
   setupEventListeners() {
-    if (this.elements.seeReviewCloseBtn) {
-      this.elements.seeReviewCloseBtn.addEventListener("click", () =>
+    if (this.elements.seeVisitReviewCloseBtn) {
+      this.elements.seeVisitReviewCloseBtn.addEventListener("click", () =>
         this.hideSeeReviewModal()
       );
     }
-
-    if (this.elements.seeReviewEditBtn && this.showReviewFormCallback) {
-      this.elements.seeReviewEditBtn.addEventListener("click", () => {
-        if (this.currentPlaceDataForReviewModal) {
-          // Call the orchestrator's function to show the actual review form
-          this.showReviewFormCallback(this.currentPlaceDataForReviewModal);
+    if (this.elements.seeVisitReviewEditBtn && this.editVisitReviewCallback) {
+      this.elements.seeVisitReviewEditBtn.addEventListener("click", () => {
+        if (
+          this.currentVisitDataForReviewModal &&
+          this.currentVisitDataForReviewModal.id
+        ) {
+          this.editVisitReviewCallback(
+            this.currentVisitDataForReviewModal,
+            this.currentPlaceNameForReviewModal
+          );
         } else {
-          console.error("Cannot edit review, data missing.");
+          console.error("Cannot edit visit review, data missing or invalid.");
           alert("Error: Could not retrieve data to edit review.");
         }
-        // Hide this modal after clicking edit
         this.hideSeeReviewModal();
       });
     }
-
-    // Image overlay closing is handled dynamically when created/shown
-    // Add listener for clicking the review image to show overlay
-    if (this.elements.seeReviewDisplayImage) {
-      this.elements.seeReviewDisplayImage.addEventListener("click", (event) =>
-        this.showImageOverlay(event)
+    if (this.elements.seeVisitReviewDisplayImage) {
+      this.elements.seeVisitReviewDisplayImage.addEventListener(
+        "click",
+        (event) => this.showImageOverlay(event)
       );
     }
   },
 
-  /** Displays static rating stars in a container */
   displayStaticRatingStars(container, rating) {
     if (!container) return;
     const numRating = parseInt(rating, 10);
@@ -97,152 +103,155 @@ const modals = {
       container.innerHTML = html.trim();
       container.style.display = "inline-block";
     } else {
-      container.innerHTML = "(No rating)";
+      container.innerHTML = "(No rating for this visit)";
       container.style.display = "inline-block";
     }
   },
 
-  /** Shows the "See Review" modal with place data */
-  showSeeReviewModal(placeDataInput) {
-    let placeData;
-    // Safely parse input
-    if (typeof placeDataInput === "string") {
+  showSeeReviewModal(visitDataInput, placeName = "this place") {
+    let visitData;
+    if (typeof visitDataInput === "string") {
       try {
-        placeData = JSON.parse(placeDataInput);
+        visitData = JSON.parse(visitDataInput);
       } catch (e) {
-        console.error(
-          "Modals: Error parsing placeData JSON for see review:",
-          e
-        );
-        alert("Error reading place data for review display.");
+        console.error("Modals: Error parsing visitData JSON:", e);
+        alert("Error reading visit data.");
         return;
       }
-    } else if (typeof placeDataInput === "object" && placeDataInput !== null) {
-      placeData = placeDataInput;
+    } else if (typeof visitDataInput === "object" && visitDataInput !== null) {
+      visitData = visitDataInput;
     } else {
       console.error("Modals: Invalid input type for showSeeReviewModal.");
       alert("Internal Error: Invalid data for review modal.");
       return;
     }
 
-    this.currentPlaceDataForReviewModal = placeData; // Store data
+    if (!visitData || !visitData.id) {
+      console.error(
+        "Modals: Invalid or missing visit data for showSeeReviewModal."
+      );
+      alert("Cannot display review: Invalid visit data.");
+      return;
+    }
 
+    this.currentVisitDataForReviewModal = visitData;
+    this.currentPlaceNameForReviewModal = placeName;
     const els = this.elements;
-    if (!els.seeReviewSection) {
-      console.error("Modals: See Review section element missing.");
+
+    if (!els.seeVisitReviewSection) {
+      console.error("Modals: See Visit Review section element missing.");
       return;
     }
 
     try {
-      // Populate modal content
-      els.seeReviewPlaceTitle.textContent = `"${
-        placeData.name || "Unknown Place"
-      }"`;
-      this.displayStaticRatingStars(
-        els.seeReviewRatingDisplay,
-        placeData.rating
-      );
-      els.seeReviewDisplayTitle.textContent = placeData.review_title || "";
-      els.seeReviewDisplayText.textContent =
-        placeData.review ||
-        (placeData.review_title || placeData.rating
-          ? ""
-          : "(No review text entered)");
-      els.seeReviewDisplayTitle.style.display = placeData.review_title
-        ? "block"
-        : "none";
+      if (els.seeVisitReviewPlaceTitle)
+        els.seeVisitReviewPlaceTitle.textContent = `"${this.currentPlaceNameForReviewModal}"`;
 
-      if (els.seeReviewDisplayImage) {
-        if (placeData.image_url && placeData.image_url.startsWith("http")) {
-          els.seeReviewDisplayImage.src = placeData.image_url;
-          els.seeReviewDisplayImage.alt = `Image for ${
-            placeData.name || "place"
-          }`;
-          els.seeReviewDisplayImage.style.display = "block";
-        } else {
-          els.seeReviewDisplayImage.style.display = "none";
-          els.seeReviewDisplayImage.src = "";
-        }
+      if (els.seeVisitReviewDateTime && visitData.visit_datetime) {
+        const visitDate = new Date(visitData.visit_datetime);
+        const formattedDate = visitDate.toLocaleDateString(undefined, {
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+        const formattedTime = visitDate.toLocaleTimeString(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+        els.seeVisitReviewDateTime.textContent = `${formattedDate} at ${formattedTime}`;
+      } else if (els.seeVisitReviewDateTime) {
+        els.seeVisitReviewDateTime.textContent = "(Date/Time not available)";
       }
 
-      // Show modal (assuming other sections are hidden by orchestrator)
-      els.seeReviewSection.style.display = "block";
-      els.seeReviewSection.scrollIntoView({
+      this.displayStaticRatingStars(
+        els.seeVisitReviewRatingDisplay,
+        visitData.rating
+      );
+      if (els.seeVisitReviewDisplayTitle)
+        els.seeVisitReviewDisplayTitle.textContent =
+          visitData.review_title || "";
+      if (els.seeVisitReviewDisplayText)
+        els.seeVisitReviewDisplayText.textContent =
+          visitData.review_text ||
+          (visitData.review_title || visitData.rating
+            ? ""
+            : "(No review text for this visit)");
+      if (els.seeVisitReviewDisplayTitle)
+        els.seeVisitReviewDisplayTitle.style.display = visitData.review_title
+          ? "block"
+          : "none";
+
+      if (els.seeVisitReviewDisplayImage) {
+        if (visitData.image_url && visitData.image_url.startsWith("http")) {
+          els.seeVisitReviewDisplayImage.src = visitData.image_url;
+          els.seeVisitReviewDisplayImage.alt = `Image for visit to ${this.currentPlaceNameForReviewModal}`;
+          els.seeVisitReviewDisplayImage.style.display = "block";
+        } else {
+          els.seeVisitReviewDisplayImage.style.display = "none";
+          els.seeVisitReviewDisplayImage.src = "";
+        }
+      }
+      els.seeVisitReviewSection.style.display = "block";
+      els.seeVisitReviewSection.scrollIntoView({
         behavior: "smooth",
-        block: "start",
+        block: "center",
       });
     } catch (e) {
-      console.error("Modals: Error populating see review modal:", e);
+      console.error("Modals: Error populating see visit review modal:", e);
       alert("Error preparing review display.");
-      this.hideSeeReviewModal(); // Hide on error
+      this.hideSeeReviewModal();
     }
   },
 
-  /** Hides the "See Review" modal */
   hideSeeReviewModal() {
-    if (this.elements.seeReviewSection) {
-      this.elements.seeReviewSection.style.display = "none";
+    if (this.elements.seeVisitReviewSection) {
+      this.elements.seeVisitReviewSection.style.display = "none";
     }
-    this.currentPlaceDataForReviewModal = null; // Clear stored data
+    this.currentVisitDataForReviewModal = null;
+    this.currentPlaceNameForReviewModal = null;
   },
 
-  /** Shows the full-screen image overlay */
   showImageOverlay(event) {
     const clickedImage = event.target;
-    // Check if the clicked element is an IMG tag with a valid src
     if (
       !clickedImage ||
       clickedImage.tagName !== "IMG" ||
       !clickedImage.src ||
       !clickedImage.src.startsWith("http")
     ) {
-      console.debug("showImageOverlay: Click target not a valid image.");
       return;
     }
-
-    // Prevent default if inside a link etc.
     event.preventDefault();
     event.stopPropagation();
-
-    // Find or create the overlay
     this.elements.imageOverlayInstance =
       document.querySelector(".image-overlay");
     if (!this.elements.imageOverlayInstance) {
       this.elements.imageOverlayInstance = document.createElement("div");
       this.elements.imageOverlayInstance.className = "image-overlay";
       const img = document.createElement("img");
-      img.alt = "Enlarged image"; // Alt text can be improved if needed
-      // Prevent closing overlay by clicking the image itself
+      img.alt = "Enlarged image";
       img.onclick = (e) => e.stopPropagation();
       this.elements.imageOverlayInstance.appendChild(img);
-      // Close overlay by clicking the background
       this.elements.imageOverlayInstance.onclick =
         this.hideImageOverlay.bind(this);
       document.body.appendChild(this.elements.imageOverlayInstance);
     }
-
-    // Set the image source and make visible
     this.elements.imageOverlayInstance.querySelector("img").src =
       clickedImage.src;
     this.elements.imageOverlayInstance.querySelector("img").alt =
-      clickedImage.alt || "Enlarged image"; // Use original alt text
-
-    // Use setTimeout to allow the element to be added to DOM before adding 'visible' class for transition
+      clickedImage.alt || "Enlarged image";
     setTimeout(() => {
-      if (this.elements.imageOverlayInstance) {
+      if (this.elements.imageOverlayInstance)
         this.elements.imageOverlayInstance.classList.add("visible");
-      }
     }, 10);
   },
 
-  /** Hides the full-screen image overlay */
   hideImageOverlay() {
     if (
       this.elements.imageOverlayInstance &&
       this.elements.imageOverlayInstance.classList.contains("visible")
     ) {
       this.elements.imageOverlayInstance.classList.remove("visible");
-      // Remove the overlay from DOM after transition ends
       this.elements.imageOverlayInstance.addEventListener(
         "transitionend",
         () => {
@@ -252,12 +261,11 @@ const modals = {
           ) {
             document.body.removeChild(this.elements.imageOverlayInstance);
           }
-          this.elements.imageOverlayInstance = null; // Clear reference
+          this.elements.imageOverlayInstance = null;
         },
         { once: true }
       );
     } else {
-      // If called unexpectedly, ensure any lingering overlay is removed
       const existingOverlay = document.querySelector(".image-overlay");
       if (existingOverlay && document.body.contains(existingOverlay)) {
         document.body.removeChild(existingOverlay);
@@ -266,5 +274,4 @@ const modals = {
     }
   },
 };
-
 export default modals;
