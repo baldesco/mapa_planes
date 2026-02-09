@@ -19,8 +19,11 @@ const modals = {
   },
   currentVisitDataForReviewModal: null,
   currentPlaceNameForReviewModal: null,
-  editVisitReviewCallback: null, // This will be uiOrchestrator.showVisitReviewForm
+  editVisitReviewCallback: null,
 
+  /**
+   * @param {Function} editReviewFn - Callback to show the edit review form.
+   */
   init(editReviewFn) {
     this.editVisitReviewCallback = editReviewFn;
     this.cacheDOMElements();
@@ -29,69 +32,67 @@ const modals = {
 
   cacheDOMElements() {
     this.elements.seeVisitReviewSection = document.getElementById(
-      "see-visit-review-section"
+      "see-visit-review-section",
     );
-    if (!this.elements.seeVisitReviewSection) {
-      // console.warn("Modals: See Visit Review section element not found."); // Optional for dev
-      return;
-    }
+    if (!this.elements.seeVisitReviewSection) return;
+
     this.elements.seeVisitReviewPlaceTitle = document.getElementById(
-      "see-visit-review-place-title"
+      "see-visit-review-place-title",
     );
     this.elements.seeVisitReviewDateTime = document.getElementById(
-      "see-visit-review-datetime-display"
+      "see-visit-review-datetime-display",
     );
     this.elements.seeVisitReviewRatingDisplay = document.getElementById(
-      "see-visit-review-rating-display"
+      "see-visit-review-rating-display",
     );
     this.elements.seeVisitReviewDisplayTitle = document.getElementById(
-      "see-visit-review-display-title"
+      "see-visit-review-display-title",
     );
     this.elements.seeVisitReviewDisplayText = document.getElementById(
-      "see-visit-review-display-text"
+      "see-visit-review-display-text",
     );
     this.elements.seeVisitReviewDisplayImage = document.getElementById(
-      "see-visit-review-display-image"
+      "see-visit-review-display-image",
     );
     this.elements.seeVisitReviewEditBtn = document.getElementById(
-      "see-visit-review-edit-btn"
+      "see-visit-review-edit-btn",
     );
     this.elements.seeVisitReviewCloseBtn = document.getElementById(
-      "see-visit-review-close-btn"
+      "see-visit-review-close-btn",
     );
   },
 
   setupEventListeners() {
     if (this.elements.seeVisitReviewCloseBtn) {
       this.elements.seeVisitReviewCloseBtn.addEventListener("click", () =>
-        this.hideSeeReviewModal()
+        this.hideSeeReviewModal(),
       );
     }
-    if (this.elements.seeVisitReviewEditBtn && this.editVisitReviewCallback) {
+
+    if (this.elements.seeVisitReviewEditBtn) {
       this.elements.seeVisitReviewEditBtn.addEventListener("click", () => {
         if (
           this.currentVisitDataForReviewModal &&
-          this.currentVisitDataForReviewModal.id
+          this.editVisitReviewCallback
         ) {
-          this.editVisitReviewCallback(
-            this.currentVisitDataForReviewModal,
-            this.currentPlaceNameForReviewModal
-          );
-        } else {
-          console.error("Cannot edit visit review, data missing or invalid.");
-          alert("Error: Could not retrieve data to edit review.");
+          const data = this.currentVisitDataForReviewModal;
+          const name = this.currentPlaceNameForReviewModal;
+          this.hideSeeReviewModal();
+          this.editVisitReviewCallback(data, name);
         }
-        this.hideSeeReviewModal();
       });
     }
+
     if (this.elements.seeVisitReviewDisplayImage) {
-      this.elements.seeVisitReviewDisplayImage.addEventListener(
-        "click",
-        (event) => this.showImageOverlay(event)
+      this.elements.seeVisitReviewDisplayImage.addEventListener("click", (e) =>
+        this.showImageOverlay(e),
       );
     }
   },
 
+  /**
+   * Renders star icons into a container.
+   */
   displayStaticRatingStars(container, rating) {
     if (!container) return;
     const numRating = parseInt(rating, 10);
@@ -101,106 +102,64 @@ const modals = {
         html += `<i class="${i <= numRating ? "fas" : "far"} fa-star"></i> `;
       }
       container.innerHTML = html.trim();
-      container.style.display = "inline-block";
     } else {
-      container.innerHTML = "(No rating for this visit)";
-      container.style.display = "inline-block";
+      container.innerHTML = "(No rating)";
     }
   },
 
+  /**
+   * Populates and shows the review modal.
+   */
   showSeeReviewModal(visitDataInput, placeName = "this place") {
-    let visitData;
-    if (typeof visitDataInput === "string") {
-      try {
-        visitData = JSON.parse(visitDataInput);
-      } catch (e) {
-        console.error("Modals: Error parsing visitData JSON:", e);
-        alert("Error reading visit data.");
-        return;
-      }
-    } else if (typeof visitDataInput === "object" && visitDataInput !== null) {
-      visitData = visitDataInput;
-    } else {
-      console.error("Modals: Invalid input type for showSeeReviewModal.");
-      alert("Internal Error: Invalid data for review modal.");
-      return;
-    }
+    let visitData =
+      typeof visitDataInput === "string"
+        ? JSON.parse(visitDataInput)
+        : visitDataInput;
 
-    if (!visitData || !visitData.id) {
-      console.error(
-        "Modals: Invalid or missing visit data for showSeeReviewModal."
-      );
-      alert("Cannot display review: Invalid visit data.");
-      return;
-    }
+    if (!visitData || !visitData.id) return;
 
     this.currentVisitDataForReviewModal = visitData;
     this.currentPlaceNameForReviewModal = placeName;
     const els = this.elements;
 
-    if (!els.seeVisitReviewSection) {
-      console.error("Modals: See Visit Review section element missing.");
-      return;
-    }
+    els.seeVisitReviewPlaceTitle.textContent = `"${placeName}"`;
 
-    try {
-      if (els.seeVisitReviewPlaceTitle)
-        els.seeVisitReviewPlaceTitle.textContent = `"${this.currentPlaceNameForReviewModal}"`;
-
-      if (els.seeVisitReviewDateTime && visitData.visit_datetime) {
-        const visitDate = new Date(visitData.visit_datetime);
-        const formattedDate = visitDate.toLocaleDateString(undefined, {
-          year: "numeric",
-          month: "long",
-          day: "numeric",
-        });
-        const formattedTime = visitDate.toLocaleTimeString(undefined, {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        els.seeVisitReviewDateTime.textContent = `${formattedDate} at ${formattedTime}`;
-      } else if (els.seeVisitReviewDateTime) {
-        els.seeVisitReviewDateTime.textContent = "(Date/Time not available)";
-      }
-
-      this.displayStaticRatingStars(
-        els.seeVisitReviewRatingDisplay,
-        visitData.rating
-      );
-      if (els.seeVisitReviewDisplayTitle)
-        els.seeVisitReviewDisplayTitle.textContent =
-          visitData.review_title || "";
-      if (els.seeVisitReviewDisplayText)
-        els.seeVisitReviewDisplayText.textContent =
-          visitData.review_text ||
-          (visitData.review_title || visitData.rating
-            ? ""
-            : "(No review text for this visit)");
-      if (els.seeVisitReviewDisplayTitle)
-        els.seeVisitReviewDisplayTitle.style.display = visitData.review_title
-          ? "block"
-          : "none";
-
-      if (els.seeVisitReviewDisplayImage) {
-        if (visitData.image_url && visitData.image_url.startsWith("http")) {
-          els.seeVisitReviewDisplayImage.src = visitData.image_url;
-          els.seeVisitReviewDisplayImage.alt = `Image for visit to ${this.currentPlaceNameForReviewModal}`;
-          els.seeVisitReviewDisplayImage.style.display = "block";
-        } else {
-          els.seeVisitReviewDisplayImage.style.display = "none";
-          els.seeVisitReviewDisplayImage.src = "";
-        }
-      }
-      els.seeVisitReviewSection.style.display = "block";
-      els.seeVisitReviewSection.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
+    if (visitData.visit_datetime) {
+      const date = new Date(visitData.visit_datetime);
+      els.seeVisitReviewDateTime.textContent = date.toLocaleString(undefined, {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
       });
-    } catch (e) {
-      console.error("Modals: Error populating see visit review modal:", e);
-      alert("Error preparing review display.");
-      this.hideSeeReviewModal();
     }
+
+    this.displayStaticRatingStars(
+      els.seeVisitReviewRatingDisplay,
+      visitData.rating,
+    );
+
+    els.seeVisitReviewDisplayTitle.textContent = visitData.review_title || "";
+    els.seeVisitReviewDisplayTitle.style.display = visitData.review_title
+      ? "block"
+      : "none";
+
+    els.seeVisitReviewDisplayText.textContent =
+      visitData.review_text || (visitData.rating ? "" : "(No review text)");
+
+    if (visitData.image_url) {
+      els.seeVisitReviewDisplayImage.src = visitData.image_url;
+      els.seeVisitReviewDisplayImage.style.display = "block";
+    } else {
+      els.seeVisitReviewDisplayImage.style.display = "none";
+    }
+
+    els.seeVisitReviewSection.style.display = "block";
+    els.seeVisitReviewSection.scrollIntoView({
+      behavior: "smooth",
+      block: "center",
+    });
   },
 
   hideSeeReviewModal() {
@@ -208,70 +167,43 @@ const modals = {
       this.elements.seeVisitReviewSection.style.display = "none";
     }
     this.currentVisitDataForReviewModal = null;
-    this.currentPlaceNameForReviewModal = null;
   },
 
+  /**
+   * Creates and shows a full-screen image overlay.
+   */
   showImageOverlay(event) {
-    const clickedImage = event.target;
-    if (
-      !clickedImage ||
-      clickedImage.tagName !== "IMG" ||
-      !clickedImage.src ||
-      !clickedImage.src.startsWith("http")
-    ) {
-      return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    this.elements.imageOverlayInstance =
-      document.querySelector(".image-overlay");
-    if (!this.elements.imageOverlayInstance) {
-      this.elements.imageOverlayInstance = document.createElement("div");
-      this.elements.imageOverlayInstance.className = "image-overlay";
-      const img = document.createElement("img");
-      img.alt = "Enlarged image";
-      img.onclick = (e) => e.stopPropagation();
-      this.elements.imageOverlayInstance.appendChild(img);
-      this.elements.imageOverlayInstance.onclick =
-        this.hideImageOverlay.bind(this);
-      document.body.appendChild(this.elements.imageOverlayInstance);
-    }
-    this.elements.imageOverlayInstance.querySelector("img").src =
-      clickedImage.src;
-    this.elements.imageOverlayInstance.querySelector("img").alt =
-      clickedImage.alt || "Enlarged image";
-    setTimeout(() => {
-      if (this.elements.imageOverlayInstance)
-        this.elements.imageOverlayInstance.classList.add("visible");
-    }, 10);
+    const src = event.target.src;
+    if (!src) return;
+
+    this.elements.imageOverlayInstance = document.createElement("div");
+    this.elements.imageOverlayInstance.className = "image-overlay";
+
+    const img = document.createElement("img");
+    img.src = src;
+
+    this.elements.imageOverlayInstance.appendChild(img);
+    this.elements.imageOverlayInstance.onclick = () => this.hideImageOverlay();
+
+    document.body.appendChild(this.elements.imageOverlayInstance);
+
+    // Trigger transition
+    setTimeout(
+      () => this.elements.imageOverlayInstance.classList.add("visible"),
+      10,
+    );
   },
 
   hideImageOverlay() {
-    if (
-      this.elements.imageOverlayInstance &&
-      this.elements.imageOverlayInstance.classList.contains("visible")
-    ) {
-      this.elements.imageOverlayInstance.classList.remove("visible");
-      this.elements.imageOverlayInstance.addEventListener(
-        "transitionend",
-        () => {
-          if (
-            this.elements.imageOverlayInstance &&
-            document.body.contains(this.elements.imageOverlayInstance)
-          ) {
-            document.body.removeChild(this.elements.imageOverlayInstance);
-          }
-          this.elements.imageOverlayInstance = null;
-        },
-        { once: true }
-      );
-    } else {
-      const existingOverlay = document.querySelector(".image-overlay");
-      if (existingOverlay && document.body.contains(existingOverlay)) {
-        document.body.removeChild(existingOverlay);
-      }
-      this.elements.imageOverlayInstance = null;
-    }
+    const overlay = this.elements.imageOverlayInstance;
+    if (!overlay) return;
+
+    overlay.classList.remove("visible");
+    overlay.addEventListener("transitionend", () => overlay.remove(), {
+      once: true,
+    });
+    this.elements.imageOverlayInstance = null;
   },
 };
+
 export default modals;
