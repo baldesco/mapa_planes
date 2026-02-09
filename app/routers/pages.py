@@ -22,7 +22,7 @@ from app.auth.dependencies import (
     get_optional_current_user,
     get_db,
 )
-from app.services.mapping import generate_map_html
+from app.services.mapping import prepare_map_data
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(tags=["Pages"])
@@ -46,14 +46,14 @@ async def serve_root_page(
         try:
             category = models_places.PlaceCategory(category_str)
         except ValueError:
-            category_str = None  # Reset for context if invalid
+            category_str = None
 
     status_filter: Optional[models_places.PlaceStatus] = None
     if status_str:
         try:
             status_filter = models_places.PlaceStatus(status_str)
         except ValueError:
-            status_str = None  # Reset for context if invalid
+            status_str = None
 
     current_tags_filter: List[str] = (
         [tag.strip().lower() for tag in tags_str.split(",") if tag.strip()]
@@ -61,9 +61,9 @@ async def serve_root_page(
         else []
     )
 
-    map_html_content = '<p style="color: red; text-align: center; padding: 20px;">Map could not be loaded.</p>'
     places_list: List[models_places.Place] = []
     all_user_tags_for_js: List[Dict[str, Any]] = []
+    map_data_json = "{}"
 
     try:
         all_user_tags_db = await crud_tags.get_tags_for_user(
@@ -71,8 +71,6 @@ async def serve_root_page(
         )
         all_user_tags_for_js = [tag.model_dump(mode="json") for tag in all_user_tags_db]
 
-        # crud_places.get_places now returns List[models_places.Place]
-        # where each Place object contains its list of Visit objects.
         places_list = await crud_places.get_places(
             db=db,
             user_id=current_user.id,
@@ -81,34 +79,26 @@ async def serve_root_page(
             tag_names=current_tags_filter,
             limit=500,
         )
+        
+        # Prepare data for native Leaflet implementation
+        map_data = prepare_map_data(places=places_list)
+        map_data_json = json.dumps(map_data)
+
         logger.info(
             f"Fetched {len(places_list)} places for user {current_user.email} after filtering."
         )
 
-        # generate_map_html will receive places with embedded visits.
-        # It will need to be updated in a later phase to utilize this visit data for popups.
-        map_html_content = generate_map_html(
-            places=places_list,
-            request=request,
-            category_filter=category,
-            status_filter=status_filter,
-        )
-
     except Exception as page_load_error:
         logger.error(
-            f"Critical error generating map page: {page_load_error}", exc_info=True
+            f"Critical error preparing map page: {page_load_error}", exc_info=True
         )
-        places_list = []
-        all_user_tags_for_js = []
 
     context = {
         "request": request,
-        "map_html": map_html_content,
-        "places": places_list,  # places_list now contains Place objects with their visits
+        "map_data_json": map_data_json,
+        "places": places_list,
         "categories": [c.value for c in models_places.PlaceCategory],
-        "statuses": [
-            s.value for s in models_places.PlaceStatus
-        ],  # This enum is already updated
+        "statuses": [s.value for s in models_places.PlaceStatus],
         "all_user_tags_json": json.dumps(all_user_tags_for_js),
         "current_category": category_str or None,
         "current_status": status_str or None,
