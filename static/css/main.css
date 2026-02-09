@@ -14,6 +14,6 @@
 @import url('components/modal.css');
 @import url('components/rating.css');
 @import url('components/place-forms.css');
-/* Specific styles for add/edit/review forms */
+@import url('components/sidebar.css');
 
 /* Add any final overrides or utilities here if needed */

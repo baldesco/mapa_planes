@@ -1,66 +1,63 @@
 /* Styles for interactive and static rating stars */
 
-/* Container for interactive stars (in Review form) */
+/* Interactive Rating Stars (Forms) */
 .rating-stars {
-    display: inline-block;
-    font-size: 1.6em;
-    /* Make stars slightly larger */
+    display: flex;
+    gap: 8px;
+    font-size: 1.6rem;
     cursor: pointer;
-    line-height: 1;
-    /* Prevent extra vertical space */
+    color: #cbd5e0;
+    /* Default empty color */
     margin-bottom: 15px;
-    /* Match default input margin */
 }
 
 .rating-stars .star {
-    color: #ccc;
-    /* Default empty star color */
-    transition: color 0.2s, transform 0.1s;
-    display: inline-block;
-    /* Needed for transform */
-    margin-right: 2px;
-    /* Slight spacing between stars */
+    transition: transform 0.15s ease, color 0.15s ease;
 }
 
 .rating-stars .star:hover {
-    transform: scale(1.15);
-    /* Slight scale effect on hover */
+    transform: scale(1.2);
 }
 
-/* Style for selected/hovered stars */
+/* Logic for filled stars */
 .rating-stars .star.selected,
-.rating-stars .star:hover {
-    color: #FFD700;
-    /* Gold color for selected/hover */
+.rating-stars .star.selected~.star.selected {
+    color: #ecc94b;
+    /* Gold */
 }
 
+.rating-stars .star.selected i {
+    font-weight: 900;
+    /* FontAwesome Solid */
+}
 
-/* Container for static stars display (in See Review modal and popups) */
+/* Static Rating Display (Sidebar, Popups, Modals) */
 .rating-stars-display {
-    display: inline-block;
-    /* Or block if needed */
-    font-size: 1em;
-    /* Adjust size as needed */
-    color: #ccc;
-    /* Default color for empty stars */
-    line-height: 1;
+    display: inline-flex;
+    gap: 2px;
+    font-size: 0.9rem;
+    color: #ecc94b;
+    vertical-align: middle;
+}
+
+.rating-stars-display i.far {
+    color: #e2e8f0;
+    /* Light gray for empty stars */
+}
+
+/* Sidebar Specific adjustment */
+.place-card-rating .rating-stars-display {
+    font-size: 0.8rem;
+}
+
+/* Modal Specific adjustment */
+.modal-content .rating-stars-display {
+    font-size: 1.1rem;
     margin-bottom: 10px;
-    /* Spacing below rating */
 }
 
-.rating-stars-display .fas {
-    /* Filled star */
-    color: #FFD700;
-}
-
-.rating-stars-display .far {
-    /* Empty star */
-    color: #ccc;
-}
-
-/* Style for rating stars inside Leaflet popups */
+/* Leaflet Popup Specific adjustment */
 .leaflet-popup-content .rating-stars-display {
-    font-size: 0.9em;
-    /* Slightly smaller in popups */
-    margin-bottom: 5px;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
 }

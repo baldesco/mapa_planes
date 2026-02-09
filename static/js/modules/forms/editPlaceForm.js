@@ -1,11 +1,12 @@
 /**
  * editPlaceForm.js
  * Manages interactions and state for the Edit Place form.
- * Handles location updates via geocoding and map pinning.
+ * Updated to support SPA-lite submission via API.
  */
 import apiClient from "../apiClient.js";
 import mapHandler from "../mapHandler.js";
 import pinningUI from "../components/pinningUI.js";
+import tagInput from "../components/tagInput.js";
 
 const editPlaceForm = {
   elements: {
@@ -17,7 +18,6 @@ const editPlaceForm = {
     addressInput: null,
     findCoordsBtn: null,
     pinOnMapBtn: null,
-    mapPinInstruction: null,
     geocodeStatus: null,
     coordsSection: null,
     displayLat: null,
@@ -34,19 +34,15 @@ const editPlaceForm = {
   },
   isMapReady: false,
   hideCallback: null,
+  onSuccessCallback: null,
   currentPlaceData: null,
 
-  init(mapReady, showFn, hideFn) {
+  init(mapReady, showFn, hideFn, onSuccess) {
     this.isMapReady = mapReady;
     this.hideCallback = hideFn;
+    this.onSuccessCallback = onSuccess;
     this.cacheDOMElements();
     this.setupEventListeners();
-
-    if (!this.isMapReady) {
-      if (this.elements.findCoordsBtn)
-        this.elements.findCoordsBtn.disabled = true;
-      if (this.elements.pinOnMapBtn) this.elements.pinOnMapBtn.disabled = true;
-    }
   },
 
   cacheDOMElements() {
@@ -63,9 +59,6 @@ const editPlaceForm = {
       "edit-find-coords-btn",
     );
     this.elements.pinOnMapBtn = document.getElementById("edit-pin-on-map-btn");
-    this.elements.mapPinInstruction = document.getElementById(
-      "edit-map-pin-instruction",
-    );
     this.elements.geocodeStatus = document.getElementById(
       "edit-geocode-status",
     );
@@ -87,6 +80,8 @@ const editPlaceForm = {
 
   setupEventListeners() {
     if (!this.elements.form) return;
+
+    this.elements.form.addEventListener("submit", (e) => this.handleSubmit(e));
 
     if (this.elements.cancelBtn && this.hideCallback) {
       this.elements.cancelBtn.addEventListener("click", () =>
@@ -127,7 +122,7 @@ const editPlaceForm = {
     this.currentPlaceData = placeData;
     const els = this.elements;
 
-    els.formTitle.textContent = `"${placeData.name || "Unknown"}"`;
+    els.formTitle.textContent = placeData.name || "Unknown";
     els.nameInput.value = placeData.name || "";
     els.categorySelect.value = placeData.category || "other";
     els.statusSelect.value = placeData.status || "pending";
@@ -141,86 +136,101 @@ const editPlaceForm = {
 
     els.displayLat.textContent = placeData.latitude?.toFixed(6) ?? "N/A";
     els.displayLon.textContent = placeData.longitude?.toFixed(6) ?? "N/A";
-    els.coordsSection.style.display =
-      placeData.latitude && placeData.longitude ? "block" : "none";
 
     this.setStatusMessage("");
-    els.form.action = `/places/${placeData.id}/edit`;
-    els.submitBtn.disabled = !(
-      els.latitudeInput.value && els.longitudeInput.value
-    );
+    this.validateSubmitButton();
 
     return true;
   },
 
-  async handleGeocodeRequest() {
-    pinningUI.deactivateIfActiveFor("edit");
+  async handleSubmit(event) {
+    event.preventDefault();
+    if (!this.currentPlaceData) return;
 
+    this.setStatusMessage("Updating place...", "loading");
+    this.elements.submitBtn.disabled = true;
+
+    const tags = tagInput.getTags("edit-tags-input");
+
+    const payload = {
+      name: this.elements.nameInput.value,
+      latitude: parseFloat(this.elements.latitudeInput.value),
+      longitude: parseFloat(this.elements.longitudeInput.value),
+      category: this.elements.categorySelect.value,
+      status: this.elements.statusSelect.value,
+      address: this.elements.addressHidden.value || null,
+      city: this.elements.cityHidden.value || null,
+      country: this.elements.countryHidden.value || null,
+      tags: tags,
+    };
+
+    try {
+      const response = await apiClient.put(
+        `/api/v1/places/${this.currentPlaceData.id}`,
+        payload,
+      );
+      if (response.ok) {
+        const updatedPlace = await response.json();
+        this.setStatusMessage("Place updated successfully!", "success");
+        if (this.onSuccessCallback) {
+          this.onSuccessCallback(updatedPlace);
+        }
+      } else {
+        const error = await response.json();
+        this.setStatusMessage(error.detail || "Update failed", "error");
+        this.elements.submitBtn.disabled = false;
+      }
+    } catch (error) {
+      this.setStatusMessage("A network error occurred", "error");
+      this.elements.submitBtn.disabled = false;
+    }
+  },
+
+  async handleGeocodeRequest() {
     const addressQuery = this.elements.addressInput?.value.trim();
     if (!addressQuery) {
-      this.setStatusMessage("Please enter an address or place name.", "error");
+      this.setStatusMessage("Please enter an address.", "error");
       return;
     }
 
     this.setStatusMessage("Searching...", "loading");
-    if (this.elements.findCoordsBtn)
-      this.elements.findCoordsBtn.disabled = true;
-    if (this.elements.submitBtn) this.elements.submitBtn.disabled = true;
-
     try {
-      const geocodeUrl = `/api/v1/geocode?address=${encodeURIComponent(addressQuery)}`;
-      const response = await apiClient.get(geocodeUrl);
-
+      const response = await apiClient.get(
+        `/api/v1/geocode?address=${encodeURIComponent(addressQuery)}`,
+      );
       if (response.ok) {
         const result = await response.json();
         this.updateCoordsDisplay(result);
-        this.setStatusMessage(
-          `Location found: ${result.display_name}`,
-          "success",
-        );
+        this.setStatusMessage(`Found: ${result.display_name}`, "success");
         mapHandler.flyTo(result.latitude, result.longitude);
       } else {
-        this.setStatusMessage("Geocoding failed.", "error");
+        this.setStatusMessage("Address not found.", "error");
       }
     } catch (error) {
-      this.setStatusMessage("Network error during geocoding.", "error");
-    } finally {
-      if (this.elements.findCoordsBtn)
-        this.elements.findCoordsBtn.disabled = false;
-      this.validateSubmitButton();
+      this.setStatusMessage("Geocoding service unavailable.", "error");
     }
   },
 
   updateCoordsDisplay(coordsData) {
     const els = this.elements;
-    const lat = parseFloat(coordsData.latitude);
-    const lon = parseFloat(coordsData.longitude);
+    els.latitudeInput.value = coordsData.latitude;
+    els.longitudeInput.value = coordsData.longitude;
+    els.addressHidden.value = coordsData.address || "";
+    els.cityHidden.value = coordsData.city || "";
+    els.countryHidden.value = coordsData.country || "";
 
-    if (isNaN(lat) || isNaN(lon)) {
-      this.setStatusMessage("Invalid coordinate data.", "error");
-      return;
-    }
+    els.displayLat.textContent = coordsData.latitude.toFixed(6);
+    els.displayLon.textContent = coordsData.longitude.toFixed(6);
 
-    els.latitudeInput.value = lat.toFixed(7);
-    els.longitudeInput.value = lon.toFixed(7);
-
-    if (coordsData.display_name) {
-      els.addressHidden.value = coordsData.address || "";
-      els.cityHidden.value = coordsData.city || "";
-      els.countryHidden.value = coordsData.country || "";
-    }
-
-    els.displayLat.textContent = lat.toFixed(6);
-    els.displayLon.textContent = lon.toFixed(6);
-    els.coordsSection.style.display = "block";
     this.validateSubmitButton();
   },
 
   validateSubmitButton() {
     if (this.elements.submitBtn) {
       this.elements.submitBtn.disabled = !(
-        this.elements.latitudeInput?.value &&
-        this.elements.longitudeInput?.value
+        this.elements.nameInput.value.trim() &&
+        this.elements.latitudeInput.value &&
+        this.elements.longitudeInput.value
       );
     }
   },

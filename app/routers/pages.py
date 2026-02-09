@@ -13,7 +13,6 @@ import json
 
 from app.core.config import logger, settings
 from app.models import places as models_places
-from app.models import tags as models_tags
 from app.models.auth import UserInToken
 from app.crud import places as crud_places
 from app.crud import tags as crud_tags
@@ -33,65 +32,38 @@ async def serve_root_page(
     request: Request,
     db: SupabaseClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    category_str: Optional[str] = Query(None, alias="category"),
-    status_str: Optional[str] = Query(None, alias="status"),
-    tags_str: Optional[str] = Query(None, alias="tags"),
 ):
-    logger.info(
-        f"Request root page for user {current_user.email}. Filters: category='{category_str}', status='{status_str}', tags='{tags_str}'"
-    )
-
-    category: Optional[models_places.PlaceCategory] = None
-    if category_str:
-        try:
-            category = models_places.PlaceCategory(category_str)
-        except ValueError:
-            category_str = None
-
-    status_filter: Optional[models_places.PlaceStatus] = None
-    if status_str:
-        try:
-            status_filter = models_places.PlaceStatus(status_str)
-        except ValueError:
-            status_str = None
-
-    current_tags_filter: List[str] = (
-        [tag.strip().lower() for tag in tags_str.split(",") if tag.strip()]
-        if tags_str
-        else []
-    )
+    """
+    Serves the main dashboard.
+    Initial filters are handled client-side, but we hydrate the page with 
+    the full list of places and tags to enable suggestion #1 and #2.
+    """
+    logger.info(f"Serving dashboard for user: {current_user.email}")
 
     places_list: List[models_places.Place] = []
     all_user_tags_for_js: List[Dict[str, Any]] = []
     map_data_json = "{}"
 
     try:
+        # Fetch all tags to populate the filter suggestions
         all_user_tags_db = await crud_tags.get_tags_for_user(
             db=db, user_id=current_user.id
         )
         all_user_tags_for_js = [tag.model_dump(mode="json") for tag in all_user_tags_db]
 
+        # Fetch all active places for the initial client-side state
         places_list = await crud_places.get_places(
             db=db,
             user_id=current_user.id,
-            category=category,
-            status_filter=status_filter,
-            tag_names=current_tags_filter,
-            limit=500,
+            limit=1000, # Increased limit as filtering is now client-side
         )
         
-        # Prepare data for native Leaflet implementation
+        # Prepare data for map and sidebar state
         map_data = prepare_map_data(places=places_list)
         map_data_json = json.dumps(map_data)
 
-        logger.info(
-            f"Fetched {len(places_list)} places for user {current_user.email} after filtering."
-        )
-
-    except Exception as page_load_error:
-        logger.error(
-            f"Critical error preparing map page: {page_load_error}", exc_info=True
-        )
+    except Exception as e:
+        logger.error(f"Error hydrating dashboard: {e}", exc_info=True)
 
     context = {
         "request": request,
@@ -100,9 +72,6 @@ async def serve_root_page(
         "categories": [c.value for c in models_places.PlaceCategory],
         "statuses": [s.value for s in models_places.PlaceStatus],
         "all_user_tags_json": json.dumps(all_user_tags_for_js),
-        "current_category": category_str or None,
-        "current_status": status_str or None,
-        "current_tags_filter": current_tags_filter,
         "user_email": current_user.email,
     }
     return templates.TemplateResponse("index.html", context)

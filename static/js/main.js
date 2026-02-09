@@ -1,7 +1,7 @@
 /**
  * main.js
  * Entry point for application-specific JavaScript.
- * Initializes core modules based on the current page route.
+ * Initializes core modules and sets up global hooks for SPA-lite behavior.
  */
 
 import auth from "./modules/auth.js";
@@ -9,7 +9,7 @@ import uiOrchestrator from "./modules/uiOrchestrator.js";
 import passwordReset from "./modules/passwordReset.js";
 
 document.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM Loaded. Initializing application modules...");
+  console.debug("DOM Loaded. Initializing application modules...");
 
   const pathname = window.location.pathname;
 
@@ -35,14 +35,35 @@ document.addEventListener("DOMContentLoaded", () => {
   } else if (pathname === "/reset-password") {
     passwordReset.initResetPage();
   } else if (pathname === "/") {
-    // The main dashboard orchestration
-    console.log("Initializing Dashboard UI...");
+    console.debug("Initializing Dashboard UI Orchestrator...");
+
+    // Initialize the main UI system
     uiOrchestrator.init();
+
+    // Setup the global logout handler
     auth.setupLogoutButton();
+
+    /**
+     * Global bridge for asynchronous components.
+     * Used by mapMarkers.js to notify the orchestrator when a place is
+     * deleted via the AJAX popup button.
+     */
+    window.handlePlaceDeleted = (placeId) => {
+      console.debug(
+        `Global Hook: Place ${placeId} deleted. Updating local state...`,
+      );
+
+      // Remove from the master list in orchestrator state
+      uiOrchestrator.state.allPlaces = uiOrchestrator.state.allPlaces.filter(
+        (p) => p.id !== placeId,
+      );
+
+      // Re-apply existing filters to the updated list and refresh the view
+      uiOrchestrator.applyFilters();
+    };
   } else {
-    // Fallback for logout functionality on other pages
     auth.setupLogoutButton();
   }
 
-  console.log("Application initialization complete.");
+  console.debug("Application initialization complete.");
 });

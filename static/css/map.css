@@ -1,22 +1,13 @@
 /* Styles related to map containers and Leaflet elements */
 
-/* Main Map (Native Leaflet Container) */
 #map {
-    height: 550px;
+    height: 100%;
     width: 100%;
-    margin-bottom: 25px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    box-shadow: var(--box-shadow-sm);
-    display: block;
-    clear: both;
-    position: relative;
-    overflow: hidden;
     background-color: var(--tertiary-color);
     z-index: 1;
 }
 
-/* Leaflet Controls (Zoom, etc.) */
+/* Leaflet Controls adjustment for clean UI */
 .leaflet-control-container {
     z-index: 800 !important;
 }
@@ -34,13 +25,11 @@
     width: 32px;
     height: 32px;
     background-color: #757575;
-    /* Default Gray */
     border-radius: 50% 50% 50% 0;
     transform: rotate(-45deg);
     border: 2px solid white;
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
     transition: transform 0.2s ease;
-    /* Alignment: Ensure the bottom tip of the pin is centered on the coords */
     margin-top: -16px;
     margin-left: -16px;
 }
@@ -51,7 +40,6 @@
     font-size: 14px;
 }
 
-/* Status-based colors for markers */
 .leaflet-marker-icon-wrapper.green {
     background-color: #2E7D32;
 }
@@ -69,243 +57,134 @@
 }
 
 .leaflet-marker-icon-wrapper:hover {
-    transform: rotate(-45deg) scale(1.1);
-    z-index: 1000;
+    transform: rotate(-45deg) scale(1.15);
+    z-index: 1000 !important;
 }
 
-/* Leaflet Popups (from main map) */
+/* Leaflet Popups */
 .leaflet-popup-content-wrapper {
-    border-radius: 8px !important;
-    box-shadow: var(--box-shadow);
-    background-color: #fff;
+    border-radius: 12px !important;
     padding: 0 !important;
+    overflow: hidden;
 }
 
 .leaflet-popup-content {
-    font-family: 'Poppins', sans-serif !important;
-    font-size: 14px !important;
-    line-height: 1.6;
-    max-width: 280px !important;
     margin: 0 !important;
-    color: var(--text-color);
+    width: 280px !important;
+    font-family: inherit !important;
 }
 
 .map-popup-container {
-    padding: 15px;
+    padding: 20px;
 }
 
 .map-popup-container h4 {
-    margin: 0 0 10px 0;
-    color: var(--primary-color-dark);
-    font-size: 1.15em;
+    margin: 0 0 12px 0;
+    font-size: 1.1em;
     border-bottom: 1px solid #eee;
     padding-bottom: 8px;
-    font-weight: 600;
 }
 
 .popup-content-scrollable {
-    max-height: 150px;
+    max-height: 180px;
     overflow-y: auto;
-    margin-bottom: 10px;
-    padding-right: 5px;
-    word-wrap: break-word;
-}
-
-.popup-content-scrollable p {
-    margin: 5px 0;
     font-size: 0.9em;
+    color: var(--text-color);
 }
 
 .popup-tags-container {
-    margin-top: 6px;
+    margin-top: 10px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 .popup-tag {
-    display: inline-block;
     background-color: #f0f0f0;
-    color: #555;
-    padding: 2px 7px;
-    border-radius: 10px;
-    font-size: 0.75em;
-    margin-right: 3px;
-    margin-bottom: 3px;
-    white-space: nowrap;
-}
-
-.popup-visits-info {
-    font-style: italic;
-    color: #555;
-    font-size: 0.85em;
-    margin-top: 8px;
-    padding-top: 5px;
-    border-top: 1px dashed #eee;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
 }
 
 .popup-actions {
-    margin-top: 12px;
-    padding-top: 8px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 15px;
+    padding-top: 15px;
     border-top: 1px solid #eee;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    justify-content: flex-start;
 }
 
-.popup-actions button,
-.popup-actions form button {
-    padding: 6px 12px !important;
-    font-size: 0.85em !important;
-    border-radius: 5px !important;
-    cursor: pointer !important;
-    border: none !important;
-    color: white !important;
-    margin: 0 !important;
-    font-family: inherit !important;
-    box-shadow: var(--box-shadow-sm) !important;
-    transition: background-color 0.2s, transform 0.1s !important;
+.popup-actions button {
+    margin: 0;
+    padding: 8px;
+    font-size: 0.85em;
+    width: 100%;
 }
 
 .popup-btn-edit-place {
-    background-color: #ff9800;
-}
-
-.popup-btn-edit-place:hover {
-    background-color: #f57c00;
+    background-color: var(--warning-color);
 }
 
 .popup-btn-plan-visit {
-    background-color: #0288d1;
-}
-
-.popup-btn-plan-visit:hover {
-    background-color: #0277bd;
+    background-color: var(--info-color);
 }
 
 .popup-btn-view-visits {
-    background-color: #546e7a;
-}
-
-.popup-btn-view-visits:hover {
-    background-color: #455a64;
+    background-color: var(--toggle-button-bg);
 }
 
 .popup-btn-delete-place {
-    background-color: #d32f2f;
-}
-
-.popup-btn-delete-place:hover {
-    background-color: #c62828;
-}
-
-.popup-actions form {
-    margin: 0;
-    padding: 0;
-    display: inline-flex;
-}
-
-/* --- Pinning Map Styles --- */
-#pinning-map-container {
-    margin-top: 15px;
-    margin-bottom: 15px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    overflow: hidden;
-    box-shadow: var(--box-shadow-sm);
-    display: none;
-    position: relative;
-}
-
-#pinning-map {
-    height: 350px;
-    width: 100%;
-    background-color: var(--tertiary-color);
-}
-
-#pinning-map-controls {
-    padding: 10px;
-    background-color: var(--tertiary-color);
-    text-align: center;
-    border-top: 1px solid var(--border-color);
-}
-
-#pinning-map-controls button {
-    margin: 0 5px;
-    padding: 8px 15px;
-    font-size: 0.95em;
-}
-
-#pinning-map-controls #confirm-pin-btn {
-    background-color: var(--primary-color);
-}
-
-#pinning-map-controls #cancel-pin-btn {
     background-color: var(--error-color);
 }
 
-.draggable-pin-icon i {
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    cursor: grab;
-    color: #D32F2F;
+/* --- Pinning UI Overlay --- */
+#pinning-map-container {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    right: 20px;
+    bottom: 20px;
+    z-index: 1000;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
 }
 
-.leaflet-marker-draggable:active .draggable-pin-icon i {
-    cursor: grabbing;
+#pinning-map {
+    flex-grow: 1;
+}
+
+#pinning-map-controls {
+    padding: 15px;
+    background: #f8f9fa;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    border-top: 1px solid var(--border-color);
+}
+
+.draggable-pin-icon i {
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .map-pin-instruction {
-    display: none;
-    margin-top: 10px;
-    margin-bottom: 10px;
-    font-style: italic;
-    color: var(--info-color);
-    padding: 8px;
     background-color: var(--light-blue-bg);
-    border: 1px dashed var(--light-blue-border);
-    border-radius: 4px;
-}
-
-/* Responsive map adjustments */
-@media (max-width: 992px) {
-    #map {
-        height: 480px;
-    }
+    border: 1px solid var(--light-blue-border);
+    padding: 10px 15px;
+    border-radius: 6px;
+    font-size: 0.9em;
+    margin: 10px 0;
 }
 
 @media (max-width: 768px) {
-    #map {
-        height: 400px;
-    }
-
-    #pinning-map {
-        height: 300px;
-    }
-}
-
-@media (max-width: 480px) and (orientation: portrait) {
-    #map {
-        height: auto;
-        aspect-ratio: 3 / 4;
-    }
-
     #pinning-map-container {
-        height: auto;
-        max-height: 70vh;
-        display: flex;
-        flex-direction: column;
-    }
-
-    #pinning-map {
-        flex-grow: 1;
-        min-height: 200px;
-    }
-
-    #pinning-map-controls {
-        flex-shrink: 0;
-        padding: 8px;
-    }
-
-    #pinning-map-controls button {
-        padding: 8px 12px;
-        font-size: 0.9em;
+        top: 10px;
+        left: 10px;
+        right: 10px;
+        bottom: 10px;
     }
 }

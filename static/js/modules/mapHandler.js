@@ -23,6 +23,9 @@ const mapHandler = {
       return false;
     }
 
+    // Prevent re-initialization
+    if (mainLeafletMap) return true;
+
     const { center, zoom } = mapData.config || {
       center: [4.711, -74.0721],
       zoom: 12,
@@ -32,8 +35,7 @@ const mapHandler = {
       mainLeafletMap = L.map(containerId).setView(center, zoom);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        attribution: "© OpenStreetMap contributors",
       }).addTo(mainLeafletMap);
 
       markersLayer = L.layerGroup().addTo(mainLeafletMap);
@@ -61,17 +63,13 @@ const mapHandler = {
     places.forEach((place) => {
       if (place.latitude != null && place.longitude != null) {
         const icon = mapMarkers.createIcon(place.category, place.status);
-
-        // Get the DOM element for the popup
         const popupElement = mapMarkers.createPopupContainer(place);
 
         const marker = L.marker([place.latitude, place.longitude], {
           icon: icon,
         });
 
-        // Bind the DOM element directly
         marker.bindPopup(popupElement, { maxWidth: 300 });
-
         marker.bindTooltip(place.name || "Unnamed Place");
 
         markersLayer.addLayer(marker);
@@ -83,9 +81,12 @@ const mapHandler = {
     return mainLeafletMap;
   },
 
-  flyTo(lat, lng, zoomLevel = 15) {
+  flyTo(lat, lng, zoomLevel = 16) {
     if (mainLeafletMap && lat != null && lng != null) {
-      mainLeafletMap.flyTo([lat, lng], zoomLevel);
+      mainLeafletMap.flyTo([lat, lng], zoomLevel, {
+        animate: true,
+        duration: 1.5,
+      });
     }
   },
 

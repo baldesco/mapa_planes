@@ -16,60 +16,98 @@
 </head>
 
 <body>
-    <div class="container">
+    <div class="container main-container">
         <header class="main-header">
             <h1>🐧 Dos en la ciudad 🦖</h1>
             {% if user_email %}
             <div class="user-info">
-                <span>Logged in as: {{ user_email }}</span>
+                <span>{{ user_email }}</span>
                 <button type="button" id="logout-btn" class="logout-btn">Logout</button>
-            </div>
-            {% else %}
-            <div class="auth-links-header">
-                <a href="{{ url_for('serve_login_page') }}">Login</a>
-                <a href="{{ url_for('serve_signup_page') }}">Sign Up</a>
             </div>
             {% endif %}
         </header>
 
-        <section class="controls-section filter-section">
-            <form id="filter-form" method="get" action="{{ request.url_for('serve_root_page') }}">
-                <div>
-                    <label for="category">Category:</label>
-                    <select id="category" name="category" onchange="this.form.submit()">
-                        <option value="" {% if not current_category %}selected{% endif %}>All</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{ cat|capitalize }}
-                        </option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div>
-                    <label for="status">Status:</label>
-                    <select id="status" name="status" onchange="this.form.submit()">
-                        <option value="" {% if not current_status %}selected{% endif %}>All</option>
-                        {% for stat_val in statuses %}
-                        <option value="{{ stat_val }}" {% if stat_val==current_status %}selected{% endif %}>{{
-                            stat_val|replace('_', ' ')|capitalize }}</option>
-                        {% endfor %}
-                    </select>
-                </div>
-                <div class="tag-filter-container">
-                    <label for="tag-filter-input">Tags:</label>
-                    <input id="tag-filter-input" name="tags" placeholder="Filter by tags..."
-                        value="{{ current_tags_filter|join(',') }}">
-                </div>
-                <button type="submit">Filter</button>
-                <button type="button" onclick="window.location.href='{{ request.url_for('serve_root_page') }}'">Clear
-                    Filters</button>
-            </form>
-            <button type="button" id="toggle-add-place-form-btn">Add New Place</button>
+        <section class="top-bar">
+            <div class="search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="global-search" placeholder="Search by name, address or tags...">
+            </div>
+            <div class="top-actions">
+                <button type="button" id="toggle-filters-btn" class="secondary-btn">
+                    <i class="fas fa-filter"></i> Filters
+                </button>
+                <button type="button" id="toggle-add-place-form-btn" class="primary-btn">
+                    <i class="fas fa-plus"></i> Add Place
+                </button>
+            </div>
         </section>
 
-        <!-- Container for the native Leaflet map -->
-        <section id="map"></section>
+        <section id="filter-panel" class="filter-panel" style="display: none;">
+            <form id="filter-form" onsubmit="return false;">
+                <div class="filter-grid">
+                    <div class="filter-group">
+                        <label for="category">Category</label>
+                        <select id="category" name="category">
+                            <option value="">All Categories</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat }}">{{ cat|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="status">Status</label>
+                        <select id="status" name="status">
+                            <option value="">All Statuses</option>
+                            {% for stat_val in statuses %}
+                            <option value="{{ stat_val }}">{{ stat_val|replace('_', ' ')|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label for="tag-filter-input">Tags</label>
+                        <input id="tag-filter-input" name="tags" placeholder="Filter by tags...">
+                    </div>
+                </div>
+                <div class="filter-actions">
+                    <button type="button" id="clear-filters-btn" class="link-btn">Reset Filters</button>
+                </div>
+            </form>
+        </section>
 
-        <section id="add-place-wrapper-section" class="form-section">
+        <main class="main-content-area">
+            <aside class="sidebar" id="sidebar">
+                <div class="sidebar-header">
+                    <span id="places-count">0</span> Places found
+                    <div class="sort-controls">
+                        <select id="sort-places">
+                            <option value="name_asc">Name (A-Z)</option>
+                            <option value="name_desc">Name (Z-A)</option>
+                            <option value="newest">Newest First</option>
+                            <option value="rating">Best Rated</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="sidebar-list" id="places-list">
+                    <!-- Dynamic List Content -->
+                    <div class="sidebar-loading">Loading places...</div>
+                </div>
+            </aside>
+
+            <section class="map-view">
+                <div id="map"></div>
+                <!-- Pinning UI Overlay -->
+                <div id="pinning-map-container">
+                    <div id="pinning-map"></div>
+                    <div id="pinning-map-controls">
+                        <button type="button" id="confirm-pin-btn">Confirm Pin Location</button>
+                        <button type="button" id="cancel-pin-btn">Cancel Pinning</button>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Form and Modal Sections -->
+        <section id="add-place-wrapper-section" class="form-section overlay-section">
             <form id="add-place-form" action="{{ request.url_for('handle_create_new_place_form') }}" method="post">
                 <fieldset>
                     <legend>Add New Place</legend>
@@ -78,15 +116,14 @@
                     <label for="address-input">Location:</label>
                     <div class="address-input-row">
                         <input type="text" id="address-input" placeholder="Enter address or place name">
-                        <button type="button" id="find-coords-btn">Find via Geocoding</button>
+                        <button type="button" id="find-coords-btn">Find</button>
                     </div>
-                    <button type="button" id="pin-on-map-btn">Pin Location on Map</button>
-                    <div id="map-pin-instruction" class="map-pin-instruction">Drag the pin on the map below to the
-                        desired location, then click Confirm.</div>
+                    <button type="button" id="pin-on-map-btn" class="secondary-btn">Pin on Map</button>
+                    <div id="map-pin-instruction" class="map-pin-instruction">Drag the pin on the map to set location.
+                    </div>
                     <div id="geocode-status" class="status-message"></div>
-                    <div id="coords-section" class="coords-section">
-                        <p><strong>Selected Location:</strong> <span id="display-address">(Coordinates below)</span></p>
-                        <p>Coords: (<span id="display-lat"></span>, <span id="display-lon"></span>)</p>
+                    <div id="coords-section" class="coords-section" style="display:none;">
+                        <p><strong>Selected:</strong> <span id="display-address"></span></p>
                         <input type="hidden" id="latitude" name="latitude" required>
                         <input type="hidden" id="longitude" name="longitude" required>
                         <input type="hidden" id="address" name="address">
@@ -99,7 +136,7 @@
                         <option value="{{ cat }}">{{ cat|capitalize }}</option>
                         {% endfor %}
                     </select>
-                    <label for="add-status">Initial Status:</label>
+                    <label for="add-status">Status:</label>
                     <select id="add-status" name="status" required>
                         {% for stat_val in statuses %}
                         {% if stat_val != 'visited' and stat_val != 'pending_scheduled' %}
@@ -116,7 +153,7 @@
             </form>
         </section>
 
-        <section class="form-section" id="edit-place-section">
+        <section class="form-section overlay-section" id="edit-place-section">
             <form id="edit-place-form" action="" method="post">
                 <fieldset>
                     <h2>Edit Place: <span id="edit-place-form-title"></span></h2>
@@ -124,16 +161,14 @@
                     <input type="text" id="edit-name" name="name" required maxlength="100">
                     <label for="edit-address-input">Update Location:</label>
                     <div class="address-input-row">
-                        <input type="text" id="edit-address-input" placeholder="Enter new address to re-geocode">
-                        <button type="button" id="edit-find-coords-btn">Find New Coords</button>
+                        <input type="text" id="edit-address-input" placeholder="New address...">
+                        <button type="button" id="edit-find-coords-btn">Find</button>
                     </div>
-                    <button type="button" id="edit-pin-on-map-btn">Pin New Location</button>
-                    <div id="edit-map-pin-instruction" class="map-pin-instruction">Drag the pin on the map below to the
-                        new location, then click Confirm.</div>
+                    <button type="button" id="edit-pin-on-map-btn" class="secondary-btn">Pin New Location</button>
+                    <div id="edit-map-pin-instruction" class="map-pin-instruction">Drag the pin to update location.
+                    </div>
                     <div id="edit-geocode-status" class="status-message"></div>
                     <div id="edit-coords-section" class="coords-section">
-                        <p>Current Coords: (<span id="edit-display-lat"></span>, <span id="edit-display-lon"></span>)
-                        </p>
                         <input type="hidden" id="edit-latitude" name="latitude" required>
                         <input type="hidden" id="edit-longitude" name="longitude" required>
                         <input type="hidden" id="edit-address" name="address">
@@ -162,43 +197,28 @@
             </form>
         </section>
 
-        <section class="form-section" id="plan-visit-section" style="display: none;">
+        <section class="form-section overlay-section" id="plan-visit-section">
             <form id="plan-visit-form" action="" method="post">
                 <fieldset>
-                    <h2>Plan/Edit Visit for: <span id="plan-visit-place-title"></span></h2>
+                    <h2>Plan Visit: <span id="plan-visit-place-title"></span></h2>
                     <input type="hidden" id="plan-visit-place-id" name="place_id">
                     <input type="hidden" id="plan-visit-id" name="visit_id">
-
                     <div class="form-row">
-                        <div>
-                            <label for="visit-date">Date of Visit:</label>
-                            <div class="input-with-icon">
-                                <i class="fas fa-calendar-alt input-icon"></i>
-                                <input type="date" id="visit-date" name="visit_date" required>
-                            </div>
+                        <div class="filter-group">
+                            <label for="visit-date">Date</label>
+                            <input type="date" id="visit-date" name="visit_date" required>
                         </div>
-                        <div>
-                            <label for="visit-time">Time of Visit (Local to Place):</label>
-                            <div class="input-with-icon">
-                                <i class="fas fa-clock input-icon"></i>
-                                <input type="time" id="visit-time" name="visit_time" required>
-                            </div>
+                        <div class="filter-group">
+                            <label for="visit-time">Time</label>
+                            <input type="time" id="visit-time" name="visit_time" required>
                         </div>
                     </div>
-
-                    <p style="font-size: 0.9em; color: var(--text-muted); margin-top: 20px; margin-bottom: 10px;">
-                        After saving this visit, you can add it to your personal calendar. You can do it here or from
-                        the "View Visits" list.
-                    </p>
-
                     <div id="plan-visit-status" class="status-message"></div>
-
-                    <div id="plan-visit-calendar-action" style="display:none; margin-top: 15px; text-align: center;">
-                        <button type="button" id="plan-visit-add-to-calendar-btn" class="button-secondary">
+                    <div id="plan-visit-calendar-action" style="display:none;">
+                        <button type="button" id="plan-visit-add-to-calendar-btn" class="secondary-btn">
                             <i class="fas fa-calendar-plus"></i> Add to Calendar
                         </button>
                     </div>
-
                     <div class="form-actions">
                         <button type="submit" id="plan-visit-submit-btn">Save Visit</button>
                         <button type="button" class="cancel-btn" id="plan-visit-cancel-btn">Cancel</button>
@@ -207,159 +227,94 @@
             </form>
         </section>
 
-        <section class="form-section" id="visit-review-image-section" style="display: none;">
+        <section class="form-section overlay-section" id="visit-review-image-section">
             <form id="visit-review-image-form" action="" method="post" enctype="multipart/form-data">
                 <fieldset>
-                    <h2>Add/Edit Review for Visit to: <span id="visit-review-place-title"></span></h2>
-                    <p>on <span id="visit-review-datetime-display"></span></p>
+                    <h2>Review: <span id="visit-review-place-title"></span></h2>
+                    <p>Visit on <span id="visit-review-datetime-display"></span></p>
                     <input type="hidden" id="visit-review-visit-id" name="visit_id">
-                    <label for="visit-review-title">Review Title:</label>
-                    <input type="text" id="visit-review-title" name="review_title" maxlength="150">
-                    <label for="visit-review-text">Review Text:</label>
-                    <textarea id="visit-review-text" name="review_text" rows="5" maxlength="1000"></textarea>
-                    <label for="visit-review-rating">Rating:</label>
+                    <label for="visit-review-title">Title</label>
+                    <input type="text" id="visit-review-title" name="review_title">
+                    <label for="visit-review-text">Comment</label>
+                    <textarea id="visit-review-text" name="review_text" rows="3"></textarea>
+                    <label>Rating</label>
                     <div class="rating-stars" id="visit-review-rating-stars">
-                        <span class="star" data-value="1"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="2"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="3"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="4"><i class="far fa-star"></i></span>
-                        <span class="star" data-value="5"><i class="far fa-star"></i></span>
+                        {% for i in range(1, 6) %}<span class="star" data-value="{{ i }}"><i
+                                class="far fa-star"></i></span>{% endfor %}
                     </div>
                     <input type="hidden" id="visit-review-rating" name="rating">
-                    <label for="visit-review-image">Upload/Replace Image for this Visit (Optional):</label>
-                    <input type="file" id="visit-review-image" name="image"
-                        accept="image/jpeg, image/png, image/gif, image/webp">
-                    <p class="password-hint">Max file size ~5MB recommended.</p>
+                    <label for="visit-review-image">Photo</label>
+                    <input type="file" id="visit-review-image" name="image" accept="image/*">
                     <div id="current-visit-image-review-section" style="display:none;">
-                        <label>Current Visit Image:</label>
-                        <img id="current-visit-image-review-thumb" src="" alt="Current visit image">
-                        <div>
+                        <img id="current-visit-image-review-thumb" src="" alt="Thumbnail">
+                        <div class="checkbox-group">
                             <input type="checkbox" id="visit-review-remove-image" name="remove_image" value="yes">
-                            <label for="visit-review-remove-image">Remove Current Visit Image</label>
+                            <label for="visit-review-remove-image">Remove photo</label>
                         </div>
                     </div>
                     <div id="visit-review-status" class="status-message"></div>
                     <div class="form-actions">
-                        <button type="submit" id="visit-review-image-submit-btn">Save Review & Image</button>
-                        <button type="button" class="cancel-btn" id="visit-review-cancel-btn">Cancel</button>
+                        <button type="submit" id="visit-review-image-submit-btn">Save Review</button>
+                        <button type="button" class="cancel-btn">Cancel</button>
                     </div>
                 </fieldset>
             </form>
         </section>
 
-        <section class="modal-section" id="see-visit-review-section" style="display: none;">
+        <div id="visits-list-modal" class="modal-section overlay-section">
             <fieldset>
-                <h2>Review for Visit to: <span id="see-visit-review-place-title"></span></h2>
-                <p>on <span id="see-visit-review-datetime-display"></span></p>
+                <h2>Visits: <span id="visits-list-place-title"></span></h2>
+                <div class="modal-content" id="visits-list-content"></div>
+                <div id="visits-list-status" class="status-message"></div>
+                <div class="modal-actions">
+                    <button type="button" id="visits-list-plan-new-btn" class="primary-btn">Schedule New Visit</button>
+                    <button type="button" class="cancel-btn" id="visits-list-close-btn">Close</button>
+                </div>
+            </fieldset>
+        </div>
+
+        <div id="ics-customize-modal" class="modal-section overlay-section">
+            <form id="ics-customize-form">
+                <fieldset>
+                    <h2>Export Calendar</h2>
+                    <input type="hidden" id="ics-visit-id" name="visit_id">
+                    <label for="ics-event-name">Event Name</label>
+                    <input type="text" id="ics-event-name" name="event_name" required>
+                    <div class="form-row">
+                        <input type="number" id="ics-duration-value" name="duration_value" value="2" min="1">
+                        <select id="ics-duration-unit" name="duration_unit">
+                            <option value="hours" selected>Hours</option>
+                            <option value="minutes">Minutes</option>
+                        </select>
+                    </div>
+                    <div id="ics-customize-status" class="status-message"></div>
+                    <div class="form-actions">
+                        <button type="button" id="ics-download-btn">Download .ics</button>
+                        <button type="button" id="ics-google-calendar-btn">Google</button>
+                        <button type="button" class="cancel-btn">Cancel</button>
+                    </div>
+                </fieldset>
+            </form>
+        </div>
+
+        <section class="modal-section overlay-section" id="see-visit-review-section">
+            <fieldset>
+                <h2>Review for: <span id="see-visit-review-place-title"></span></h2>
                 <div class="modal-content">
                     <div id="see-visit-review-rating-display" class="rating-stars-display"></div>
                     <h3 id="see-visit-review-display-title"></h3>
                     <p id="see-visit-review-display-text"></p>
-                    <img id="see-visit-review-display-image" src="" alt="Visit review image" />
+                    <img id="see-visit-review-display-image" src="" alt="Visit image" />
                 </div>
                 <div class="modal-actions">
-                    <button type="button" id="see-visit-review-edit-btn" class="edit-review-btn">Edit This Visit's
-                        Review</button>
-                    <button type="button" class="cancel-btn" id="see-visit-review-close-btn">Close</button>
+                    <button type="button" id="see-visit-review-edit-btn" class="secondary-btn">Edit Review</button>
+                    <button type="button" class="cancel-btn">Close</button>
                 </div>
             </fieldset>
         </section>
-
-        <section class="modal-section" id="visits-list-modal" style="display: none;">
-            <fieldset>
-                <h2>Visits for: <span id="visits-list-place-title"></span></h2>
-                <div id="visits-list-status" class="status-message"></div>
-                <div class="modal-content" id="visits-list-content">
-                    <p>Loading visits...</p>
-                </div>
-                <div class="modal-actions">
-                    <button type="button" id="visits-list-plan-new-btn" class="popup-btn-plan-visit">Plan Another
-                        Visit</button>
-                    <button type="button" class="cancel-btn" id="visits-list-close-btn">Close</button>
-                </div>
-            </fieldset>
-        </section>
-
-        <section class="modal-section" id="ics-customize-modal" style="display: none;">
-            <form id="ics-customize-form" onsubmit="return false;">
-                <fieldset>
-                    <h2>Calendar Event Details for <span id="ics-modal-visit-title">Visit</span></h2>
-                    <input type="hidden" id="ics-visit-id" name="visit_id">
-
-                    <div>
-                        <label for="ics-event-name">Event Name:</label>
-                        <input type="text" id="ics-event-name" name="event_name" required maxlength="200">
-                    </div>
-
-                    <div class="form-row" style="margin-top: 15px;">
-                        <div>
-                            <label for="ics-duration-value">Duration:</label>
-                            <input type="number" id="ics-duration-value" name="duration_value" value="1" min="1"
-                                max="999" required
-                                style="width: 80px; text-align: right; padding-right: 5px; height: 45px; vertical-align: middle;">
-                        </div>
-                        <div style="align-self: flex-end;">
-                            <label for="ics-duration-unit" class="sr-only">Duration Unit:</label>
-                            <select id="ics-duration-unit" name="duration_unit"
-                                style="height: 45px; vertical-align: middle;">
-                                <option value="hours" selected>Hour(s)</option>
-                                <option value="minutes">Minute(s)</option>
-                                <option value="days">Day(s)</option>
-                            </select>
-                        </div>
-                    </div>
-
-                    <div
-                        style="margin-top: 20px; margin-bottom: 20px; padding:15px; background-color: #f8f9fa; border-radius: 6px; border: 1px solid var(--border-color);">
-                        <p style="font-size: 0.95em; color: var(--text-muted); margin-bottom: 10px; font-weight:500;">
-                            Include Reminders in Calendar Event (for .ics download only):</p>
-                        <div>
-                            <input type="checkbox" id="ics-remind-1-day" name="remind_1_day_before" value="true"
-                                checked>
-                            <label for="ics-remind-1-day" class="inline-label">1 day before</label>
-                        </div>
-                        <div>
-                            <input type="checkbox" id="ics-remind-2-hours" name="remind_2_hours_before" value="true"
-                                checked>
-                            <label for="ics-remind-2-hours" class="inline-label">2 hours before</label>
-                        </div>
-                        <div>
-                            <input type="checkbox" id="ics-remind-15-mins" name="remind_15_mins_before" value="true">
-                            <label for="ics-remind-15-mins" class="inline-label">15 minutes before</label>
-                        </div>
-                    </div>
-                    <div id="ics-customize-status" class="status-message"></div>
-                    <div id="ics-instructions" class="instructions-message"
-                        style="display:none; margin-top:10px; padding:10px; background-color: #eef; border-radius:4px;">
-                    </div>
-                    <div class="form-actions" style="justify-content: space-between;">
-                        <div>
-                            <button type="button" id="ics-download-btn" title="Download .ics file to import manually">
-                                <i class="fas fa-download"></i> Download .ics
-                            </button>
-                            <button type="button" id="ics-google-calendar-btn" title="Add to Google Calendar">
-                                <i class="fab fa-google"></i> Google Calendar
-                            </button>
-                            <button type="button" id="ics-outlook-calendar-btn" title="Add to Outlook Calendar">
-                                <i class="fab fa-microsoft"></i> Outlook Calendar
-                            </button>
-                        </div>
-                        <button type="button" class="cancel-btn" id="ics-customize-cancel-btn">Cancel</button>
-                    </div>
-                </fieldset>
-            </form>
-        </section>
-
-        <div id="pinning-map-container">
-            <div id="pinning-map"></div>
-            <div id="pinning-map-controls">
-                <button type="button" id="confirm-pin-btn">Confirm Pin Location</button>
-                <button type="button" id="cancel-pin-btn">Cancel Pinning</button>
-            </div>
-        </div>
     </div>
 
-    <!-- Data embedded for native JS modules -->
+    <!-- Data Hydration -->
     <script id="map-data" type="application/json">{{ map_data_json | safe }}</script>
     <script id="user-tags-data" type="application/json">{{ all_user_tags_json | safe }}</script>
 

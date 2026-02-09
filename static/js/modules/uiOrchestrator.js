@@ -1,7 +1,7 @@
 /**
  * uiOrchestrator.js
- * Handles the high-level orchestration of UI sections and initializes specific form/component modules.
- * Coordinates with mapHandler for native Leaflet map integration.
+ * Central manager for application state and UI coordination.
+ * Handles the logic for SPA-lite updates, filtering, and component synchronization.
  */
 
 import addPlaceForm from "./forms/addPlaceForm.js";
@@ -12,98 +12,92 @@ import icsCustomizeForm from "./forms/icsCustomizeForm.js";
 import modals from "./components/modals.js";
 import pinningUI from "./components/pinningUI.js";
 import mapHandler from "./mapHandler.js";
+import sidebar from "./components/sidebar.js";
 import tagInput from "./components/tagInput.js";
 import { setStatusMessage } from "./components/statusMessages.js";
 import apiClient from "./apiClient.js";
 
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
 const uiOrchestrator = {
+  state: {
+    allPlaces: [],
+    filteredPlaces: [],
+    allUserTags: [],
+    filters: {
+      search: "",
+      category: "",
+      status: "",
+      tags: [],
+    },
+    activePlaceId: null,
+  },
+
   elements: {
+    globalSearch: null,
+    toggleFiltersBtn: null,
+    filterPanel: null,
+    categorySelect: null,
+    statusSelect: null,
+    tagFilterInput: null,
+    clearFiltersBtn: null,
     toggleAddPlaceBtn: null,
+    // Overlays
     addPlaceWrapper: null,
     editPlaceSection: null,
     visitReviewImageSection: null,
     seeVisitReviewSection: null,
     planVisitSection: null,
     visitsListModal: null,
-    visitsListContent: null,
-    visitsListPlaceTitle: null,
-    visitsListStatus: null,
-    visitsListCloseBtn: null,
-    visitsListPlanNewBtn: null,
     icsCustomizeModal: null,
-    mapContainer: null,
-    tagFilterInput: null,
-    editTagsInput: null,
   },
-  isMapReady: false,
-  debouncedInvalidateMapSize: null,
-  allUserTags: [],
-  currentPlaceForVisitModal: null,
 
   init() {
     this.cacheDOMElements();
-    this.loadUserTags();
-    this.hideAllSectionsAndModals();
+    this.loadInitialData();
 
-    // 1. Initialize Map from embedded JSON
+    // Initialize Map
     const mapDataElement = document.getElementById("map-data");
-    if (mapDataElement) {
-      try {
-        const mapData = JSON.parse(mapDataElement.textContent || "{}");
-        this.isMapReady = mapHandler.initMainMap("map", mapData);
-      } catch (e) {
-        console.error("UI Orchestrator: Failed to parse map data JSON:", e);
-      }
-    }
+    const mapData = mapDataElement
+      ? JSON.parse(mapDataElement.textContent || "{}")
+      : {};
+    this.state.allPlaces = mapData.places || [];
+    this.state.filteredPlaces = [...this.state.allPlaces];
 
-    // 2. Initialize Forms and Components
+    const isMapReady = mapHandler.initMainMap("map", mapData);
+
+    // Initialize Components
+    sidebar.init(this.handlePlaceSelection.bind(this));
+
     addPlaceForm.init(
-      this.isMapReady,
+      isMapReady,
       this.showAddPlaceForm.bind(this),
       this.hideAddPlaceForm.bind(this),
     );
+
     editPlaceForm.init(
-      this.isMapReady,
+      isMapReady,
       this.showEditPlaceForm.bind(this),
       this.hideEditPlaceForm.bind(this),
     );
-    reviewForm.init(this.hideVisitReviewForm.bind(this), (savedData) =>
-      this.handleVisitSaved(savedData, "reviewForm"),
+
+    reviewForm.init(this.hideOverlays.bind(this), (updatedVisit) =>
+      this.handleVisitUpdate(updatedVisit),
     );
-    visitForm.init(this.hidePlanVisitForm.bind(this), (savedData) =>
-      this.handleVisitSaved(savedData, "visitForm"),
+
+    visitForm.init(this.hideOverlays.bind(this), (newVisit) =>
+      this.handleVisitUpdate(newVisit),
     );
-    icsCustomizeForm.init(this.hideIcsCustomizeModal.bind(this));
+
+    icsCustomizeForm.init(this.hideOverlays.bind(this));
     modals.init(this.showVisitReviewForm.bind(this));
-    pinningUI.init(this.isMapReady);
+    pinningUI.init(isMapReady);
 
-    // 3. Initialize Tag Filters
-    if (this.elements.tagFilterInput) {
-      tagInput.init("tag-filter-input", this.allUserTags, {
-        editTags: false,
-        placeholder: "Filter by tags...",
-        hooks: {
-          add: [() => document.getElementById("filter-form")?.submit()],
-          remove: [() => document.getElementById("filter-form")?.submit()],
-        },
-      });
-    }
-
+    this.setupTagFilters();
     this.setupEventListeners();
 
-    // 4. Global bindings for marker popups (Native Leaflet strategy)
+    // Initial Render
+    this.refreshUI();
+
+    // Global Bindings for Popups
     window.showEditPlaceForm = this.showEditPlaceForm.bind(this);
     window.showPlanVisitForm = this.showPlanVisitForm.bind(this);
     window.showVisitsListModal = this.showVisitsListModal.bind(this);
@@ -111,17 +105,22 @@ const uiOrchestrator = {
     window.showVisitReviewForm = this.showVisitReviewForm.bind(this);
     window.showIcsCustomizeModal = this.showIcsCustomizeModal.bind(this);
     window.showImageOverlay = modals.showImageOverlay.bind(modals);
-
-    if (this.isMapReady) {
-      this.setupResizeObserver();
-      this.setupMapClickHandling();
-    }
   },
 
   cacheDOMElements() {
+    this.elements.globalSearch = document.getElementById("global-search");
+    this.elements.toggleFiltersBtn =
+      document.getElementById("toggle-filters-btn");
+    this.elements.filterPanel = document.getElementById("filter-panel");
+    this.elements.categorySelect = document.getElementById("category");
+    this.elements.statusSelect = document.getElementById("status");
+    this.elements.tagFilterInput = document.getElementById("tag-filter-input");
+    this.elements.clearFiltersBtn =
+      document.getElementById("clear-filters-btn");
     this.elements.toggleAddPlaceBtn = document.getElementById(
       "toggle-add-place-form-btn",
     );
+
     this.elements.addPlaceWrapper = document.getElementById(
       "add-place-wrapper-section",
     );
@@ -137,104 +136,144 @@ const uiOrchestrator = {
       document.getElementById("plan-visit-section");
     this.elements.visitsListModal =
       document.getElementById("visits-list-modal");
-
-    if (this.elements.visitsListModal) {
-      this.elements.visitsListContent = document.getElementById(
-        "visits-list-content",
-      );
-      this.elements.visitsListPlaceTitle = document.getElementById(
-        "visits-list-place-title",
-      );
-      this.elements.visitsListStatus =
-        document.getElementById("visits-list-status");
-      this.elements.visitsListCloseBtn = document.getElementById(
-        "visits-list-close-btn",
-      );
-      this.elements.visitsListPlanNewBtn = document.getElementById(
-        "visits-list-plan-new-btn",
-      );
-    }
-
     this.elements.icsCustomizeModal = document.getElementById(
       "ics-customize-modal",
     );
-    this.elements.mapContainer = document.getElementById("map");
-    this.elements.tagFilterInput = document.getElementById("tag-filter-input");
-    this.elements.editTagsInput = document.getElementById("edit-tags-input");
   },
 
-  loadUserTags() {
+  loadInitialData() {
     const tagsDataElement = document.getElementById("user-tags-data");
     if (tagsDataElement) {
-      try {
-        const tagsData = JSON.parse(tagsDataElement.textContent || "[]");
-        this.allUserTags = tagsData.map((tag) => tag.name);
-      } catch (e) {
-        console.error(
-          "UI Orchestrator: Failed to parse embedded user tags data:",
-          e,
-        );
-        this.allUserTags = [];
+      const tagsData = JSON.parse(tagsDataElement.textContent || "[]");
+      this.state.allUserTags = tagsData.map((tag) => tag.name);
+    }
+  },
+
+  setupTagFilters() {
+    if (this.elements.tagFilterInput) {
+      const tagify = tagInput.init("tag-filter-input", this.state.allUserTags, {
+        placeholder: "Filter by tags...",
+      });
+      if (tagify) {
+        tagify.on("change", () => {
+          this.state.filters.tags = tagify.value.map((t) =>
+            t.value.toLowerCase(),
+          );
+          this.applyFilters();
+        });
       }
     }
   },
 
-  setupResizeObserver() {
-    if (!this.elements.mapContainer) return;
-    this.debouncedInvalidateMapSize = debounce(
-      mapHandler.invalidateMapSize.bind(mapHandler),
-      250,
-    );
-    const resizeObserver = new ResizeObserver(() => {
-      this.debouncedInvalidateMapSize();
-    });
-    resizeObserver.observe(this.elements.mapContainer);
-  },
-
-  setupMapClickHandling() {
-    const map = mapHandler.getMainMap();
-    if (map) {
-      map.on("click", (e) => {
-        // If pinning mode is active, clicking the map sets the coordinates
-        if (pinningUI.isActive && pinningUI.updateCoordsCallback) {
-          pinningUI.updateCoordsCallback({
-            latitude: e.latlng.lat,
-            longitude: e.latlng.lng,
-          });
-        }
-      });
-    }
-  },
-
   setupEventListeners() {
-    if (this.elements.toggleAddPlaceBtn) {
-      this.elements.toggleAddPlaceBtn.addEventListener("click", () => {
-        const isHidden =
-          !this.elements.addPlaceWrapper ||
-          this.elements.addPlaceWrapper.style.display === "none" ||
-          this.elements.addPlaceWrapper.style.display === "";
-        if (isHidden) this.showAddPlaceForm();
-        else this.hideAddPlaceForm();
-      });
-    }
-    if (this.elements.visitsListCloseBtn) {
-      this.elements.visitsListCloseBtn.addEventListener("click", () =>
-        this.hideVisitsListModal(),
-      );
-    }
-    if (this.elements.visitsListPlanNewBtn) {
-      this.elements.visitsListPlanNewBtn.addEventListener("click", () => {
-        const placeData = this.currentPlaceForVisitModal;
-        if (placeData && placeData.id) {
-          this.hideVisitsListModal();
-          this.showPlanVisitForm(placeData, null);
-        }
-      });
+    this.elements.globalSearch?.addEventListener("input", (e) => {
+      this.state.filters.search = e.target.value.toLowerCase();
+      this.applyFilters();
+    });
+
+    this.elements.categorySelect?.addEventListener("change", (e) => {
+      this.state.filters.category = e.target.value;
+      this.applyFilters();
+    });
+
+    this.elements.statusSelect?.addEventListener("change", (e) => {
+      this.state.filters.status = e.target.value;
+      this.applyFilters();
+    });
+
+    this.elements.clearFiltersBtn?.addEventListener("click", () => {
+      this.elements.globalSearch.value = "";
+      this.elements.categorySelect.value = "";
+      this.elements.statusSelect.value = "";
+      const tagify = tagInput.tagifyInstances["tag-filter-input"];
+      if (tagify) tagify.removeAllTags();
+
+      this.state.filters = { search: "", category: "", status: "", tags: [] };
+      this.applyFilters();
+    });
+
+    this.elements.toggleFiltersBtn?.addEventListener("click", () => {
+      const isHidden = this.elements.filterPanel.style.display === "none";
+      this.elements.filterPanel.style.display = isHidden ? "block" : "none";
+    });
+
+    this.elements.toggleAddPlaceBtn?.addEventListener("click", () =>
+      this.showAddPlaceForm(),
+    );
+  },
+
+  applyFilters() {
+    const { search, category, status, tags } = this.state.filters;
+
+    this.state.filteredPlaces = this.state.allPlaces.filter((place) => {
+      const matchesSearch =
+        !search ||
+        place.name.toLowerCase().includes(search) ||
+        (place.address && place.address.toLowerCase().includes(search));
+
+      const matchesCategory = !category || place.category === category;
+      const matchesStatus = !status || place.status === status;
+
+      const matchesTags =
+        tags.length === 0 ||
+        tags.every((t) =>
+          place.tags.some((pt) => (pt.name || pt).toLowerCase() === t),
+        );
+
+      return matchesSearch && matchesCategory && matchesStatus && matchesTags;
+    });
+
+    this.refreshUI();
+  },
+
+  refreshUI() {
+    sidebar.render(this.state.filteredPlaces);
+    mapHandler.renderMarkers(this.state.filteredPlaces);
+    if (this.state.activePlaceId) {
+      sidebar.setActiveCard(this.state.activePlaceId);
     }
   },
 
-  hideAllSectionsAndModals() {
-    const sections = [
+  handlePlaceSelection(placeId) {
+    this.state.activePlaceId = placeId;
+    const place = this.state.allPlaces.find((p) => p.id === placeId);
+    if (place) {
+      mapHandler.flyTo(place.latitude, place.longitude);
+    }
+  },
+
+  /**
+   * SPA-lite update handler. Updates local state and refreshes UI
+   * without a full page reload.
+   */
+  async handlePlaceUpdate(updatedPlace) {
+    const index = this.state.allPlaces.findIndex(
+      (p) => p.id === updatedPlace.id,
+    );
+    if (index !== -1) {
+      this.state.allPlaces[index] = updatedPlace;
+    } else {
+      this.state.allPlaces.unshift(updatedPlace);
+    }
+    this.applyFilters();
+    this.hideOverlays();
+  },
+
+  async handleVisitUpdate(updatedVisit) {
+    const placeId = updatedVisit.place_id;
+    try {
+      const response = await apiClient.get(`/api/v1/places/${placeId}`);
+      if (response.ok) {
+        const updatedPlace = await response.json();
+        this.handlePlaceUpdate(updatedPlace);
+      }
+    } catch (e) {
+      console.error("Failed to re-sync place after visit update", e);
+    }
+  },
+
+  hideOverlays() {
+    const overlays = [
       this.elements.addPlaceWrapper,
       this.elements.editPlaceSection,
       this.elements.visitReviewImageSection,
@@ -243,299 +282,99 @@ const uiOrchestrator = {
       this.elements.visitsListModal,
       this.elements.icsCustomizeModal,
     ];
-    sections.forEach((s) => {
-      if (s) s.style.display = "none";
+    overlays.forEach((el) => {
+      if (el) el.style.display = "none";
     });
-
     pinningUI.deactivatePinning();
-    if (this.elements.toggleAddPlaceBtn)
-      this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
-    tagInput.destroy("edit-tags-input");
   },
 
   showAddPlaceForm() {
-    this.hideAllSectionsAndModals();
+    this.hideOverlays();
     addPlaceForm.resetForm();
-    if (this.elements.addPlaceWrapper) {
-      this.elements.addPlaceWrapper.style.display = "block";
-      if (this.elements.toggleAddPlaceBtn)
-        this.elements.toggleAddPlaceBtn.textContent = "Cancel Adding";
-      this.elements.addPlaceWrapper.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    }
+    this.elements.addPlaceWrapper.style.display = "block";
   },
 
   hideAddPlaceForm() {
-    if (this.elements.addPlaceWrapper)
-      this.elements.addPlaceWrapper.style.display = "none";
-    if (this.elements.toggleAddPlaceBtn)
-      this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
-    pinningUI.deactivateIfActiveFor("add");
-    window.location.reload();
+    this.elements.addPlaceWrapper.style.display = "none";
+    pinningUI.deactivatePinning();
   },
 
-  showEditPlaceForm(placeDataInput) {
-    let placeData =
-      typeof placeDataInput === "string"
-        ? JSON.parse(placeDataInput)
-        : placeDataInput;
-    if (!placeData || !placeData.id) return;
-
-    this.hideAllSectionsAndModals();
-    if (editPlaceForm.populateForm(placeData)) {
-      if (this.elements.editPlaceSection) {
-        this.elements.editPlaceSection.style.display = "block";
-        if (this.elements.editTagsInput) {
-          tagInput.init("edit-tags-input", this.allUserTags, {
-            placeholder: "Add tags...",
-          });
-          tagInput.setTags("edit-tags-input", placeData.tags || []);
-        }
-        this.elements.editPlaceSection.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }
+  showEditPlaceForm(placeData) {
+    this.hideOverlays();
+    const data =
+      typeof placeData === "string" ? JSON.parse(placeData) : placeData;
+    if (editPlaceForm.populateForm(data)) {
+      this.elements.editPlaceSection.style.display = "block";
+      tagInput.init("edit-tags-input", this.state.allUserTags);
+      tagInput.setTags("edit-tags-input", data.tags || []);
     }
   },
 
   hideEditPlaceForm() {
-    if (this.elements.editPlaceSection)
-      this.elements.editPlaceSection.style.display = "none";
-    pinningUI.deactivateIfActiveFor("edit");
-    tagInput.destroy("edit-tags-input");
-    window.location.reload();
+    this.elements.editPlaceSection.style.display = "none";
+    pinningUI.deactivatePinning();
   },
 
-  showPlanVisitForm(placeDataInput, visitToEdit = null) {
-    let placeData =
-      typeof placeDataInput === "string"
-        ? JSON.parse(placeDataInput)
-        : placeDataInput;
-    if (!placeData || !placeData.id) return;
-
-    this.hideAllSectionsAndModals();
-    if (visitForm.populateForm(placeData, visitToEdit)) {
-      if (this.elements.planVisitSection) {
-        this.elements.planVisitSection.style.display = "block";
-        this.elements.planVisitSection.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }
+  showPlanVisitForm(placeData, visitToEdit = null) {
+    this.hideOverlays();
+    const data =
+      typeof placeData === "string" ? JSON.parse(placeData) : placeData;
+    if (visitForm.populateForm(data, visitToEdit)) {
+      this.elements.planVisitSection.style.display = "block";
     }
   },
 
-  hidePlanVisitForm() {
-    if (this.elements.planVisitSection)
-      this.elements.planVisitSection.style.display = "none";
-    window.location.reload();
-  },
-
-  showVisitReviewForm(visitDataInput, placeName = "this place") {
-    let visitData =
-      typeof visitDataInput === "string"
-        ? JSON.parse(visitDataInput)
-        : visitDataInput;
-    if (!visitData || !visitData.id) return;
-
-    this.hideAllSectionsAndModals();
-    if (reviewForm.populateForm(visitData, placeName)) {
-      if (this.elements.visitReviewImageSection) {
-        this.elements.visitReviewImageSection.style.display = "block";
-        this.elements.visitReviewImageSection.scrollIntoView({
-          behavior: "smooth",
-          block: "start",
-        });
-      }
+  showVisitReviewForm(visitData, placeName) {
+    this.hideOverlays();
+    const data =
+      typeof visitData === "string" ? JSON.parse(visitData) : visitData;
+    if (reviewForm.populateForm(data, placeName)) {
+      this.elements.visitReviewImageSection.style.display = "block";
     }
   },
 
-  hideVisitReviewForm() {
-    if (this.elements.visitReviewImageSection)
-      this.elements.visitReviewImageSection.style.display = "none";
-    window.location.reload();
-  },
-
-  async showVisitsListModal(placeDataInput) {
-    let placeData =
-      typeof placeDataInput === "string"
-        ? JSON.parse(placeDataInput)
-        : placeDataInput;
-    if (!placeData || !placeData.id) return;
-
-    this.currentPlaceForVisitModal = placeData;
-    this.hideAllSectionsAndModals();
-
-    this.elements.visitsListPlaceTitle.textContent = `"${placeData.name || "Unknown Place"}"`;
-    this.elements.visitsListContent.innerHTML = "<p>Loading visits...</p>";
-    setStatusMessage(this.elements.visitsListStatus, "", "info");
+  async showVisitsListModal(placeData) {
+    this.hideOverlays();
+    const data =
+      typeof placeData === "string" ? JSON.parse(placeData) : placeData;
+    this.elements.visitsListPlaceTitle.textContent = data.name;
     this.elements.visitsListModal.style.display = "block";
-    this.elements.visitsListModal.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
 
     try {
-      const response = await apiClient.get(
-        `/api/v1/places/${placeData.id}/visits`,
-      );
+      const response = await apiClient.get(`/api/v1/places/${data.id}/visits`);
       if (response.ok) {
         const visits = await response.json();
-        this.renderVisitsList(visits, placeData);
+        this.renderVisitsList(visits, data);
       }
-    } catch (error) {
-      this.elements.visitsListContent.innerHTML = `<p class="error-message">Could not load visits.</p>`;
+    } catch (e) {
+      console.error("Failed to load visits", e);
     }
-  },
-
-  hideVisitsListModal() {
-    if (this.elements.visitsListModal)
-      this.elements.visitsListModal.style.display = "none";
-    this.currentPlaceForVisitModal = null;
   },
 
   renderVisitsList(visits, placeData) {
-    if (!this.elements.visitsListContent) return;
-    if (!visits || visits.length === 0) {
-      this.elements.visitsListContent.innerHTML =
-        "<p>No visits recorded yet.</p>";
+    const content = document.getElementById("visits-list-content");
+    if (!content) return;
+
+    if (visits.length === 0) {
+      content.innerHTML = "<p>No visits scheduled yet.</p>";
       return;
     }
 
-    let html = '<ul class="visits-ul">';
-    const now = new Date();
-
-    visits.forEach((visit) => {
-      const visitDate = new Date(visit.visit_datetime);
-      const isFuture = visitDate >= now;
-      const formattedDate = visitDate.toLocaleDateString(undefined, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-      });
-      const formattedTime = visitDate.toLocaleTimeString(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
-
-      const visitJson = JSON.stringify(visit).replace(/'/g, "&apos;");
-      const placeJson = JSON.stringify(placeData).replace(/'/g, "&apos;");
-      const placeNameAttr = JSON.stringify(
-        placeData.name || "this place",
-      ).replace(/'/g, "&apos;");
-
-      html += `<li class="visit-item ${isFuture ? "future-visit" : ""}">
-                <strong>${formattedDate} at ${formattedTime}</strong> 
-                ${isFuture ? '<span class="future-tag">(Upcoming)</span>' : ""}<br>
-                ${visit.review_title ? `<em>${this.escapeHTML(visit.review_title)}</em><br>` : ""}
-                <div class="visit-item-actions">
-                    <button type="button" class="small-btn edit-visit-schedule-btn" data-visit='${visitJson}'>Edit</button>
-                    <button type="button" class="small-btn review-visit-btn" data-visit='${visitJson}' data-placename='${placeNameAttr}'>
-                        ${visit.review_title || visit.rating ? "See Review" : "Add Review"}
-                    </button>
-                    <button type="button" class="small-btn delete-visit-btn" data-visit-id="${visit.id}">Delete</button>
-                    ${isFuture ? `<button type="button" class="small-btn add-to-calendar-btn" data-visit='${visitJson}' data-place='${placeJson}'>Calendar</button>` : ""}
-                </div>
-            </li>`;
-    });
-    html += "</ul>";
-    this.elements.visitsListContent.innerHTML = html;
-
-    this.elements.visitsListContent
-      .querySelectorAll(".edit-visit-schedule-btn")
-      .forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          const data = JSON.parse(e.currentTarget.dataset.visit);
-          this.hideVisitsListModal();
-          this.showPlanVisitForm(this.currentPlaceForVisitModal, data);
-        });
-      });
-
-    this.elements.visitsListContent
-      .querySelectorAll(".review-visit-btn")
-      .forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          const visitData = JSON.parse(e.currentTarget.dataset.visit);
-          const placeName = JSON.parse(e.currentTarget.dataset.placename);
-          this.hideVisitsListModal();
-          if (visitData.review_title || visitData.rating)
-            modals.showSeeReviewModal(visitData, placeName);
-          else this.showVisitReviewForm(visitData, placeName);
-        });
-      });
-
-    this.elements.visitsListContent
-      .querySelectorAll(".delete-visit-btn")
-      .forEach((btn) => {
-        btn.addEventListener("click", (e) =>
-          this.handleDeleteVisit(e.currentTarget.dataset.visitId),
-        );
-      });
-
-    this.elements.visitsListContent
-      .querySelectorAll(".add-to-calendar-btn")
-      .forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          const visitData = JSON.parse(e.currentTarget.dataset.visit);
-          const placeData = JSON.parse(e.currentTarget.dataset.place);
-          this.showIcsCustomizeModal(visitData, placeData);
-        });
-      });
-  },
-
-  showIcsCustomizeModal(visitData, placeData) {
-    this.hideAllSectionsAndModals();
-    if (icsCustomizeForm.populateForm(visitData, placeData)) {
-      if (this.elements.icsCustomizeModal) {
-        this.elements.icsCustomizeModal.style.display = "block";
-        this.elements.icsCustomizeModal.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
-      }
-    }
-  },
-
-  hideIcsCustomizeModal() {
-    if (this.elements.icsCustomizeModal)
-      this.elements.icsCustomizeModal.style.display = "none";
-  },
-
-  escapeHTML(str) {
-    if (!str) return "";
-    return String(str).replace(
-      /[&<>"']/g,
-      (m) =>
-        ({
-          "&": "&amp;",
-          "<": "&lt;",
-          ">": "&gt;",
-          '"': "&quot;",
-          "'": "&#039;",
-        })[m],
-    );
-  },
-
-  async handleDeleteVisit(visitId) {
-    if (!confirm("Delete this visit?")) return;
-    setStatusMessage(this.elements.visitsListStatus, "Deleting...", "loading");
-    try {
-      const response = await apiClient.delete(`/api/v1/visits/${visitId}`);
-      if (response.ok) window.location.reload();
-    } catch (error) {
-      setStatusMessage(
-        this.elements.visitsListStatus,
-        "Error deleting visit.",
-        "error",
-      );
-    }
-  },
-
-  handleVisitSaved(savedVisitData, sourceForm = "unknown") {
-    window.location.reload();
+    content.innerHTML = `<ul class="visits-ul">
+            ${visits
+              .map(
+                (v) => `
+                <li class="visit-item">
+                    <strong>${new Date(v.visit_datetime).toLocaleDateString()}</strong>
+                    <div class="visit-item-actions">
+                        <button onclick='window.showPlanVisitForm(${JSON.stringify(placeData)}, ${JSON.stringify(v)})' class="small-btn secondary-btn">Edit</button>
+                        <button onclick='window.showVisitReviewForm(${JSON.stringify(v)}, "${placeData.name}")' class="small-btn primary-btn">Review</button>
+                    </div>
+                </li>
+            `,
+              )
+              .join("")}
+        </ul>`;
   },
 };
 

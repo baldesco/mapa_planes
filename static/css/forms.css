@@ -1,60 +1,50 @@
 /* Common styles for form elements across different sections */
 
-/* General form fieldset */
 fieldset {
     border: none;
     padding: 0;
     margin: 0;
 }
 
-/* Form section titles (e.g., Add New Place, Edit Place) */
-.form-section legend,
 .form-section h2,
 .modal-section h2 {
-    /* Include modal titles here too */
-    font-size: 1.5em;
+    font-size: 1.3em;
     margin-bottom: 20px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--primary-color-dark);
     text-align: left;
     border-bottom: 1px solid #eee;
-    padding-bottom: 10px;
+    padding-bottom: 12px;
 }
 
-/* Default label style */
 label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
     font-weight: 500;
-    font-size: 0.98em;
+    font-size: 0.9em;
     color: var(--text-muted);
 }
 
-/* Default input, select, textarea styles */
 input[type="text"],
 input[type="number"],
 input[type="email"],
-/* Added email for consistency */
 input[type="password"],
-/* Added password for consistency */
+input[type="date"],
+input[type="time"],
 select,
 textarea {
     width: 100%;
-    padding: 12px 15px;
-    margin-bottom: 15px;
+    padding: 10px 14px;
+    margin-bottom: 18px;
     border: 1px solid var(--border-color);
-    border-radius: 6px;
-    font-size: 1em;
+    border-radius: 8px;
+    font-size: 0.95em;
     font-family: inherit;
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
-    background-color: #fff;
-    /* Ensure background */
+    background-color: var(--white);
 }
 
-input[type="text"]:focus,
-input[type="number"]:focus,
-input[type="email"]:focus,
-input[type="password"]:focus,
+input:focus,
 select:focus,
 textarea:focus {
     border-color: var(--primary-color);
@@ -62,197 +52,137 @@ textarea:focus {
     outline: none;
 }
 
-/* Textarea specific */
 textarea {
     resize: vertical;
-    min-height: 100px;
+    min-height: 80px;
 }
 
-/* File input specific */
-input[type="file"] {
-    padding: 8px 10px;
-    border: 1px dashed var(--border-color);
-    background-color: #fafafa;
+/* Checkbox and radio groups */
+.checkbox-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
 }
 
-input[type="file"]::file-selector-button {
-    padding: 6px 12px;
-    border-radius: 4px;
-    background-color: var(--primary-color-light);
-    color: var(--primary-color-dark);
-    border: none;
-    font-weight: 500;
-    cursor: pointer;
-    margin-right: 10px;
-    transition: background-color 0.2s ease;
-}
-
-input[type="file"]::file-selector-button:hover {
-    background-color: #a5d6a7;
-}
-
-/* Checkbox specific */
-input[type="checkbox"] {
+.checkbox-group input[type="checkbox"] {
     width: auto;
-    /* Checkboxes shouldn't be full width */
-    margin-right: 5px;
-    vertical-align: middle;
-    /* Align with label text */
+    margin: 0;
 }
 
-/* Style label associated with checkbox */
-input[type="checkbox"]+label {
-    display: inline-block;
-    /* Allow label next to checkbox */
-    margin-bottom: 0;
-    /* Remove bottom margin */
-    font-size: 0.9em;
+.checkbox-group label {
+    margin: 0;
     font-weight: 400;
-    /* Normal weight for checkbox labels */
     color: var(--text-color);
 }
 
-
-/* Default button style */
+/* Action Buttons */
 button,
 input[type="submit"] {
-    background-color: var(--primary-color);
-    color: white;
-    padding: 12px 22px;
+    padding: 10px 20px;
     border: none;
-    border-radius: 6px;
+    border-radius: 8px;
     cursor: pointer;
-    font-size: 1.05em;
+    font-size: 0.95em;
     font-weight: 500;
     font-family: inherit;
-    transition: background-color 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
-    margin-right: 8px;
-    margin-bottom: 8px;
-    /* Allow wrapping */
-    box-shadow: var(--box-shadow-sm);
-    vertical-align: middle;
-    /* Align nicely if next to other elements */
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
 }
 
-button:hover,
-input[type="submit"]:hover {
-    background-color: var(--primary-color-dark);
-    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.12);
+button:hover {
+    filter: brightness(0.95);
     transform: translateY(-1px);
 }
 
-button:active,
-input[type="submit"]:active {
-    transform: translateY(0px);
-    box-shadow: var(--box-shadow-sm);
+button:active {
+    transform: translateY(0);
 }
 
-button:disabled,
-input[type="submit"]:disabled {
-    background-color: #bdbdbd;
+button:disabled {
+    background-color: var(--tertiary-color) !important;
+    color: var(--text-muted) !important;
     cursor: not-allowed;
-    box-shadow: none;
     transform: none;
 }
 
-/* Specific button variations */
 button.cancel-btn {
-    background-color: var(--text-muted);
-    box-shadow: none;
+    background-color: transparent;
+    color: var(--text-muted);
 }
 
 button.cancel-btn:hover {
-    background-color: #5a6268;
-    box-shadow: var(--box-shadow-sm);
+    background-color: var(--secondary-color);
+    color: var(--text-color);
 }
 
-button.edit-review-btn {
-    /* Used in See Review modal */
-    background-color: var(--warning-color);
-    color: var(--white);
+/* Inline form rows (e.g., date/time or address/find) */
+.form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 5px;
 }
 
-button.edit-review-btn:hover {
-    background-color: var(--warning-color-hover);
+.form-row>* {
+    flex: 1;
+}
+
+.address-input-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.address-input-row input {
+    margin-bottom: 0;
+}
+
+.address-input-row button {
+    flex-shrink: 0;
+    padding: 0 15px;
 }
 
 /* Status message styling */
 .status-message {
-    min-height: 1.2em;
-    margin: 10px 0;
-    font-size: 0.95em;
-    padding: 10px 12px;
-    border-radius: 4px;
-    border: 1px solid transparent;
+    margin: 15px 0;
+    font-size: 0.85em;
+    padding: 10px 15px;
+    border-radius: 8px;
     display: none;
-    /* Hidden by default */
-    word-wrap: break-word;
 }
 
 .loading-indicator {
-    font-style: italic;
-    color: #555;
-    border-color: #eee;
-    background-color: #f9f9f9;
+    background-color: var(--light-blue-bg);
+    color: var(--info-color-hover);
+    border: 1px solid var(--light-blue-border);
 }
 
 .error-message {
+    background-color: #fce4ec;
     color: var(--error-color);
-    background-color: #ffcdd2;
-    border-color: var(--error-color);
+    border: 1px solid #f8bbd0;
 }
 
 .success-message {
-    color: #388e3c;
     background-color: var(--primary-color-light);
-    border-color: #a5d6a7;
+    color: var(--primary-color-dark);
+    border: 1px solid #a5d6a7;
 }
 
 .info-message {
-    color: #0277bd;
-    background-color: #e1f5fe;
-    border-color: #b3e5fc;
+    background-color: #f1f3f4;
+    color: var(--text-muted);
+    border: 1px solid var(--border-color);
 }
 
-/* Responsive adjustments */
-@media (max-width: 768px) {
-
-    input[type="text"],
-    input[type="number"],
-    input[type="email"],
-    input[type="password"],
-    select,
-    textarea {
-        padding: 11px 14px;
-        /* Slightly smaller padding */
-    }
-
-    button,
-    input[type="submit"] {
-        padding: 12px 18px;
-        font-size: 1em;
-    }
-
-    button.cancel-btn {
-        margin-left: 0;
-        margin-top: 10px;
-        /* Stack cancel button below submit on small screens */
-    }
-}
-
-@media (max-width: 480px) {
-
-    input[type="text"],
-    input[type="number"],
-    input[type="email"],
-    input[type="password"],
-    select,
-    textarea {
-        padding: 10px 12px;
-    }
-
-    button,
-    input[type="submit"] {
-        padding: 10px 15px;
-    }
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 25px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
 }
