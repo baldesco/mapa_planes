@@ -1,9 +1,8 @@
 /* Styles related to map containers and Leaflet elements */
 
-/* Main Map (Folium Iframe Container) */
+/* Main Map (Native Leaflet Container) */
 #map {
     height: 550px;
-    /* Default height for larger screens */
     width: 100%;
     margin-bottom: 25px;
     border: 1px solid var(--border-color);
@@ -13,49 +12,65 @@
     clear: both;
     position: relative;
     overflow: hidden;
-    /* Ensures iframe corners are clipped */
+    background-color: var(--tertiary-color);
+    z-index: 1;
 }
-
-/* --- START: Folium Wrapper Overrides --- */
-/* Target the first div inside #map (Folium's main wrapper) */
-#map>div:first-child {
-    /* Ensure it fills the #map container */
-    width: 100% !important;
-    height: 100% !important;
-    position: relative !important;
-    /* Needed for absolute positioning of children */
-}
-
-/* Target the second div inside #map (the padding-hack div) */
-#map>div:first-child>div:first-child {
-    /* Override the padding hack */
-    width: 100% !important;
-    height: 100% !important;
-    padding-bottom: 0 !important;
-    /* Remove the fixed aspect ratio */
-    position: static !important;
-    /* Allow iframe to position relative to parent */
-}
-
-/* --- END: Folium Wrapper Overrides --- */
-
-
-/* Ensure iframe fills the container (its parent is now effectively #map > div:first-child) */
-/* This rule might already exist in the iframe's srcdoc, but reinforcing it here */
-#map iframe {
-    position: absolute !important;
-    top: 0 !important;
-    left: 0 !important;
-    height: 100% !important;
-    width: 100% !important;
-    border: none !important;
-}
-
 
 /* Leaflet Controls (Zoom, etc.) */
 .leaflet-control-container {
     z-index: 800 !important;
-    /* Keep controls above potential overlays */
+}
+
+/* --- Native Teardrop Marker Styling --- */
+.custom-leaflet-marker {
+    background: transparent;
+    border: none;
+}
+
+.leaflet-marker-icon-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    background-color: #757575;
+    /* Default Gray */
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid white;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    transition: transform 0.2s ease;
+    /* Alignment: Ensure the bottom tip of the pin is centered on the coords */
+    margin-top: -16px;
+    margin-left: -16px;
+}
+
+.leaflet-marker-icon-wrapper i {
+    transform: rotate(45deg);
+    color: white;
+    font-size: 14px;
+}
+
+/* Status-based colors for markers */
+.leaflet-marker-icon-wrapper.green {
+    background-color: #2E7D32;
+}
+
+.leaflet-marker-icon-wrapper.orange {
+    background-color: #EF6C00;
+}
+
+.leaflet-marker-icon-wrapper.blue {
+    background-color: #1565C0;
+}
+
+.leaflet-marker-icon-wrapper.purple {
+    background-color: #7B1FA2;
+}
+
+.leaflet-marker-icon-wrapper:hover {
+    transform: rotate(-45deg) scale(1.1);
+    z-index: 1000;
 }
 
 /* Leaflet Popups (from main map) */
@@ -63,68 +78,129 @@
     border-radius: 8px !important;
     box-shadow: var(--box-shadow);
     background-color: #fff;
-    /* Ensure background */
+    padding: 0 !important;
 }
 
 .leaflet-popup-content {
     font-family: 'Poppins', sans-serif !important;
     font-size: 14px !important;
     line-height: 1.6;
-    /* Improve popup readability */
     max-width: 280px !important;
-    /* Reduced max-width */
-    margin: 10px 15px !important;
-    /* Add some internal padding */
-    padding: 0 !important;
-    /* Reset default padding */
+    margin: 0 !important;
     color: var(--text-color);
 }
 
-/* Styles applied via injected <style> tag in mapping.py */
-/* These are fallback/base styles if injection fails */
-.leaflet-popup-content h4 {
+.map-popup-container {
+    padding: 15px;
+}
+
+.map-popup-container h4 {
     margin: 0 0 10px 0;
-    color: var(--primary-color);
+    color: var(--primary-color-dark);
     font-size: 1.15em;
     border-bottom: 1px solid #eee;
     padding-bottom: 8px;
-    font-weight: 500;
+    font-weight: 600;
 }
 
-.leaflet-popup-content p {
-    margin: 5px 0;
-    font-size: 0.98em;
+.popup-content-scrollable {
+    max-height: 150px;
+    overflow-y: auto;
+    margin-bottom: 10px;
+    padding-right: 5px;
     word-wrap: break-word;
 }
 
-.leaflet-popup-content img {
-    margin-top: 10px;
-    border-radius: 4px;
-    max-width: 100%;
-    height: auto;
-    cursor: pointer;
-    /* Indicate clickable for overlay */
+.popup-content-scrollable p {
+    margin: 5px 0;
+    font-size: 0.9em;
 }
 
-/* Buttons and Select inside Popups (Base styles, specific colors in injected style) */
-.leaflet-popup-content button[type=button],
-.leaflet-popup-content button[type=submit] {
+.popup-tags-container {
+    margin-top: 6px;
+}
+
+.popup-tag {
+    display: inline-block;
+    background-color: #f0f0f0;
+    color: #555;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 0.75em;
+    margin-right: 3px;
+    margin-bottom: 3px;
+    white-space: nowrap;
+}
+
+.popup-visits-info {
+    font-style: italic;
+    color: #555;
+    font-size: 0.85em;
+    margin-top: 8px;
+    padding-top: 5px;
+    border-top: 1px dashed #eee;
+}
+
+.popup-actions {
+    margin-top: 12px;
+    padding-top: 8px;
+    border-top: 1px solid #eee;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    justify-content: flex-start;
+}
+
+.popup-actions button,
+.popup-actions form button {
     padding: 6px 12px !important;
-    font-size: 0.9em !important;
+    font-size: 0.85em !important;
     border-radius: 5px !important;
     cursor: pointer !important;
     border: none !important;
     color: white !important;
-    margin: 3px 4px !important;
+    margin: 0 !important;
     font-family: inherit !important;
     box-shadow: var(--box-shadow-sm) !important;
-    transition: background-color 0.2s, transform 0.1s, box-shadow 0.15s !important;
-    vertical-align: middle;
+    transition: background-color 0.2s, transform 0.1s !important;
 }
 
-.leaflet-popup-content button:active {
-    transform: translateY(1px);
-    box-shadow: none !important;
+.popup-btn-edit-place {
+    background-color: #ff9800;
+}
+
+.popup-btn-edit-place:hover {
+    background-color: #f57c00;
+}
+
+.popup-btn-plan-visit {
+    background-color: #0288d1;
+}
+
+.popup-btn-plan-visit:hover {
+    background-color: #0277bd;
+}
+
+.popup-btn-view-visits {
+    background-color: #546e7a;
+}
+
+.popup-btn-view-visits:hover {
+    background-color: #455a64;
+}
+
+.popup-btn-delete-place {
+    background-color: #d32f2f;
+}
+
+.popup-btn-delete-place:hover {
+    background-color: #c62828;
+}
+
+.popup-actions form {
+    margin: 0;
+    padding: 0;
+    display: inline-flex;
 }
 
 /* --- Pinning Map Styles --- */
@@ -136,17 +212,13 @@
     overflow: hidden;
     box-shadow: var(--box-shadow-sm);
     display: none;
-    /* Hidden by default */
     position: relative;
-    /* Added for potential absolute positioning inside */
 }
 
 #pinning-map {
     height: 350px;
-    /* Default height */
     width: 100%;
     background-color: var(--tertiary-color);
-    /* Light bg while loading */
 }
 
 #pinning-map-controls {
@@ -166,35 +238,22 @@
     background-color: var(--primary-color);
 }
 
-#pinning-map-controls #confirm-pin-btn:hover {
-    background-color: var(--primary-color-dark);
-}
-
 #pinning-map-controls #cancel-pin-btn {
     background-color: var(--error-color);
 }
 
-#pinning-map-controls #cancel-pin-btn:hover {
-    background-color: var(--danger-color-hover);
-}
-
-/* Style for the draggable marker icon (using Font Awesome) */
 .draggable-pin-icon i {
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-    /* Add shadow for visibility */
     cursor: grab;
-    /* Indicate draggable */
+    color: #D32F2F;
 }
 
 .leaflet-marker-draggable:active .draggable-pin-icon i {
     cursor: grabbing;
 }
 
-
-/* Map Pinning Instruction Text */
 .map-pin-instruction {
     display: none;
-    /* Hidden by default */
     margin-top: 10px;
     margin-bottom: 10px;
     font-style: italic;
@@ -205,7 +264,6 @@
     border-radius: 4px;
 }
 
-
 /* Responsive map adjustments */
 @media (max-width: 992px) {
     #map {
@@ -214,11 +272,8 @@
 }
 
 @media (max-width: 768px) {
-
-    /* Tablets / Small Laptops */
     #map {
         height: 400px;
-        /* Keep a reduced fixed height */
     }
 
     #pinning-map {
@@ -227,8 +282,6 @@
 }
 
 @media (max-width: 480px) and (orientation: portrait) {
-
-    /* Phones (Portrait) */
     #map {
         height: auto;
         aspect-ratio: 3 / 4;
@@ -236,27 +289,19 @@
 
     #pinning-map-container {
         height: auto;
-        /* Allow content to define height initially */
         max-height: 70vh;
-        /* Limit height to 70% of viewport height */
         display: flex;
         flex-direction: column;
-        /* Ensure controls don't get squished if map is too small */
     }
 
     #pinning-map {
         flex-grow: 1;
-        /* Map takes available space */
         min-height: 200px;
-        /* Ensure map is at least somewhat usable */
-        /* height: 100%; Removed, flex-grow will handle it */
     }
 
     #pinning-map-controls {
         flex-shrink: 0;
-        /* Controls don't shrink */
         padding: 8px;
-        /* Slightly reduce padding for small screens */
     }
 
     #pinning-map-controls button {

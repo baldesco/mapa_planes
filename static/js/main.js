@@ -1,29 +1,31 @@
 /**
+ * main.js
  * Entry point for application-specific JavaScript.
- * Initializes core modules based on the current page.
+ * Initializes core modules based on the current page route.
  */
 
 import auth from "./modules/auth.js";
-import mapHandler from "./modules/mapHandler.js";
 import uiOrchestrator from "./modules/uiOrchestrator.js";
 import passwordReset from "./modules/passwordReset.js";
 
-document.addEventListener("DOMContentLoaded", async () => {
-  console.log("DOM Loaded. Initializing main application script...");
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("DOM Loaded. Initializing application modules...");
 
   const pathname = window.location.pathname;
 
-  // Add class to body for CSS targeting (e.g., auth pages)
-  if (
-    pathname === "/login" ||
-    pathname === "/signup" ||
-    pathname === "/request-password-reset" ||
-    pathname === "/reset-password"
-  ) {
+  // Apply styling class for authentication-related pages
+  const authRoutes = [
+    "/login",
+    "/signup",
+    "/request-password-reset",
+    "/reset-password",
+  ];
+
+  if (authRoutes.includes(pathname)) {
     document.body.classList.add("auth-page");
   }
 
-  // Initialize based on page
+  // Route-based initialization
   if (pathname === "/login") {
     auth.initLoginPage();
   } else if (pathname === "/signup") {
@@ -31,17 +33,16 @@ document.addEventListener("DOMContentLoaded", async () => {
   } else if (pathname === "/request-password-reset") {
     passwordReset.initRequestPage();
   } else if (pathname === "/reset-password") {
-    // Initialization now happens directly in passwordReset.js after checking for supabase client
     passwordReset.initResetPage();
   } else if (pathname === "/") {
-    console.log("Initializing core modules for main page.");
-    const mapReady = await mapHandler.init();
-    uiOrchestrator.init(mapReady);
+    // The main dashboard orchestration
+    console.log("Initializing Dashboard UI...");
+    uiOrchestrator.init();
     auth.setupLogoutButton();
   } else {
-    // Setup logout button if it might exist on other potential pages
+    // Fallback for logout functionality on other pages
     auth.setupLogoutButton();
   }
 
-  console.log("Main application script initialization complete.");
+  console.log("Application initialization complete.");
 });

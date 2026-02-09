@@ -66,12 +66,8 @@
             <button type="button" id="toggle-add-place-form-btn">Add New Place</button>
         </section>
 
-        <section id="map">
-            {% autoescape false %}
-            {{ map_html if map_html else '<p style="text-align: center; padding: 20px; color: red;">Map could not be
-                loaded.</p>' }}
-            {% endautoescape %}
-        </section>
+        <!-- Container for the native Leaflet map -->
+        <section id="map"></section>
 
         <section id="add-place-wrapper-section" class="form-section">
             <form id="add-place-form" action="{{ request.url_for('handle_create_new_place_form') }}" method="post">
@@ -285,7 +281,6 @@
         </section>
 
         <section class="modal-section" id="ics-customize-modal" style="display: none;">
-            <!-- Form tag is kept for structure but submission is handled by JS per button -->
             <form id="ics-customize-form" onsubmit="return false;">
                 <fieldset>
                     <h2>Calendar Event Details for <span id="ics-modal-visit-title">Visit</span></h2>
@@ -364,7 +359,10 @@
         </div>
     </div>
 
+    <!-- Data embedded for native JS modules -->
+    <script id="map-data" type="application/json">{{ map_data_json | safe }}</script>
     <script id="user-tags-data" type="application/json">{{ all_user_tags_json | safe }}</script>
+
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
         integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script src="https://cdn.jsdelivr.net/npm/@yaireo/tagify"></script>
