@@ -28,9 +28,14 @@
         </header>
 
         <section class="top-bar">
-            <div class="search-box">
-                <i class="fas fa-search"></i>
-                <input type="text" id="global-search" placeholder="Search by name, address or tags...">
+            <div class="top-bar-left">
+                <button type="button" id="toggle-sidebar-btn" class="secondary-btn" title="Toggle List View">
+                    <i class="fas fa-bars"></i>
+                </button>
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="global-search" placeholder="Search by name, address or tags...">
+                </div>
             </div>
             <div class="top-actions">
                 <button type="button" id="toggle-filters-btn" class="secondary-btn">
@@ -74,28 +79,26 @@
             </form>
         </section>
 
-        <main class="main-content-area">
+        <main class="main-content-area" id="main-content-area">
             <aside class="sidebar" id="sidebar">
                 <div class="sidebar-header">
-                    <span id="places-count">0</span> Places found
+                    <div><span id="places-count">0</span> Places</div>
                     <div class="sort-controls">
                         <select id="sort-places">
-                            <option value="name_asc">Name (A-Z)</option>
-                            <option value="name_desc">Name (Z-A)</option>
-                            <option value="newest">Newest First</option>
-                            <option value="rating">Best Rated</option>
+                            <option value="newest">Newest</option>
+                            <option value="name_asc">A-Z</option>
+                            <option value="name_desc">Z-A</option>
+                            <option value="rating">Rating</option>
                         </select>
                     </div>
                 </div>
                 <div class="sidebar-list" id="places-list">
-                    <!-- Dynamic List Content -->
                     <div class="sidebar-loading">Loading places...</div>
                 </div>
             </aside>
 
             <section class="map-view">
                 <div id="map"></div>
-                <!-- Pinning UI Overlay -->
                 <div id="pinning-map-container">
                     <div id="pinning-map"></div>
                     <div id="pinning-map-controls">
@@ -314,7 +317,6 @@
         </section>
     </div>
 
-    <!-- Data Hydration -->
     <script id="map-data" type="application/json">{{ map_data_json | safe }}</script>
     <script id="user-tags-data" type="application/json">{{ all_user_tags_json | safe }}</script>
 

@@ -1,155 +1,96 @@
 /**
  * tagInput.js
  * Component module for initializing and managing Tagify instances.
+ * Optimized for SPA-lite lifecycle management and filtering.
  */
 
 const tagInput = {
-  tagifyInstances: {}, // Store instances by input element ID
+  tagifyInstances: {},
 
   /**
    * Initializes Tagify on a given input element.
-   * @param {string} inputElementId - The ID of the input element.
-   * @param {Array<string>} whitelist - An array of predefined tag names for suggestions.
-   * @param {object} [options={}] - Optional Tagify configuration overrides.
-   * @returns {Tagify|null} The initialized Tagify instance or null on error.
    */
   init(inputElementId, whitelist = [], options = {}) {
     const inputEl = document.getElementById(inputElementId);
-    if (!inputEl) {
-      console.error(
-        `Tagify init failed: Element #${inputElementId} not found.`
-      );
-      return null;
-    }
+    if (!inputEl) return null;
 
-    // Destroy previous instance if exists for this element
-    if (this.tagifyInstances[inputElementId]) {
-      try {
-        this.tagifyInstances[inputElementId].destroy();
-        console.debug(
-          `Destroyed previous Tagify instance for #${inputElementId}`
-        );
-      } catch (e) {
-        console.warn(
-          `Error destroying previous Tagify instance for #${inputElementId}:`,
-          e
-        );
-      }
-    }
+    // Clean up existing instance if any
+    this.destroy(inputElementId);
 
-    // Default Tagify settings
     const defaultSettings = {
-      whitelist: whitelist || [], // Initial suggestions list
-      maxTags: 10, // Limit number of tags
+      whitelist: whitelist || [],
+      maxTags: 15,
       dropdown: {
-        maxItems: 20, // Max suggestions shown
-        classname: "tags-look", // Custom class for dropdown styling
-        enabled: 0, // Show suggestions on focus/input (0 means always)
-        closeOnSelect: false, // Keep dropdown open after selection
+        maxItems: 20,
+        enabled: 0,
+        closeOnSelect: true,
       },
-      // Allow adding tags not in the whitelist (new tags)
-      // enforceWhitelist: false, // Set to true if ONLY existing tags allowed
-      editTags: false, // Disable editing tags directly by double-clicking
-      // You might want `delimiters` if pasting comma-separated tags: delimiters: ",| ",
+      // Consistent format for backend CSV parsing
       originalInputValueFormat: (valuesArr) =>
-        valuesArr.map((item) => item.value).join(","), // How value is stored in original input
-      ...options, // Allow overriding defaults
+        valuesArr.map((item) => item.value).join(","),
+      ...options,
     };
 
     try {
-      const tagifyInstance = new Tagify(inputEl, defaultSettings);
-      this.tagifyInstances[inputElementId] = tagifyInstance;
-      console.log(`Tagify initialized for #${inputElementId}`);
-
-      // Optional: Add event listeners if needed
-      // tagifyInstance.on('add', event => console.log('Tag added:', event.detail));
-      // tagifyInstance.on('remove', event => console.log('Tag removed:', event.detail));
-      // tagifyInstance.on('input', event => console.log('Tag input:', event.detail)); // Good for dynamic suggestions fetch
-
-      return tagifyInstance;
+      const instance = new Tagify(inputEl, defaultSettings);
+      this.tagifyInstances[inputElementId] = instance;
+      return instance;
     } catch (e) {
-      console.error(`Error initializing Tagify for #${inputElementId}:`, e);
+      console.error(`Tagify error on #${inputElementId}:`, e);
       return null;
     }
   },
 
   /**
-   * Sets the tags for a specific Tagify instance.
-   * @param {string} inputElementId - The ID of the input element associated with the Tagify instance.
-   * @param {Array<string>} tags - An array of tag names to set.
+   * Sets tags for an existing instance.
    */
   setTags(inputElementId, tags = []) {
-    const tagify = this.tagifyInstances[inputElementId];
-    if (tagify) {
-      try {
-        tagify.removeAllTags(); // Clear existing tags first
-        tagify.addTags(tags); // Add the new tags
-        console.debug(`Set tags for #${inputElementId}:`, tags);
-      } catch (e) {
-        console.error(
-          `Error setting tags for Tagify instance #${inputElementId}:`,
-          e
-        );
-      }
-    } else {
-      console.warn(
-        `Cannot set tags: Tagify instance for #${inputElementId} not found.`
-      );
+    const instance = this.tagifyInstances[inputElementId];
+    if (instance) {
+      instance.removeAllTags();
+      instance.addTags(tags);
     }
   },
 
   /**
-   * Gets the current tags from a specific Tagify instance.
-   * @param {string} inputElementId - The ID of the input element associated with the Tagify instance.
-   * @returns {Array<string>} An array of the current tag names, or empty array if not found/error.
+   * Retrieves an array of tag values.
    */
   getTags(inputElementId) {
-    const tagify = this.tagifyInstances[inputElementId];
-    if (tagify) {
-      try {
-        // Get tag data objects and extract the 'value' (the tag name)
-        return tagify.value.map((tagData) => tagData.value);
-      } catch (e) {
-        console.error(
-          `Error getting tags from Tagify instance #${inputElementId}:`,
-          e
-        );
-        return [];
-      }
-    } else {
-      console.warn(
-        `Cannot get tags: Tagify instance for #${inputElementId} not found.`
-      );
-      // Fallback: try reading the original input's value directly? Might be unreliable.
-      const inputEl = document.getElementById(inputElementId);
-      if (inputEl && inputEl.value) {
-        return inputEl.value
+    const instance = this.tagifyInstances[inputElementId];
+    if (instance) {
+      return instance.value.map((t) => t.value);
+    }
+
+    // Fallback to manual parsing if instance is missing
+    const el = document.getElementById(inputElementId);
+    return el
+      ? el.value
           .split(",")
+          .filter(Boolean)
           .map((t) => t.trim())
-          .filter((t) => t);
+      : [];
+  },
+
+  /**
+   * Properly destroys an instance and removes it from the local registry.
+   */
+  destroy(inputElementId) {
+    const instance = this.tagifyInstances[inputElementId];
+    if (instance) {
+      try {
+        instance.destroy();
+        delete this.tagifyInstances[inputElementId];
+      } catch (e) {
+        console.warn(`Error destroying Tagify on #${inputElementId}:`, e);
       }
-      return [];
     }
   },
 
   /**
-   * Destroys a specific Tagify instance and removes it from storage.
-   * @param {string} inputElementId - The ID of the input element.
+   * Global cleanup for all instances (e.g., on logout or major navigation).
    */
-  destroy(inputElementId) {
-    const tagify = this.tagifyInstances[inputElementId];
-    if (tagify) {
-      try {
-        tagify.destroy();
-        delete this.tagifyInstances[inputElementId];
-        console.log(`Tagify instance destroyed for #${inputElementId}`);
-      } catch (e) {
-        console.error(
-          `Error destroying Tagify instance #${inputElementId}:`,
-          e
-        );
-      }
-    }
+  destroyAll() {
+    Object.keys(this.tagifyInstances).forEach((id) => this.destroy(id));
   },
 };
 

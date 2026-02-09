@@ -4,21 +4,22 @@ from app.core.config import logger
 
 def prepare_map_data(places: List[Place]) -> Dict[str, Any]:
     """
-    Serializes place data and calculates initial map configuration for native Leaflet.
+    Serializes place data and calculates the optimal initial map viewport.
     
     Args:
-        places: A list of Place objects retrieved from the database.
+        places: A list of Place objects with nested tags and visits.
         
     Returns:
-        A dictionary containing the serialized places and the map configuration (center, zoom).
+        A dictionary containing the serialized places list and 
+        map configuration (center and zoom).
     """
-    logger.info(f"Preparing map data for {len(places)} places.")
+    logger.info(f"Mapping Service: Preparing initial state for {len(places)} places.")
 
-    # Serialize Pydantic models to JSON-compatible dictionaries
-    # Pydantic V2 mode='json' automatically handles UUID, Datetime, and Enum serialization
+    # Pydantic V2 model_dump(mode='json') is highly efficient for serializing 
+    # UUIDs, Datetimes, and Enums into frontend-ready formats.
     serialized_places = [place.model_dump(mode="json") for place in places]
 
-    # Default center (Bogotá) and zoom
+    # Default center (Bogotá) if no places exist
     map_center = [4.7110, -74.0721]
     zoom_start = 12
 
@@ -30,17 +31,18 @@ def prepare_map_data(places: List[Place]) -> Dict[str, Any]:
         ]
         
         if valid_coords:
+            # Calculate the geometric center of all markers
             avg_lat = sum(lat for lat, lon in valid_coords) / len(valid_coords)
             avg_lon = sum(lon for lat, lon in valid_coords) / len(valid_coords)
             map_center = [avg_lat, avg_lon]
             
-            # Adjust zoom based on density
+            # Adjust initial zoom based on marker count for a better first impression
             if len(valid_coords) > 50:
-                zoom_start = 10
-            elif len(valid_coords) > 10:
                 zoom_start = 11
+            elif len(valid_coords) > 10:
+                zoom_start = 12
             else:
-                zoom_start = 13
+                zoom_start = 14
 
     return {
         "places": serialized_places,

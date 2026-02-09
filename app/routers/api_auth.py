@@ -1,9 +1,8 @@
 import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from supabase import Client as SupabaseClient
+from supabase import Client as SupabaseClient, AuthApiError
 from datetime import datetime, timezone, timedelta
-from gotrue.errors import AuthApiError
 
 from app.core.config import settings, logger
 from app.models.auth import Token, UserCreate, UserInToken, PasswordResetRequest
@@ -144,7 +143,7 @@ async def logout(
         status_code = getattr(api_error, "status", None)
         if status_code == 401:
             logger.warning(
-                f"Supabase sign_out failed (401), likely token already invalid for {current_user.email}. Proceeding with cookie clear."
+                f"Supabase sign_out failed (401), likely token already invalid for {current_user.email}."
             )
         else:
             logger.error(
@@ -157,22 +156,12 @@ async def logout(
             exc_info=True,
         )
 
-    logger.info(f"Attempting to delete access_token cookie for {current_user.email}")
     response.delete_cookie(
         key="access_token",
         path="/",
         httponly=True,
         samesite="Lax",
         secure=settings.APP_ENV != "development",
-    )
-    past_date = datetime.now(timezone.utc) - timedelta(days=1)
-    expires_formatted = past_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
-    secure_flag = "; Secure" if settings.APP_ENV != "development" else ""
-    manual_cookie_header = f"access_token=deleted; Path=/; Max-Age=0; Expires={expires_formatted}; HttpOnly; SameSite=Lax{secure_flag}"
-    response.headers.append("Set-Cookie", manual_cookie_header)
-
-    logger.info(
-        f"Access token cookie cleared instruction sent for user: {current_user.email}"
     )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 

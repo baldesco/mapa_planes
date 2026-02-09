@@ -1,14 +1,13 @@
 /**
  * sidebar.js
- * Manages the rendering, searching, and sorting of the places list.
+ * Manages the rendering and interaction of the places list.
+ * Designed for SPA-lite state management.
  */
 
 const sidebar = {
   elements: {
     listContainer: null,
     countDisplay: null,
-    searchInput: null,
-    sortSelect: null,
   },
   onPlaceClickCallback: null,
 
@@ -21,38 +20,41 @@ const sidebar = {
   cacheDOMElements() {
     this.elements.listContainer = document.getElementById("places-list");
     this.elements.countDisplay = document.getElementById("places-count");
-    this.elements.searchInput = document.getElementById("global-search");
-    this.elements.sortSelect = document.getElementById("sort-places");
   },
 
   setupEventListeners() {
-    if (this.elements.listContainer) {
-      // Event delegation for place card clicks
-      this.elements.listContainer.addEventListener("click", (e) => {
-        const card = e.target.closest(".place-card");
-        if (card && this.onPlaceClickCallback) {
-          const placeId = parseInt(card.dataset.id);
-          this.setActiveCard(placeId);
-          this.onPlaceClickCallback(placeId);
-        }
-      });
-    }
+    if (!this.elements.listContainer) return;
+
+    // Use event delegation for clicking place cards
+    this.elements.listContainer.addEventListener("click", (e) => {
+      const card = e.target.closest(".place-card");
+      if (card && this.onPlaceClickCallback) {
+        const placeId = parseInt(card.dataset.id);
+        this.setActiveCard(placeId);
+        this.onPlaceClickCallback(placeId);
+      }
+    });
   },
 
   /**
-   * Renders the sidebar list based on the provided places array.
+   * Renders the list of places based on current filtered/sorted state.
    */
   render(places) {
     if (!this.elements.listContainer) return;
 
     if (!places || places.length === 0) {
-      this.elements.listContainer.innerHTML =
-        '<div class="sidebar-empty">No places found matching your criteria.</div>';
-      this.elements.countDisplay.textContent = "0";
+      this.elements.listContainer.innerHTML = `
+                <div class="sidebar-empty">
+                    <p>No places found.</p>
+                </div>`;
+      if (this.elements.countDisplay)
+        this.elements.countDisplay.textContent = "0";
       return;
     }
 
-    this.elements.countDisplay.textContent = places.length;
+    if (this.elements.countDisplay) {
+      this.elements.countDisplay.textContent = places.length;
+    }
 
     const html = places
       .map((place) => this.createPlaceCardHtml(place))
@@ -60,26 +62,27 @@ const sidebar = {
     this.elements.listContainer.innerHTML = html;
   },
 
+  /**
+   * Creates HTML string for a single place card.
+   */
   createPlaceCardHtml(place) {
-    const ratingHtml =
-      place.visits && place.visits.length > 0
-        ? this.getRatingStarsHtml(place.visits[0].rating)
-        : "";
+    const statusLabel = place.status.replace(/_/g, " ");
 
-    const tagsHtml =
-      place.tags && place.tags.length > 0
-        ? `<div class="place-card-tags">
-                ${place.tags
-                  .map(
-                    (t) =>
-                      `<span class="mini-tag">${this.escapeHtml(t.name || t)}</span>`,
-                  )
-                  .slice(0, 3)
-                  .join("")}
-               </div>`
-        : "";
+    // Logic to get latest rating from visits
+    let ratingHtml = "";
+    if (place.visits && place.visits.length > 0) {
+      const lastRatedVisit = place.visits.find((v) => v.rating);
+      if (lastRatedVisit) {
+        ratingHtml = this.getRatingStarsHtml(lastRatedVisit.rating);
+      }
+    }
 
-    const statusLabel = place.status.replace("_", " ");
+    const tagsHtml = (place.tags || [])
+      .slice(0, 3)
+      .map(
+        (t) => `<span class="mini-tag">${this.escapeHtml(t.name || t)}</span>`,
+      )
+      .join("");
 
     return `
             <div class="place-card" data-id="${place.id}">
@@ -87,8 +90,8 @@ const sidebar = {
                     <h3 class="place-card-title">${this.escapeHtml(place.name)}</h3>
                     <span class="place-card-category">${this.escapeHtml(place.category)}</span>
                 </div>
-                <div class="place-card-address">${this.escapeHtml(place.address || "No address set")}</div>
-                ${tagsHtml}
+                <div class="place-card-address">${this.escapeHtml(place.address || "Location on map")}</div>
+                <div class="place-card-tags">${tagsHtml}</div>
                 <div class="place-card-meta">
                     <span class="status-badge ${place.status}">${this.escapeHtml(statusLabel)}</span>
                     <div class="place-card-rating">${ratingHtml}</div>
@@ -98,11 +101,11 @@ const sidebar = {
   },
 
   getRatingStarsHtml(rating) {
-    if (!rating) return "";
-    let stars = "";
-    for (let i = 0; i < 5; i++) {
-      stars += `<i class="${i < rating ? "fas" : "far"} fa-star"></i>`;
+    let stars = '<div class="rating-stars-display">';
+    for (let i = 1; i <= 5; i++) {
+      stars += `<i class="${i <= rating ? "fas" : "far"} fa-star"></i>`;
     }
+    stars += "</div>";
     return stars;
   },
 

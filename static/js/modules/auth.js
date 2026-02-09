@@ -1,199 +1,126 @@
 /**
  * auth.js
- * Handles logic specific to the login and signup pages.
+ * Handles authentication logic for login, signup, and logout.
+ * Updated to use centralized apiClient and SPA-lite redirection.
  */
-import apiClient from "./apiClient.js"; // Use the centralized API client
-
-// Helper function to delete a cookie by name client-side
-function deleteCookie(name) {
-  // Set expiry date to the past
-  document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-  console.debug(`Attempted to delete cookie '${name}' client-side.`);
-}
+import apiClient from "./apiClient.js";
 
 const auth = {
+  /**
+   * Initializes the login page logic.
+   */
   initLoginPage() {
     const loginForm = document.getElementById("login-form");
-    const errorMessageDiv = document.getElementById("error-message");
-    const infoMessageDiv = document.getElementById("info-message");
+    const errorDiv = document.getElementById("error-message");
+    const infoDiv = document.getElementById("info-message");
 
-    if (!loginForm || !errorMessageDiv || !infoMessageDiv) {
-      console.warn("Login page elements not found. Skipping login setup.");
-      return;
-    }
+    if (!loginForm) return;
 
-    console.debug("Initializing login page script...");
-
-    // Check for query parameters on page load
-    const urlParams = new URLSearchParams(window.location.search);
-    const reason = urlParams.get("reason");
-    const signupStatus = urlParams.get("signup");
-
-    if (reason === "session_expired") {
-      infoMessageDiv.textContent = "Your session expired. Please log in again.";
-      infoMessageDiv.style.display = "block";
-    } else if (reason === "logged_out") {
-      infoMessageDiv.textContent = "You have been logged out successfully.";
-      infoMessageDiv.style.display = "block";
-    } else if (signupStatus === "success") {
-      infoMessageDiv.textContent =
-        "Signup successful! Please check your email for confirmation if needed, then log in.";
-      infoMessageDiv.style.display = "block";
-    }
-    // Clear the query parameters from URL without reloading
-    if (reason || signupStatus) {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    }
-
-    loginForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      errorMessageDiv.style.display = "none";
-      infoMessageDiv.style.display = "none";
+    loginForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (errorDiv) errorDiv.style.display = "none";
 
       const formData = new FormData(loginForm);
-      const submitButton = loginForm.querySelector('button[type="submit"]');
-      if (submitButton) submitButton.disabled = true;
+      const submitBtn = loginForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
 
       try {
+        // PostForm is used because the endpoint expects OAuth2 form data
         const response = await apiClient.postForm(
           "/api/v1/auth/login",
           formData,
           {},
-          true // Mark as login attempt
+          true,
         );
 
         if (response.ok) {
-          console.log("Login successful, redirecting...");
-          window.location.href = "/"; // Redirect to root
+          window.location.href = "/";
         } else {
-          let errorDetail = "Login failed. Please check your credentials.";
-          try {
-            const result = await response.json();
-            errorDetail = result.detail || errorDetail;
-          } catch (e) {
-            /* ignore */
+          const result = await apiClient.parseResponse(response);
+          if (errorDiv) {
+            errorDiv.textContent =
+              result.detail || "Invalid email or password.";
+            errorDiv.style.display = "block";
           }
-          errorMessageDiv.textContent = errorDetail;
-          errorMessageDiv.style.display = "block";
-          if (submitButton) submitButton.disabled = false;
+          if (submitBtn) submitBtn.disabled = false;
         }
-      } catch (error) {
-        console.error("Login error:", error);
-        if (error.message.includes("Unauthorized")) {
-          errorMessageDiv.textContent =
-            "Login failed. Please check your credentials.";
-        } else {
-          errorMessageDiv.textContent =
-            "An error occurred during login. Please try again.";
-        }
-        errorMessageDiv.style.display = "block";
-        if (submitButton) submitButton.disabled = false;
+      } catch (err) {
+        if (submitBtn) submitBtn.disabled = false;
       }
     });
   },
 
+  /**
+   * Initializes the signup page logic.
+   */
   initSignupPage() {
     const signupForm = document.getElementById("signup-form");
     const messageDiv = document.getElementById("message-div");
 
-    if (!signupForm || !messageDiv) {
-      console.warn("Signup page elements not found. Skipping signup setup.");
-      return;
-    }
+    if (!signupForm) return;
 
-    console.debug("Initializing signup page script...");
-
-    signupForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      messageDiv.style.display = "none";
-      messageDiv.className = "message-auth";
-
+    signupForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
       const email = document.getElementById("email").value;
       const password = document.getElementById("password").value;
-      const submitButton = signupForm.querySelector('button[type="submit"]');
-      if (submitButton) submitButton.disabled = true;
+      const submitBtn = signupForm.querySelector('button[type="submit"]');
+
+      if (submitBtn) submitBtn.disabled = true;
 
       try {
         const response = await apiClient.post("/api/v1/auth/signup", {
           email,
           password,
         });
-        const result = await response.json();
+        const result = await apiClient.parseResponse(response);
 
         if (response.ok) {
-          messageDiv.textContent =
-            result.message || "Signup successful. Redirecting to login...";
-          messageDiv.classList.add("success-message-auth");
-          messageDiv.style.display = "block";
-          setTimeout(() => {
-            window.location.href = "/login?signup=success";
-          }, 3000);
+          if (messageDiv) {
+            messageDiv.textContent =
+              "Signup successful! Redirecting to login...";
+            messageDiv.className = "message-auth success-message-auth";
+            messageDiv.style.display = "block";
+          }
+          setTimeout(
+            () => (window.location.href = "/login?signup=success"),
+            2000,
+          );
         } else {
-          messageDiv.textContent =
-            result.detail || "Signup failed. Please try again.";
-          messageDiv.classList.add("error-message-auth");
-          messageDiv.style.display = "block";
-          if (submitButton) submitButton.disabled = false;
+          if (messageDiv) {
+            messageDiv.textContent = result.detail || "Signup failed.";
+            messageDiv.className = "message-auth error-message-auth";
+            messageDiv.style.display = "block";
+          }
+          if (submitBtn) submitBtn.disabled = false;
         }
-      } catch (error) {
-        console.error("Signup error:", error);
-        messageDiv.textContent =
-          "An error occurred during signup. Please try again.";
-        messageDiv.classList.add("error-message-auth");
-        messageDiv.style.display = "block";
-        if (submitButton) submitButton.disabled = false;
+      } catch (err) {
+        if (submitBtn) submitBtn.disabled = false;
       }
     });
   },
 
+  /**
+   * Configures the global logout button functionality.
+   */
   setupLogoutButton() {
-    const logoutButton = document.getElementById("logout-btn");
-    if (!logoutButton) {
-      return;
-    }
+    const logoutBtn = document.getElementById("logout-btn");
+    if (!logoutBtn) return;
 
-    logoutButton.addEventListener("click", async () => {
-      console.log("Logout button clicked");
-      logoutButton.disabled = true; // Disable button during process
-
+    logoutBtn.addEventListener("click", async () => {
+      logoutBtn.disabled = true;
       try {
         const response = await apiClient.post("/api/v1/auth/logout", {});
 
-        if (response.ok || response.status === 204) {
-          console.log("Logout API call successful.");
-          // --- Client-side cookie removal ---
-          deleteCookie("access_token");
-          // --- Redirect AFTER removing cookie ---
-          window.location.href = "/login?reason=logged_out";
-        } else {
-          console.error(
-            "Logout API call failed:",
-            response.status,
-            response.statusText
-          );
-          let errorDetail = "Logout failed. Please try again.";
-          try {
-            const errorData = await response.json();
-            errorDetail = errorData.detail || errorDetail;
-          } catch {
-            /* ignore */
-          }
-          alert(`Logout failed: ${errorDetail}`);
-          logoutButton.disabled = false; // Re-enable on failure
-        }
-      } catch (error) {
-        console.error("Error during logout fetch:", error);
-        // Handle potential network errors etc.
-        if (!error.message.includes("Unauthorized")) {
-          // Avoid double alert if apiClient already redirected
-          alert("An error occurred during logout.");
-        }
-        // Even if API call failed, try deleting cookie and redirecting? Or just re-enable button?
-        // Let's re-enable the button for now if API fails unexpectedly.
-        logoutButton.disabled = false;
+        // Clear cookie client-side as well for extra safety
+        document.cookie =
+          "access_token=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+
+        window.location.href = "/login?reason=logged_out";
+      } catch (err) {
+        console.error("Logout failed:", err);
+        logoutBtn.disabled = false;
       }
     });
-    console.debug("Logout button event listener attached.");
   },
 };
 

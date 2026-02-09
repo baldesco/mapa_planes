@@ -1,6 +1,7 @@
 /**
  * statusMessages.js
- * Utility function for displaying status messages in designated elements.
+ * Utility function for displaying standardized status messages.
+ * Integrated with the SPA-lite CSS system.
  */
 
 /**
@@ -9,17 +10,14 @@
  * @param {string} message - The message text. Clears message if empty.
  * @param {'info'|'success'|'error'|'loading'} [type='info'] - The type of message for styling.
  */
-function setStatusMessage(element, message, type = "info") {
-  if (!element) {
-    // console.warn("setStatusMessage: Target element is null or undefined.");
-    return; // Do nothing if element doesn't exist
-  }
+export function setStatusMessage(element, message, type = "info") {
+  if (!element) return;
 
   element.textContent = message;
-  // Reset classes first, keep base class
+
+  // Base class for layout, specific classes for colors/icons
   element.className = "status-message";
 
-  // Add type-specific class
   if (type === "error") {
     element.classList.add("error-message");
   } else if (type === "success") {
@@ -27,17 +25,9 @@ function setStatusMessage(element, message, type = "info") {
   } else if (type === "loading") {
     element.classList.add("loading-indicator");
   } else {
-    // Default to 'info'
     element.classList.add("info-message");
   }
 
-  // Show or hide based on message content
+  // Show/Hide logic
   element.style.display = message ? "block" : "none";
 }
-
-// Export the function directly if it's the only thing in the module
-export { setStatusMessage };
-
-// Alternatively, export as part of an object:
-// const statusMessages = { setStatusMessage };
-// export default statusMessages;

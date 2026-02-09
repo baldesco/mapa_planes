@@ -1,24 +1,19 @@
 #--- FastAPI Core & Extensions ---
-fastapi[all]>=0.100.0 # Includes uvicorn, jinja2, python-multipart, etc.
-pydantic-settings>=2.0.0 # For loading settings from .env
+fastapi[all]>=0.100.0
+pydantic-settings>=2.0.0
 
-#--- Database & Storage (Supabase) ---
+#--- Database, Auth & Storage (Official Unified Client) ---
 supabase>=2.15.0
 
 #--- Mapping & Geocoding ---
-folium>=0.14.0
 opencage>=2.0.0
-timezonefinder>=6.0.0 # For getting timezone from lat/lon
+timezonefinder>=6.0.0
 
 #--- Calendar Event Generation ---
 ics>=0.7
-pytz>=2023.3 # For timezone handling with ics library
+pytz>=2023.3
 
-#--- Authentication & Security ---
-python-jose[cryptography]>=3.3.0 # For JWT handling
-passlib[bcrypt]>=1.7.4 # For password hashing context (used by FastAPI security utils)
-email-validator>=2.0.0 # For Pydantic EmailStr validation
-
-#--- Environment Loading ---
-python-dotenv>=1.0.0 # For loading .env files
-gunicorn>=20.1.0,<22.0.0 # Production ASGI server process manager
+#--- Security & Utilities ---
+# Note: AuthApiError and JWT handling are now natively managed via the supabase client
+python-dotenv>=1.0.0
+gunicorn>=20.1.0,<22.0.0

@@ -1,71 +1,53 @@
 import asyncio
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import HTTPException, status
 from supabase import create_client, Client as SupabaseClient
 
 from app.core.config import settings, logger
 
-
-# --- Supabase Client Setup ---
+# --- Supabase Configuration ---
 _supabase_url = settings.SUPABASE_URL
 _supabase_key = settings.SUPABASE_KEY
 _supabase_service_key = settings.SUPABASE_SERVICE_ROLE_KEY
 
-# Store the base service client if configured
+# Initialize the persistent Service Role client if keys are provided
+# This client bypasses RLS and is used for admin tasks like storage cleanup
 _base_service_client: SupabaseClient | None = None
+
 if _supabase_url and _supabase_service_key:
-    logger.info("Attempting to initialize Supabase base service client...")
     try:
         _base_service_client = create_client(_supabase_url, _supabase_service_key)
-        logger.info("Supabase base service client initialized successfully.")
+        logger.info("Supabase Service Role client initialized.")
     except Exception as e:
-        logger.error(
-            f"Failed to initialize Supabase service client: {e}", exc_info=True
-        )
-        _base_service_client = None
+        logger.error(f"Failed to initialize Supabase service client: {e}")
 else:
-    logger.warning(
-        "SUPABASE_SERVICE_ROLE_KEY not provided. Base service client not initialized."
-    )
-
-
-# --- Dependency Functions for FastAPI ---
+    logger.warning("SUPABASE_SERVICE_ROLE_KEY missing. Admin operations will be restricted.")
 
 
 def get_base_supabase_client() -> SupabaseClient:
     """
-    Returns a base Supabase client initialized with the ANON key.
-    This is created PER REQUEST and should be configured with auth token in get_db.
+    Creates a new Supabase client instance using the ANON key.
+    This is used as a base for per-request authenticated clients.
     """
     if not _supabase_url or not _supabase_key:
-        logger.critical("Supabase URL or Anon Key not configured for base client.")
+        logger.critical("Supabase configuration missing (URL/Anon Key).")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Core database config missing.",
+            detail="Database configuration is missing.",
         )
     try:
-        client = create_client(_supabase_url, _supabase_key)
-        logger.debug("Created new base Supabase client instance for request.")
-        return client
+        # Returns a fresh client instance
+        return create_client(_supabase_url, _supabase_key)
     except Exception as e:
-        logger.error(
-            f"Failed to create base Supabase client instance: {e}", exc_info=True
-        )
+        logger.error(f"Failed to create Supabase client: {e}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Failed to initialize database client.",
+            detail="Could not connect to database service.",
         )
 
 
 def get_supabase_service_client() -> SupabaseClient | None:
     """
-    FastAPI dependency to get the initialized Supabase service client.
-    Returns the shared instance if available, otherwise None. Use with caution.
+    Dependency to provide the Service Role client.
+    Use with extreme caution: this client bypasses all Row Level Security.
     """
-    if not _base_service_client:
-        logger.warning(
-            "Dependency Warning: Request for Supabase service client, but it's not available (key missing or init failed)."
-        )
     return _base_service_client
-
-
-logger.info("DB Setup: Base Supabase client getters configured.")

@@ -1,7 +1,6 @@
 /**
  * mapMarkers.js
- * Handles the creation of Leaflet icons and popup content for map markers.
- * Updated to use AJAX for deletions and SPA-lite interactions.
+ * Handles the creation of Leaflet icons and popup content.
  */
 import apiClient from "../apiClient.js";
 
@@ -25,7 +24,6 @@ const mapMarkers = {
   createIcon(category, status) {
     const iconName = this.categoryIcons[category] || "info-circle";
     const markerColor = this.statusColors[status] || "gray";
-
     return L.divIcon({
       html: `<div class="leaflet-marker-icon-wrapper ${markerColor}">
                      <i class="fas fa-${iconName}"></i>
@@ -37,36 +35,18 @@ const mapMarkers = {
     });
   },
 
-  /**
-   * Generates a DOM element for a place popup.
-   * Uses internal buttons instead of forms to support SPA-lite behavior.
-   */
   createPopupContainer(place) {
     const container = document.createElement("div");
     container.className = "map-popup-container";
 
-    const name = this.escapeHtml(place.name || "Unnamed Place");
-    const categoryLabel = this.escapeHtml(place.category).toUpperCase();
-
     const addressParts = [place.address, place.city].filter(Boolean);
     const addressInfo = addressParts.map((p) => this.escapeHtml(p)).join(", ");
 
-    const now = new Date();
-    const numFutureVisits = place.visits
-      ? place.visits.filter((v) => new Date(v.visit_datetime) >= now).length
-      : 0;
-
     container.innerHTML = `
-            <h4>${name}</h4>
+            <h4>${this.escapeHtml(place.name)}</h4>
             <div class="popup-content-scrollable">
-                <p><b>Category:</b> ${categoryLabel}</p>
+                <p><b>Category:</b> ${this.escapeHtml(place.category).toUpperCase()}</p>
                 ${addressInfo ? `<p><b>Address:</b> ${addressInfo}</p>` : ""}
-                <div class="popup-tags-container">
-                    ${(place.tags || []).map((t) => `<span class="popup-tag">${this.escapeHtml(t.name || t)}</span>`).join("")}
-                </div>
-            </div>
-            <div class="popup-visits-info">
-                ${numFutureVisits > 0 ? `${numFutureVisits} upcoming visits` : "No upcoming visits"}
             </div>
             <div class="popup-actions">
                 <button type="button" class="popup-btn-edit-place" id="pop-edit-${place.id}">Edit</button>
@@ -76,51 +56,45 @@ const mapMarkers = {
             </div>
         `;
 
-    // Attach listeners after the HTML is set
-    setTimeout(() => {
-      container.querySelector(`#pop-edit-${place.id}`).onclick = () =>
+    // We use a listener on the container for event delegation to handle buttons
+    container.addEventListener("click", (e) => {
+      if (e.target.id === `pop-edit-${place.id}`)
         window.showEditPlaceForm(place);
-      container.querySelector(`#pop-plan-${place.id}`).onclick = () =>
+      if (e.target.id === `pop-plan-${place.id}`)
         window.showPlanVisitForm(place);
-      container.querySelector(`#pop-list-${place.id}`).onclick = () =>
+      if (e.target.id === `pop-list-${place.id}`)
         window.showVisitsListModal(place);
-      container.querySelector(`#pop-del-${place.id}`).onclick = () =>
-        this.handleDelete(place.id);
-    }, 0);
+      if (e.target.id === `pop-del-${place.id}`) this.handleDelete(place.id);
+    });
 
     return container;
   },
 
   async handleDelete(placeId) {
     if (!confirm("Are you sure you want to delete this place?")) return;
-
     try {
       const response = await apiClient.delete(`/api/v1/places/${placeId}`);
-      if (response.ok) {
-        // Trigger global orchestrator event to update state and UI
-        if (window.handlePlaceDeleted) {
-          window.handlePlaceDeleted(placeId);
-        } else {
-          // Fallback if orchestrator isn't ready
-          window.location.reload();
-        }
-      } else {
-        alert("Failed to delete place.");
+      if (response.ok && window.handlePlaceDeleted) {
+        window.handlePlaceDeleted(placeId);
       }
     } catch (error) {
-      console.error("Error deleting place:", error);
-      alert("Connection error while deleting.");
+      console.error("Delete failed", error);
     }
   },
 
   escapeHtml(unsafe) {
     if (!unsafe) return "";
-    return String(unsafe)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#039;");
+    return String(unsafe).replace(
+      /[&<>"']/g,
+      (m) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#039;",
+        })[m],
+    );
   },
 };
 
