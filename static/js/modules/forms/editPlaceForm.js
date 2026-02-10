@@ -1,11 +1,12 @@
 /**
  * editPlaceForm.js
  * Manages interactions and state for the Edit Place form.
- * Handles location updates via geocoding and map pinning.
+ * Updated to support SPA-Lite asynchronous submission.
  */
 import apiClient from "../apiClient.js";
 import mapHandler from "../mapHandler.js";
 import pinningUI from "../components/pinningUI.js";
+import tagInput from "../components/tagInput.js";
 
 const editPlaceForm = {
   elements: {
@@ -34,11 +35,13 @@ const editPlaceForm = {
   },
   isMapReady: false,
   hideCallback: null,
+  onSaveSuccess: null,
   currentPlaceData: null,
 
-  init(mapReady, showFn, hideFn) {
+  init(mapReady, showFn, hideFn, onSaveSuccess) {
     this.isMapReady = mapReady;
     this.hideCallback = hideFn;
+    this.onSaveSuccess = onSaveSuccess;
     this.cacheDOMElements();
     this.setupEventListeners();
 
@@ -87,6 +90,8 @@ const editPlaceForm = {
 
   setupEventListeners() {
     if (!this.elements.form) return;
+
+    this.elements.form.addEventListener("submit", (e) => this.handleSubmit(e));
 
     if (this.elements.cancelBtn && this.hideCallback) {
       this.elements.cancelBtn.addEventListener("click", () =>
@@ -145,10 +150,10 @@ const editPlaceForm = {
       placeData.latitude && placeData.longitude ? "block" : "none";
 
     this.setStatusMessage("");
-    els.form.action = `/places/${placeData.id}/edit`;
     els.submitBtn.disabled = !(
       els.latitudeInput.value && els.longitudeInput.value
     );
+    els.submitBtn.textContent = "Save Changes";
 
     return true;
   },
@@ -222,6 +227,56 @@ const editPlaceForm = {
         this.elements.latitudeInput?.value &&
         this.elements.longitudeInput?.value
       );
+    }
+  },
+
+  async handleSubmit(event) {
+    event.preventDefault();
+    if (this.elements.submitBtn.disabled || !this.currentPlaceData) return;
+
+    this.setStatusMessage("Updating place...", "loading");
+    this.elements.submitBtn.disabled = true;
+    this.elements.submitBtn.textContent = "Updating...";
+
+    // Retrieve tags from the Tagify instance via the tagInput module
+    const tags = tagInput.getTags("edit-tags-input");
+
+    const payload = {
+      name: this.elements.nameInput.value,
+      latitude: parseFloat(this.elements.latitudeInput.value),
+      longitude: parseFloat(this.elements.longitudeInput.value),
+      category: this.elements.categorySelect.value,
+      status: this.elements.statusSelect.value,
+      address: this.elements.addressHidden.value || null,
+      city: this.elements.cityHidden.value || null,
+      country: this.elements.countryHidden.value || null,
+      tags: tags,
+    };
+
+    try {
+      const response = await apiClient.put(
+        `/api/v1/places/${this.currentPlaceData.id}`,
+        payload,
+      );
+      if (response.ok) {
+        const updatedPlace = await response.json();
+        if (this.onSaveSuccess) {
+          this.onSaveSuccess(updatedPlace);
+        }
+      } else {
+        const errorData = await response.json();
+        this.setStatusMessage(
+          `Error: ${errorData.detail || "Failed to update place."}`,
+          "error",
+        );
+        this.elements.submitBtn.disabled = false;
+        this.elements.submitBtn.textContent = "Save Changes";
+      }
+    } catch (error) {
+      console.error("Error submitting edit place form:", error);
+      this.setStatusMessage("A network error occurred.", "error");
+      this.elements.submitBtn.disabled = false;
+      this.elements.submitBtn.textContent = "Save Changes";
     }
   },
 

@@ -70,7 +70,8 @@
         <section id="map"></section>
 
         <section id="add-place-wrapper-section" class="form-section">
-            <form id="add-place-form" action="{{ request.url_for('handle_create_new_place_form') }}" method="post">
+            <!-- action and method removed; handled by addPlaceForm.js via API -->
+            <form id="add-place-form" onsubmit="return false;">
                 <fieldset>
                     <legend>Add New Place</legend>
                     <label for="name">Place Name:</label>
@@ -117,7 +118,8 @@
         </section>
 
         <section class="form-section" id="edit-place-section">
-            <form id="edit-place-form" action="" method="post">
+            <!-- action and method removed; handled by editPlaceForm.js via API -->
+            <form id="edit-place-form" onsubmit="return false;">
                 <fieldset>
                     <h2>Edit Place: <span id="edit-place-form-title"></span></h2>
                     <label for="edit-name">Place Name:</label>
@@ -163,7 +165,7 @@
         </section>
 
         <section class="form-section" id="plan-visit-section" style="display: none;">
-            <form id="plan-visit-form" action="" method="post">
+            <form id="plan-visit-form" onsubmit="return false;">
                 <fieldset>
                     <h2>Plan/Edit Visit for: <span id="plan-visit-place-title"></span></h2>
                     <input type="hidden" id="plan-visit-place-id" name="place_id">
@@ -208,7 +210,7 @@
         </section>
 
         <section class="form-section" id="visit-review-image-section" style="display: none;">
-            <form id="visit-review-image-form" action="" method="post" enctype="multipart/form-data">
+            <form id="visit-review-image-form" onsubmit="return false;" enctype="multipart/form-data">
                 <fieldset>
                     <h2>Add/Edit Review for Visit to: <span id="visit-review-place-title"></span></h2>
                     <p>on <span id="visit-review-datetime-display"></span></p>

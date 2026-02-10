@@ -1,7 +1,7 @@
 /**
  * mapMarkers.js
  * Handles the creation of Leaflet icons and popup content for map markers.
- * Now uses DOM elements for popups to ensure robust event handling.
+ * Now supports SPA-Lite by linking the delete action to the Orchestrator.
  */
 
 const mapMarkers = {
@@ -96,10 +96,7 @@ const mapMarkers = {
                 <button type="button" class="popup-btn-edit-place" id="btn-edit-${place.id}" title="Edit Place Details">Edit</button>
                 <button type="button" class="popup-btn-plan-visit" id="btn-plan-${place.id}" title="Plan a New Visit">Plan</button>
                 <button type="button" class="popup-btn-view-visits" id="btn-visits-${place.id}" title="View All Visits">Visits</button>
-                <form action="/places/${place.id}/delete" method="post" 
-                    onsubmit="return confirm('Delete this place and all its visits?');">
-                    <button type="submit" class="popup-btn-delete-place" title="Delete Place">Delete</button>
-                </form>
+                <button type="button" class="popup-btn-delete-place" id="btn-delete-${place.id}" title="Delete Place">Delete</button>
             </div>
         `;
 
@@ -120,6 +117,13 @@ const mapMarkers = {
       .querySelector(`#btn-visits-${place.id}`)
       .addEventListener("click", () => {
         if (window.showVisitsListModal) window.showVisitsListModal(place);
+      });
+
+    container
+      .querySelector(`#btn-delete-${place.id}`)
+      .addEventListener("click", () => {
+        // Calls the handler exposed by uiOrchestrator
+        if (window.deletePlace) window.deletePlace(place.id);
       });
 
     return container;
