@@ -7,7 +7,7 @@ from fastapi import (
     UploadFile,
     HTTPException,
     status,
-)  # UploadFile might be removed if no direct place image uploads
+)
 from supabase import Client as SupabaseClient
 from postgrest import APIResponse, APIError  # type: ignore
 
@@ -22,19 +22,19 @@ from app.models.places import (
 )
 from app.models.tags import Tag
 from app.crud import tags as crud_tags
-from app.models.visits import Visit  # For type hinting embedded visits
+from app.models.visits import Visit
 from app.services.timezone_service import get_timezone_from_coordinates
 
 
 TABLE_NAME = "places"
 PLACE_TAGS_TABLE = "place_tags"
-VISITS_TABLE = "visits"  # Used by helper functions
+VISITS_TABLE = "visits"
 
 
 async def _delete_storage_object(path: str, db_service: SupabaseClient) -> bool:
     """
     Internal helper to delete an object from Supabase Storage using service client.
-    This will be primarily used for deleting VISIT images.
+    Maintains original logic for path prefix stripping and error handling.
     """
     if not path:
         logger.warning(f"CRUD: Invalid or missing path for storage deletion: '{path}'")
@@ -56,74 +56,43 @@ async def _delete_storage_object(path: str, db_service: SupabaseClient) -> bool:
         path_to_delete = path_to_delete.lstrip("/")
 
         if not path_to_delete:
-            logger.warning(
-                f"CRUD: Path became empty after stripping prefixes: original '{path}'"
-            )
+            logger.warning(f"CRUD: Path became empty after stripping prefixes: original '{path}'")
             return False
 
-        logger.info(
-            f"CRUD: Attempting to delete storage object: '{path_to_delete}' from bucket '{settings.SUPABASE_BUCKET_NAME}' using service client."
-        )
+        logger.info(f"CRUD: Attempting to delete storage object: '{path_to_delete}' using service client.")
         storage_from = db_service.storage.from_(settings.SUPABASE_BUCKET_NAME)
 
         delete_task = asyncio.to_thread(storage_from.remove, [path_to_delete])
         response_list = await delete_task
-        logger.debug(
-            f"CRUD: Storage deletion response for '{path_to_delete}': {response_list}"
-        )
+        logger.debug(f"CRUD: Storage deletion response for '{path_to_delete}': {response_list}")
 
         if response_list and isinstance(response_list, list) and len(response_list) > 0:
             response_item = response_list[0]
             if response_item.get("error"):
-                logger.error(
-                    f"CRUD: Storage deletion failed for '{path_to_delete}'. Error: {response_item.get('message', response_item.get('error'))}"
-                )
+                logger.error(f"CRUD: Storage deletion failed for '{path_to_delete}'. Error: {response_item.get('message', response_item.get('error'))}")
                 if "NotFound" in str(response_item.get("error")):
-                    logger.warning(
-                        f"CRUD: Storage object '{path_to_delete}' not found, considering delete successful."
-                    )
                     return True
                 return False
-            logger.info(
-                f"CRUD: Storage object deletion request successfully processed for: '{path_to_delete}'"
-            )
             return True
         elif isinstance(response_list, list) and len(response_list) == 0:
-            logger.warning(
-                f"CRUD: Storage deletion command executed for '{path_to_delete}', but response suggests no object was found/deleted (empty list). Considering it gone."
-            )
             return True
         else:
-            logger.error(
-                f"CRUD: Unexpected empty or non-list response during storage deletion for '{path_to_delete}': {response_list}"
-            )
             return False
     except APIError as storage_api_error:
         err_msg = getattr(storage_api_error, "message", str(storage_api_error))
         status_code = getattr(storage_api_error, "status", "Unknown")
-        logger.error(
-            f"CRUD: Storage APIError (Status: {status_code}) during deletion of '{path}': {err_msg}",
-            exc_info=False,
-        )
-        if status_code == 404 or (
-            isinstance(err_msg, str) and "not found" in err_msg.lower()
-        ):
-            logger.warning(
-                f"CRUD: Storage object '{path}' not found during deletion (APIError), considering it gone."
-            )
+        if status_code == 404 or (isinstance(err_msg, str) and "not found" in err_msg.lower()):
             return True
         return False
     except Exception as e:
-        logger.error(
-            f"CRUD: General Exception during storage deletion of '{path}': {e}",
-            exc_info=True,
-        )
+        logger.error(f"CRUD: General Exception during storage deletion of '{path}': {e}", exc_info=True)
         return False
 
 
 async def _get_visits_for_place_ids(
     db: SupabaseClient, *, place_ids: List[int]
 ) -> Dict[int, List[Visit]]:
+    """Original logic: Fetches and sorts visits by ID."""
     if not place_ids:
         return {}
     visits_by_place_id: Dict[int, List[Visit]] = {pid: [] for pid in place_ids}
@@ -139,14 +108,9 @@ async def _get_visits_for_place_ids(
                         visit_obj = Visit(**visit_data)
                         visits_by_place_id[place_id_from_visit].append(visit_obj)
                     except Exception as validation_error:
-                        logger.error(
-                            f"CRUD Helper: Pydantic validation failed for visit {visit_data.get('id')} for place {place_id_from_visit}. Error: {validation_error}",
-                            exc_info=False,
-                        )
+                        logger.error(f"CRUD Helper: Pydantic validation failed for visit {visit_data.get('id')}: {validation_error}")
         elif hasattr(response, "error") and response.error:
-            logger.error(
-                f"CRUD Helper: Error fetching visits for places {place_ids}: {response.error.message}"
-            )
+            logger.error(f"CRUD Helper: Error fetching visits for places {place_ids}: {response.error.message}")
 
         now = datetime.now(timezone.utc)
         for pid_key in visits_by_place_id:
@@ -162,16 +126,14 @@ async def _get_visits_for_place_ids(
             visits_by_place_id[pid_key] = future_visits + past_visits
         return visits_by_place_id
     except Exception as e:
-        logger.error(
-            f"CRUD Helper: Unexpected error fetching/sorting visits for places {place_ids}: {e}",
-            exc_info=True,
-        )
+        logger.error(f"CRUD Helper: Unexpected error fetching visits for places {place_ids}: {e}", exc_info=True)
         return visits_by_place_id
 
 
 async def _get_tags_for_place_ids(
     db: SupabaseClient, *, place_ids: List[int]
 ) -> Dict[int, List[Tag]]:
+    """Original logic: Fetches tags for multiple places."""
     if not place_ids:
         return {}
     tags_by_place_id: Dict[int, List[Tag]] = {pid: [] for pid in place_ids}
@@ -196,29 +158,25 @@ async def _get_tags_for_place_ids(
                         tag_obj = Tag(**tag_data)
                         tags_by_place_id[place_id_from_tag].append(tag_obj)
                     except Exception as validation_error:
-                        logger.error(
-                            f"CRUD Helper: Pydantic validation failed for tag for place {place_id_from_tag}. Error: {validation_error}",
-                            exc_info=False,
-                        )
+                        logger.error(f"CRUD Helper: Pydantic validation failed for tag: {validation_error}")
         elif hasattr(response, "error") and response.error:
-            logger.error(
-                f"CRUD Helper: Error fetching tags for places {place_ids}: {response.error.message}"
-            )
+            logger.error(f"CRUD Helper: Error fetching tags for places {place_ids}: {response.error.message}")
 
         for pid_key in tags_by_place_id:
             tags_by_place_id[pid_key].sort(key=lambda tag_item: tag_item.name)
         return tags_by_place_id
     except Exception as e:
-        logger.error(
-            f"CRUD Helper: Unexpected error fetching tags for places {place_ids}: {e}",
-            exc_info=True,
-        )
+        logger.error(f"CRUD Helper: Unexpected error fetching tags for places {place_ids}: {e}", exc_info=True)
         return tags_by_place_id
 
 
 async def create_place(
     place: PlaceCreate, user_id: uuid.UUID, db: SupabaseClient
-) -> PlaceInDB | None:
+) -> Place | None:
+    """
+    Creates a place and returns the fully hydrated Place object.
+    Updated to support SPA-Lite updates.
+    """
     logger.info(f"CRUD: Attempting to create place '{place.name}' for user {user_id}")
     try:
         place_data = place.model_dump(mode="json", exclude_unset=True)
@@ -237,31 +195,22 @@ async def create_place(
                 place.latitude, place.longitude
             )
 
-        logger.debug(f"CRUD: Data being sent to Supabase insert: {place_data}")
-
         query = db.table(TABLE_NAME).insert(place_data, returning="representation")
         response: APIResponse = await asyncio.to_thread(query.execute)
 
         if response.data:
             created_place_data = response.data[0]
-            validated_place = PlaceInDB(**created_place_data, tags=[], visits=[])
-            logger.info(
-                f"CRUD: Successfully created place ID {validated_place.id} for user {user_id}"
-            )
-            return validated_place
+            logger.info(f"CRUD: Successfully created place ID {created_place_data.get('id')} for user {user_id}")
+            # Re-fetch to return fully hydrated object (visits, tags) for the SPA frontend
+            return await get_place_by_id(place_id=created_place_data.get("id"), user_id=user_id, db=db)
         else:
             error_detail = "Insert failed"
             if hasattr(response, "error") and response.error:
                 error_detail = response.error.message
-            elif hasattr(response, "message"):
-                error_detail = response.message
             logger.error(f"CRUD: Failed to create place '{place.name}': {error_detail}")
             return None
     except Exception as e:
-        logger.error(
-            f"CRUD: General Exception in create_place for '{place.name}': {e}",
-            exc_info=True,
-        )
+        logger.error(f"CRUD: General Exception in create_place for '{place.name}': {e}", exc_info=True)
         return None
 
 
@@ -275,10 +224,8 @@ async def get_places(
     limit: int = 100,
     include_deleted: bool = False,
 ) -> List[Place]:
-    logger.info(
-        f"CRUD: Fetching places for user {user_id}. Filters: cat={category}, status={status_filter}, tags={tag_names}"
-    )
-    places_validated: List[Place] = []
+    """Original logic: Fetches list of places with all relations."""
+    logger.info(f"CRUD: Fetching places for user {user_id}. Filters: cat={category}, status={status_filter}")
     try:
         select_statement = "*"
         perform_tag_join_in_select = False
@@ -289,9 +236,7 @@ async def get_places(
                 select_statement = "*, place_tags!inner(tags!inner(name))"
                 perform_tag_join_in_select = True
 
-        query = (
-            db.table(TABLE_NAME).select(select_statement).order("created_at", desc=True)
-        )
+        query = db.table(TABLE_NAME).select(select_statement).order("created_at", desc=True)
         query = query.eq("user_id", str(user_id))
 
         if category:
@@ -306,32 +251,19 @@ async def get_places(
         final_query = query.range(skip, skip + limit - 1)
         response: APIResponse = await asyncio.to_thread(final_query.execute)
 
-        place_data_list = (
-            response.data if hasattr(response, "data") and response.data else []
-        )
+        place_data_list = response.data if hasattr(response, "data") and response.data else []
 
         if not place_data_list:
             if hasattr(response, "error") and response.error:
                 logger.error(f"CRUD: Error fetching places: {response.error.message}")
-            else:
-                logger.debug(
-                    f"CRUD: No places found for user {user_id} matching criteria."
-                )
             return []
 
-        place_ids = [
-            p_data_item.get("id")
-            for p_data_item in place_data_list
-            if p_data_item.get("id")
-        ]  # Renamed p_data to p_data_item
-        tags_map: Dict[int, List[Tag]] = {}
-        visits_map: Dict[int, List[Visit]] = {}
+        place_ids = [p_data_item.get("id") for p_data_item in place_data_list if p_data_item.get("id")]
+        tags_map = await _get_tags_for_place_ids(db=db, place_ids=place_ids)
+        visits_map = await _get_visits_for_place_ids(db=db, place_ids=place_ids)
 
-        if place_ids:
-            tags_map = await _get_tags_for_place_ids(db=db, place_ids=place_ids)
-            visits_map = await _get_visits_for_place_ids(db=db, place_ids=place_ids)
-
-        for p_data_item in place_data_list:  # Renamed p_data to p_data_item
+        places_validated: List[Place] = []
+        for p_data_item in place_data_list:
             try:
                 place_id = p_data_item.get("id")
                 if not place_id or uuid.UUID(p_data_item.get("user_id")) != user_id:
@@ -339,81 +271,49 @@ async def get_places(
                 if perform_tag_join_in_select:
                     p_data_item.pop("place_tags", None)
 
-                place_tags = tags_map.get(place_id, [])
-                place_visits = visits_map.get(place_id, [])
-
-                p_data_with_relations = {
-                    **p_data_item,
-                    "tags": place_tags,
-                    "visits": place_visits,
-                }
-                validated_place = Place(**p_data_with_relations)
-                places_validated.append(validated_place)
+                p_data_item["tags"] = tags_map.get(place_id, [])
+                p_data_item["visits"] = visits_map.get(place_id, [])
+                
+                places_validated.append(Place(**p_data_item))
             except Exception as validation_error:
-                logger.error(
-                    f"CRUD: Pydantic validation for place ID {p_data_item.get('id')}. Error: {validation_error}",
-                    exc_info=False,
-                )
+                logger.error(f"CRUD: Pydantic validation error for place ID {p_data_item.get('id')}: {validation_error}")
 
-        logger.info(
-            f"CRUD: Successfully validated {len(places_validated)} place records for user {user_id}."
-        )
         return places_validated
-
     except Exception as e:
-        logger.error(
-            f"CRUD: General Exception during get_places for user {user_id}: {e}",
-            exc_info=True,
-        )
+        logger.error(f"CRUD: General Exception during get_places for user {user_id}: {e}", exc_info=True)
         return []
 
 
 async def get_place_by_id(
     place_id: int, user_id: uuid.UUID, db: SupabaseClient, include_deleted: bool = False
 ) -> Place | None:
+    """Original logic: Fetches a single place with all relations."""
     logger.debug(f"CRUD: Getting place by ID: {place_id} for user {user_id}")
     try:
-        query = (
-            db.table(TABLE_NAME)
-            .select("*")
-            .eq("id", place_id)
-            .eq("user_id", str(user_id))
-        )
+        query = db.table(TABLE_NAME).select("*").eq("id", place_id).eq("user_id", str(user_id))
         if not include_deleted:
             query = query.is_("deleted_at", None)
         query = query.maybe_single()
         response: APIResponse = await asyncio.to_thread(query.execute)
 
         if response.data:
-            place_data = response.data  # This is the correct variable
+            place_data = response.data
             if uuid.UUID(place_data.get("user_id")) != user_id:
                 return None
 
             place_tags = await crud_tags.get_tags_for_place(db=db, place_id=place_id)
             visits_map = await _get_visits_for_place_ids(db=db, place_ids=[place_id])
-            place_visits = visits_map.get(place_id, [])
-
-            place_data_with_relations = {
-                **place_data,
-                "tags": place_tags,
-                "visits": place_visits,
-            }
-            validated_place = Place(**place_data_with_relations)
-            logger.debug(f"CRUD: Found place ID {place_id} for user {user_id}")
-            return validated_place
+            
+            place_data["tags"] = place_tags
+            place_data["visits"] = visits_map.get(place_id, [])
+            
+            return Place(**place_data)
         else:
             if hasattr(response, "error") and response.error:
-                logger.error(
-                    f"CRUD: Error fetching place {place_id}: {response.error.message}"
-                )
-            else:
-                logger.debug(f"CRUD: Place ID {place_id} not found for user {user_id}.")
+                logger.error(f"CRUD: Error fetching place {place_id}: {response.error.message}")
             return None
     except Exception as e:
-        logger.error(
-            f"CRUD: General Exception in get_place_by_id for ID {place_id}: {e}",
-            exc_info=True,
-        )
+        logger.error(f"CRUD: General Exception in get_place_by_id for ID {place_id}: {e}", exc_info=True)
         return None
 
 
@@ -424,28 +324,24 @@ async def update_place(
     db: SupabaseClient,
     db_service: SupabaseClient | None = None,
 ) -> Place | None:
+    """
+    Updates a place and returns the fully hydrated Place object.
+    Updated to support SPA-Lite updates.
+    """
     logger.info(f"CRUD: Attempting to update place ID {place_id} for user {user_id}")
 
-    current_place_check = await get_place_by_id(
-        place_id=place_id, user_id=user_id, db=db, include_deleted=False
-    )
+    current_place_check = await get_place_by_id(place_id=place_id, user_id=user_id, db=db)
     if not current_place_check:
-        logger.warning(
-            f"CRUD: Update failed. Place ID {place_id} not found or not owned by user {user_id}."
-        )
+        logger.warning(f"CRUD: Update failed. Place ID {place_id} not found.")
         return None
 
-    update_data_dict = place_update.model_dump(
-        exclude_unset=True, exclude_none=False, exclude={"tags"}
-    )
+    update_data_dict = place_update.model_dump(exclude_unset=True, exclude_none=False, exclude={"tags"})
 
     if "latitude" in update_data_dict or "longitude" in update_data_dict:
         new_lat = update_data_dict.get("latitude", current_place_check.latitude)
         new_lon = update_data_dict.get("longitude", current_place_check.longitude)
         if new_lat is not None and new_lon is not None:
-            update_data_dict["timezone_iana"] = await get_timezone_from_coordinates(
-                new_lat, new_lon
-            )
+            update_data_dict["timezone_iana"] = await get_timezone_from_coordinates(new_lat, new_lon)
         else:
             update_data_dict["timezone_iana"] = None
 
@@ -453,9 +349,6 @@ async def update_place(
         update_data_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
         update_data_dict.pop("deleted_at", None)
 
-        logger.debug(
-            f"CRUD: Data for Supabase place update ID {place_id}: {update_data_dict}"
-        )
         try:
             query_builder = (
                 db.table(TABLE_NAME)
@@ -466,31 +359,14 @@ async def update_place(
             )
             response: APIResponse = await asyncio.to_thread(query_builder.execute)
 
-            if not response.data and response.error:
-                logger.error(
-                    f"CRUD: Failed to update place data for ID {place_id}: {response.error.message}"
-                )
+            if not response.data and hasattr(response, "error") and response.error:
+                logger.error(f"CRUD: Failed to update place ID {place_id}: {response.error.message}")
                 return None
-            if not response.data and not response.error:
-                logger.warning(
-                    f"CRUD: Place ID {place_id} update affected 0 rows. Data might be identical."
-                )
-            else:
-                logger.info(
-                    f"CRUD: Successfully updated core place data for ID {place_id}"
-                )
-
         except Exception as e:
-            logger.error(
-                f"CRUD: Exception updating place data for ID {place_id}: {e}",
-                exc_info=True,
-            )
+            logger.error(f"CRUD: Exception updating place data for ID {place_id}: {e}", exc_info=True)
             return None
 
     if place_update.tags is not None:
-        logger.info(
-            f"CRUD: Updating tags for place {place_id}. Desired tags: {place_update.tags}"
-        )
         try:
             current_tags = await crud_tags.get_tags_for_place(db=db, place_id=place_id)
             current_tag_ids: Set[int] = {tag.id for tag in current_tags}
@@ -499,31 +375,20 @@ async def update_place(
                 clean_name = tag_name.strip().lower()
                 if not clean_name:
                     continue
-                tag = await crud_tags.get_tag_by_name_for_user(
-                    db=db, name=clean_name, user_id=user_id
-                )
+                tag = await crud_tags.get_tag_by_name_for_user(db=db, name=clean_name, user_id=user_id)
                 if not tag:
-                    tag = await crud_tags.create_tag(
-                        db=db, name=clean_name, user_id=user_id
-                    )
+                    tag = await crud_tags.create_tag(db=db, name=clean_name, user_id=user_id)
                 if tag and tag.id:
                     desired_tag_ids.add(tag.id)
 
             tags_to_add = list(desired_tag_ids - current_tag_ids)
             tags_to_remove = list(current_tag_ids - desired_tag_ids)
             if tags_to_add:
-                await crud_tags.link_tags_to_place(
-                    db=db, place_id=place_id, tag_ids=tags_to_add
-                )
+                await crud_tags.link_tags_to_place(db=db, place_id=place_id, tag_ids=tags_to_add)
             if tags_to_remove:
-                await crud_tags.unlink_tags_from_place(
-                    db=db, place_id=place_id, tag_ids=tags_to_remove
-                )
+                await crud_tags.unlink_tags_from_place(db=db, place_id=place_id, tag_ids=tags_to_remove)
         except Exception as tag_err:
-            logger.error(
-                f"CRUD: Error updating tags for place {place_id}: {tag_err}",
-                exc_info=True,
-            )
+            logger.error(f"CRUD: Error updating tags for place {place_id}: {tag_err}", exc_info=True)
 
     return await get_place_by_id(place_id=place_id, user_id=user_id, db=db)
 
@@ -534,82 +399,37 @@ async def delete_place(
     db: SupabaseClient,
     db_service: SupabaseClient | None = None,
 ) -> bool:
+    """Soft deletes a place. Cascade hard deletes visits, storage helper cleans images."""
     logger.warning(f"CRUD: Soft deleting place ID {place_id} for user {user_id}.")
-    place_to_delete = await get_place_by_id(
-        place_id=place_id, user_id=user_id, db=db, include_deleted=False
-    )
+    place_to_delete = await get_place_by_id(place_id=place_id, user_id=user_id, db=db)
     if not place_to_delete:
-        already_deleted = await get_place_by_id(
-            place_id=place_id, user_id=user_id, db=db, include_deleted=True
-        )
-        if already_deleted and already_deleted.deleted_at:
-            logger.info(f"CRUD: Place {place_id} already soft deleted.")
-            return True
-        logger.error(
-            f"CRUD: Soft delete failed. Place {place_id} not found or not owned by user {user_id}."
-        )
         return False
 
-    if db_service:
-        visits_of_place = place_to_delete.visits
-        if visits_of_place:
-            logger.info(
-                f"CRUD: Deleting images for {len(visits_of_place)} visits of place {place_id}."
-            )
-            for visit_item in visits_of_place:
-                if visit_item.image_url:
-                    await _delete_storage_object(visit_item.image_url, db_service)
-    else:
-        logger.warning(
-            f"CRUD: Service client not available. Images for visits of place {place_id} might not be deleted from storage."
-        )
+    if db_service and place_to_delete.visits:
+        for visit_item in place_to_delete.visits:
+            if visit_item.image_url:
+                await _delete_storage_object(str(visit_item.image_url), db_service)
 
     try:
-        delete_time = datetime.now(timezone.utc)
-        place_delete_update = PlaceUpdate(
-            deleted_at=delete_time, updated_at=delete_time
-        )
-        update_data = place_delete_update.model_dump(
-            mode="json", exclude_unset=True, exclude={"tags"}
-        )
-
+        delete_time = datetime.now(timezone.utc).isoformat()
         query = (
             db.table(TABLE_NAME)
-            .update(update_data)
+            .update({"deleted_at": delete_time, "updated_at": delete_time})
             .eq("id", place_id)
             .eq("user_id", str(user_id))
             .is_("deleted_at", None)
         )
         response: APIResponse = await asyncio.to_thread(query.execute)
-
-        if response.data:
-            logger.info(f"CRUD: Successfully soft deleted place {place_id}.")
-            return True
-        elif hasattr(response, "error") and response.error:
-            logger.error(
-                f"CRUD: Error soft deleting place {place_id}: {response.error.message}"
-            )
-            return False
-        else:
-            logger.warning(
-                f"CRUD: Soft delete for place {place_id} affected 0 rows. Might be already deleted."
-            )
-            final_check = await get_place_by_id(
-                place_id=place_id, user_id=user_id, db=db, include_deleted=True
-            )
-            return bool(final_check and final_check.deleted_at)
+        return bool(response.data)
     except Exception as e:
-        logger.error(
-            f"CRUD: General Exception in soft delete for place ID {place_id}: {e}",
-            exc_info=True,
-        )
+        logger.error(f"CRUD: General Exception in soft delete for place ID {place_id}: {e}", exc_info=True)
         return False
 
 
 async def _update_place_status_after_visit_change(
     db: SupabaseClient, place_id: int, user_id: uuid.UUID
 ):
-    logger.info(f"CRUD: Updating status for place {place_id} based on its visits.")
+    """Original helper: Recalculates status based on visit dates and content."""
     try:
         visits_response = await asyncio.to_thread(
             db.table(VISITS_TABLE)
@@ -619,18 +439,14 @@ async def _update_place_status_after_visit_change(
             .execute
         )
 
-        if visits_response.error:
-            logger.error(
-                f"Failed to fetch visits for place {place_id} to update status: {visits_response.error.message}"
-            )
+        if hasattr(visits_response, "error") and visits_response.error:
             return
 
         visits_data = visits_response.data or []
         now_utc = datetime.now(timezone.utc)
 
         has_future_visits = any(
-            datetime.fromisoformat(v["visit_datetime"].replace("Z", "+00:00"))
-            >= now_utc
+            datetime.fromisoformat(v["visit_datetime"].replace("Z", "+00:00")) >= now_utc
             for v in visits_data
         )
 
@@ -639,51 +455,27 @@ async def _update_place_status_after_visit_change(
             new_status_val = PlaceStatus.PENDING_SCHEDULED
         else:
             has_reviewed_past_visit = any(
-                (
-                    v.get("rating") is not None
-                    or v.get("review_text")
-                    or v.get("review_title")
-                )
-                and datetime.fromisoformat(v["visit_datetime"].replace("Z", "+00:00"))
-                < now_utc
+                (v.get("rating") is not None or v.get("review_text") or v.get("review_title"))
+                and datetime.fromisoformat(v["visit_datetime"].replace("Z", "+00:00")) < now_utc
                 for v in visits_data
             )
             if has_reviewed_past_visit:
                 new_status_val = PlaceStatus.VISITED
             else:
                 current_place_response = await asyncio.to_thread(
-                    db.table(TABLE_NAME)
-                    .select("status")
-                    .eq("id", place_id)
-                    .eq("user_id", str(user_id))
-                    .single()
-                    .execute
+                    db.table(TABLE_NAME).select("status").eq("id", place_id).eq("user_id", str(user_id)).single().execute
                 )
-                if (
-                    current_place_response.data
-                    and current_place_response.data.get("status")
-                    == PlaceStatus.PENDING_PRIORITIZED.value
-                ):
+                if current_place_response.data and current_place_response.data.get("status") == PlaceStatus.PENDING_PRIORITIZED.value:
                     new_status_val = PlaceStatus.PENDING_PRIORITIZED
                 else:
                     new_status_val = PlaceStatus.PENDING
 
-        update_status_response = await asyncio.to_thread(
+        await asyncio.to_thread(
             db.table(TABLE_NAME)
             .update({"status": new_status_val.value, "updated_at": now_utc.isoformat()})
             .eq("id", place_id)
             .eq("user_id", str(user_id))
             .execute
         )
-        if update_status_response.error:
-            logger.error(
-                f"Failed to update status for place {place_id} to {new_status_val.value}: {update_status_response.error.message}"
-            )
-        else:
-            logger.info(f"Place {place_id} status updated to {new_status_val.value}.")
-
     except Exception as e:
-        logger.error(
-            f"Error in _update_place_status_after_visit_change for place {place_id}: {e}",
-            exc_info=True,
-        )
+        logger.error(f"Error in _update_place_status_after_visit_change: {e}", exc_info=True)

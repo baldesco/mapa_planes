@@ -1,6 +1,7 @@
 /**
  * reviewForm.js
- * Manages interactions and state for the Add/Edit Review & Image form FOR A VISIT.
+ * Manages interactions and state for the Add/Edit Review & Image form for a visit.
+ * Updated for SPA-Lite behavior to update the map without reloading.
  */
 import apiClient from "../apiClient.js";
 import { setStatusMessage } from "../components/statusMessages.js";
@@ -25,7 +26,7 @@ const reviewForm = {
     cancelBtn: null,
   },
   hideCallback: null,
-  onReviewSavedCallback: null, // This is uiOrchestrator.handleVisitSaved
+  onReviewSavedCallback: null,
   currentVisitData: null,
   currentPlaceName: null,
 
@@ -39,66 +40,66 @@ const reviewForm = {
 
   cacheDOMElements() {
     this.elements.wrapper = document.getElementById(
-      "visit-review-image-section"
+      "visit-review-image-section",
     );
-    if (!this.elements.wrapper) {
-      console.error(
-        "Visit Review Form: Wrapper element #visit-review-image-section not found."
-      );
-      return;
-    }
+    if (!this.elements.wrapper) return;
+
     this.elements.form = document.getElementById("visit-review-image-form");
     this.elements.formTitlePlaceSpan = document.getElementById(
-      "visit-review-place-title"
+      "visit-review-place-title",
     );
     this.elements.visitDateTimeSpan = document.getElementById(
-      "visit-review-datetime-display"
+      "visit-review-datetime-display",
     );
     this.elements.visitIdInput = document.getElementById(
-      "visit-review-visit-id"
+      "visit-review-visit-id",
     );
     this.elements.titleInput = document.getElementById("visit-review-title");
     this.elements.textInput = document.getElementById("visit-review-text");
     this.elements.ratingStarsContainer = document.getElementById(
-      "visit-review-rating-stars"
+      "visit-review-rating-stars",
     );
     this.elements.ratingInput = document.getElementById("visit-review-rating");
     this.elements.imageInput = document.getElementById("visit-review-image");
     this.elements.removeImageCheckbox = document.getElementById(
-      "visit-review-remove-image"
+      "visit-review-remove-image",
     );
     this.elements.currentImageSection = document.getElementById(
-      "current-visit-image-review-section"
+      "current-visit-image-review-section",
     );
     this.elements.currentImageThumb = document.getElementById(
-      "current-visit-image-review-thumb"
+      "current-visit-image-review-thumb",
     );
     this.elements.statusMessage = document.getElementById(
-      "visit-review-status"
+      "visit-review-status",
     );
     this.elements.submitBtn = document.getElementById(
-      "visit-review-image-submit-btn"
+      "visit-review-image-submit-btn",
     );
     this.elements.cancelBtn = document.getElementById(
-      "visit-review-cancel-btn"
+      "visit-review-cancel-btn",
     );
   },
 
   setupEventListeners() {
     if (!this.elements.form) return;
+
     this.elements.form.addEventListener("submit", (event) =>
-      this.handleSubmit(event)
+      this.handleSubmit(event),
     );
+
     if (this.elements.cancelBtn && this.hideCallback) {
       this.elements.cancelBtn.addEventListener("click", () =>
-        this.hideCallback()
+        this.hideCallback(),
       );
     }
+
     if (this.elements.removeImageCheckbox && this.elements.imageInput) {
       this.elements.removeImageCheckbox.addEventListener("change", (event) => {
         if (event.target.checked) this.elements.imageInput.value = "";
       });
     }
+
     if (this.elements.imageInput && this.elements.removeImageCheckbox) {
       this.elements.imageInput.addEventListener("change", (event) => {
         if (event.target.files && event.target.files.length > 0) {
@@ -109,12 +110,8 @@ const reviewForm = {
   },
 
   populateForm(visitData, placeName = "this place") {
-    if (!this.elements.form || !visitData || !visitData.id) {
-      console.error(
-        "Visit Review Form: Cannot populate - missing form, visitData, or visit ID."
-      );
-      return false;
-    }
+    if (!this.elements.form || !visitData?.id) return false;
+
     this.currentVisitData = visitData;
     this.currentPlaceName = placeName;
     const els = this.elements;
@@ -128,25 +125,19 @@ const reviewForm = {
 
     if (els.visitDateTimeSpan && visitData.visit_datetime) {
       const visitDate = new Date(visitData.visit_datetime);
-      const formattedDate = visitDate.toLocaleDateString(undefined, {
+      els.visitDateTimeSpan.textContent = visitDate.toLocaleString(undefined, {
         year: "numeric",
         month: "long",
         day: "numeric",
-      });
-      const formattedTime = visitDate.toLocaleTimeString(undefined, {
         hour: "2-digit",
         minute: "2-digit",
       });
-      els.visitDateTimeSpan.textContent = `${formattedDate} at ${formattedTime}`;
     }
 
     if (els.titleInput) els.titleInput.value = visitData.review_title || "";
     if (els.textInput) els.textInput.value = visitData.review_text || "";
 
-    const currentRating =
-      visitData.rating !== null && visitData.rating !== undefined
-        ? String(visitData.rating)
-        : "";
+    const currentRating = visitData.rating || "";
     if (els.ratingInput) els.ratingInput.value = currentRating;
     this.updateRatingStars(els.ratingStarsContainer, currentRating);
 
@@ -154,15 +145,14 @@ const reviewForm = {
     if (els.removeImageCheckbox) els.removeImageCheckbox.checked = false;
 
     if (els.currentImageSection && els.currentImageThumb) {
-      if (visitData.image_url && visitData.image_url.startsWith("http")) {
+      if (visitData.image_url) {
         els.currentImageThumb.src = visitData.image_url;
-        els.currentImageThumb.alt = `Image for visit to ${this.currentPlaceName}`;
         els.currentImageSection.style.display = "block";
       } else {
-        els.currentImageThumb.src = "";
         els.currentImageSection.style.display = "none";
       }
     }
+
     if (els.submitBtn) {
       els.submitBtn.disabled = false;
       els.submitBtn.textContent = "Save Review & Image";
@@ -172,51 +162,32 @@ const reviewForm = {
 
   async handleSubmit(event) {
     event.preventDefault();
-    if (
-      !this.elements.form ||
-      !this.currentVisitData ||
-      !this.currentVisitData.id
-    ) {
-      setStatusMessage(
-        this.elements.statusMessage,
-        "Error: Missing visit information.",
-        "error"
-      );
-      return;
-    }
+    if (!this.elements.form || !this.currentVisitData?.id) return;
+
     setStatusMessage(
       this.elements.statusMessage,
       "Saving review...",
-      "loading"
+      "loading",
     );
     if (this.elements.submitBtn) this.elements.submitBtn.disabled = true;
 
     const visitId = this.currentVisitData.id;
     const formData = new FormData();
 
-    if (this.elements.titleInput.value.trim())
-      formData.append("review_title", this.elements.titleInput.value.trim());
-    if (this.elements.textInput.value.trim())
-      formData.append("review_text", this.elements.textInput.value.trim());
-    if (this.elements.ratingInput.value)
-      formData.append("rating", this.elements.ratingInput.value);
+    formData.append("review_title", this.elements.titleInput.value.trim());
+    formData.append("review_text", this.elements.textInput.value.trim());
 
-    if (
-      this.elements.imageInput &&
-      this.elements.imageInput.files &&
-      this.elements.imageInput.files[0]
-    ) {
+    const ratingVal = this.elements.ratingInput.value;
+    if (ratingVal) formData.append("rating", ratingVal);
+
+    if (this.elements.imageInput?.files?.[0]) {
       formData.append("image_file", this.elements.imageInput.files[0]);
-    } else if (
-      this.elements.removeImageCheckbox &&
-      this.elements.removeImageCheckbox.checked
-    ) {
+    } else if (this.elements.removeImageCheckbox?.checked) {
       formData.append("image_url_action", "remove");
     }
 
     try {
-      const apiUrl = `/api/v1/visits/${visitId}`;
-      const response = await apiClient.fetch(apiUrl, {
+      const response = await apiClient.fetch(`/api/v1/visits/${visitId}`, {
         method: "PUT",
         body: formData,
       });
@@ -224,19 +195,18 @@ const reviewForm = {
 
       if (response.ok) {
         setStatusMessage(
-          this.elements.statusMessage,
+          els.statusMessage,
           "Review saved successfully!",
-          "success"
+          "success",
         );
         if (this.onReviewSavedCallback) {
           this.onReviewSavedCallback(result);
         }
-        // No automatic hide timeout here, page reload from onReviewSavedCallback will handle it
       } else {
         setStatusMessage(
           this.elements.statusMessage,
           result.detail || "Failed to save review.",
-          "error"
+          "error",
         );
         if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
       }
@@ -245,7 +215,7 @@ const reviewForm = {
       setStatusMessage(
         this.elements.statusMessage,
         "An error occurred. Please try again.",
-        "error"
+        "error",
       );
       if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
     }
@@ -256,12 +226,11 @@ const reviewForm = {
       return;
     this.setupInteractiveStars(
       this.elements.ratingStarsContainer,
-      this.elements.ratingInput
+      this.elements.ratingInput,
     );
   },
 
   setupInteractiveStars(container, hiddenInput) {
-    if (!container || !hiddenInput) return;
     const stars = container.querySelectorAll(".star");
     const setRating = (value) => {
       hiddenInput.value = value;
@@ -271,27 +240,24 @@ const reviewForm = {
       star.addEventListener("click", (e) => {
         e.stopPropagation();
         const value = star.dataset.value;
-        if (hiddenInput.value === value) setRating("");
-        else setRating(value);
+        setRating(hiddenInput.value === value ? "" : value);
       });
       star.addEventListener("mouseover", () =>
-        this.highlightStars(container, star.dataset.value)
+        this.highlightStars(container, star.dataset.value),
       );
       star.addEventListener("mouseout", () =>
-        this.updateRatingStars(container, hiddenInput.value)
+        this.updateRatingStars(container, hiddenInput.value),
       );
     });
     this.updateRatingStars(container, hiddenInput.value);
   },
 
   highlightStars(container, value) {
-    if (!container) return;
     const stars = container.querySelectorAll(".star");
-    const val = parseInt(value, 10);
+    const val = parseInt(value, 10) || 0;
     stars.forEach((star) => {
       const starVal = parseInt(star.dataset.value, 10);
       const icon = star.querySelector("i");
-      if (!icon) return;
       if (starVal <= val) {
         icon.classList.replace("far", "fas");
         star.classList.add("selected");
@@ -303,8 +269,8 @@ const reviewForm = {
   },
 
   updateRatingStars(container, selectedValue) {
-    if (!container) return;
-    this.highlightStars(container, parseInt(selectedValue, 10) || 0);
+    this.highlightStars(container, selectedValue);
   },
 };
+
 export default reviewForm;

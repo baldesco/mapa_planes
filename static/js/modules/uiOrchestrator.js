@@ -1,7 +1,7 @@
 /**
  * uiOrchestrator.js
  * Handles the high-level orchestration of UI sections and initializes specific form/component modules.
- * Coordinates with mapHandler for native Leaflet map integration.
+ * Now operates as a State Manager for SPA-Lite behavior, coordinating with mapHandler.
  */
 
 import addPlaceForm from "./forms/addPlaceForm.js";
@@ -51,33 +51,39 @@ const uiOrchestrator = {
   debouncedInvalidateMapSize: null,
   allUserTags: [],
   currentPlaceForVisitModal: null,
+  state: {
+    places: [], // Single source of truth for the UI
+  },
 
   init() {
     this.cacheDOMElements();
     this.loadUserTags();
     this.hideAllSectionsAndModals();
 
-    // 1. Initialize Map from embedded JSON
+    // 1. Initialize Map from embedded JSON and populate state
     const mapDataElement = document.getElementById("map-data");
     if (mapDataElement) {
       try {
         const mapData = JSON.parse(mapDataElement.textContent || "{}");
+        this.state.places = mapData.places || [];
         this.isMapReady = mapHandler.initMainMap("map", mapData);
       } catch (e) {
         console.error("UI Orchestrator: Failed to parse map data JSON:", e);
       }
     }
 
-    // 2. Initialize Forms and Components
+    // 2. Initialize Forms and Components with new state callbacks
     addPlaceForm.init(
       this.isMapReady,
       this.showAddPlaceForm.bind(this),
       this.hideAddPlaceForm.bind(this),
+      this.handlePlaceAdded.bind(this),
     );
     editPlaceForm.init(
       this.isMapReady,
       this.showEditPlaceForm.bind(this),
       this.hideEditPlaceForm.bind(this),
+      this.handlePlaceUpdated.bind(this),
     );
     reviewForm.init(this.hideVisitReviewForm.bind(this), (savedData) =>
       this.handleVisitSaved(savedData, "reviewForm"),
@@ -111,6 +117,7 @@ const uiOrchestrator = {
     window.showVisitReviewForm = this.showVisitReviewForm.bind(this);
     window.showIcsCustomizeModal = this.showIcsCustomizeModal.bind(this);
     window.showImageOverlay = modals.showImageOverlay.bind(modals);
+    window.deletePlace = this.handleDeletePlace.bind(this); // Expose for map popup
 
     if (this.isMapReady) {
       this.setupResizeObserver();
@@ -195,7 +202,6 @@ const uiOrchestrator = {
     const map = mapHandler.getMainMap();
     if (map) {
       map.on("click", (e) => {
-        // If pinning mode is active, clicking the map sets the coordinates
         if (pinningUI.isActive && pinningUI.updateCoordsCallback) {
           pinningUI.updateCoordsCallback({
             latitude: e.latlng.lat,
@@ -253,6 +259,8 @@ const uiOrchestrator = {
     tagInput.destroy("edit-tags-input");
   },
 
+  // --- UI Visibility Toggles ---
+
   showAddPlaceForm() {
     this.hideAllSectionsAndModals();
     addPlaceForm.resetForm();
@@ -273,7 +281,6 @@ const uiOrchestrator = {
     if (this.elements.toggleAddPlaceBtn)
       this.elements.toggleAddPlaceBtn.textContent = "Add New Place";
     pinningUI.deactivateIfActiveFor("add");
-    window.location.reload();
   },
 
   showEditPlaceForm(placeDataInput) {
@@ -306,7 +313,6 @@ const uiOrchestrator = {
       this.elements.editPlaceSection.style.display = "none";
     pinningUI.deactivateIfActiveFor("edit");
     tagInput.destroy("edit-tags-input");
-    window.location.reload();
   },
 
   showPlanVisitForm(placeDataInput, visitToEdit = null) {
@@ -331,7 +337,6 @@ const uiOrchestrator = {
   hidePlanVisitForm() {
     if (this.elements.planVisitSection)
       this.elements.planVisitSection.style.display = "none";
-    window.location.reload();
   },
 
   showVisitReviewForm(visitDataInput, placeName = "this place") {
@@ -356,8 +361,129 @@ const uiOrchestrator = {
   hideVisitReviewForm() {
     if (this.elements.visitReviewImageSection)
       this.elements.visitReviewImageSection.style.display = "none";
-    window.location.reload();
   },
+
+  // --- SPA State Handlers ---
+
+  handlePlaceAdded(newPlace) {
+    this.state.places.unshift(newPlace);
+    mapHandler.renderMarkers(this.state.places);
+    this.hideAddPlaceForm();
+    if (newPlace.latitude && newPlace.longitude) {
+      mapHandler.flyTo(newPlace.latitude, newPlace.longitude);
+    }
+  },
+
+  handlePlaceUpdated(updatedPlace) {
+    const index = this.state.places.findIndex((p) => p.id === updatedPlace.id);
+    if (index !== -1) {
+      this.state.places[index] = updatedPlace;
+    } else {
+      this.state.places.push(updatedPlace);
+    }
+
+    mapHandler.renderMarkers(this.state.places);
+    this.hideEditPlaceForm();
+    this.hideVisitReviewForm();
+    this.hidePlanVisitForm();
+
+    // Close any open popups so the user can click the new marker for fresh data
+    const map = mapHandler.getMainMap();
+    if (map) map.closePopup();
+  },
+
+  async handleDeletePlace(placeId) {
+    if (!confirm("Delete this place and all its visits?")) return;
+
+    // Close the popup immediately to provide snappy UI feedback
+    const map = mapHandler.getMainMap();
+    if (map) map.closePopup();
+
+    try {
+      const response = await apiClient.delete(`/api/v1/places/${placeId}`);
+      if (response.ok || response.status === 204) {
+        this.state.places = this.state.places.filter((p) => p.id !== placeId);
+        mapHandler.renderMarkers(this.state.places);
+      } else {
+        alert("Failed to delete place. Please try again.");
+      }
+    } catch (error) {
+      console.error("Error deleting place:", error);
+      alert("An error occurred while deleting the place.");
+    }
+  },
+
+  async handleVisitSaved(savedVisitData, sourceForm = "unknown") {
+    try {
+      // Re-fetch the parent place to get updated status and hydrated visits array
+      const response = await apiClient.get(
+        `/api/v1/places/${savedVisitData.place_id}`,
+      );
+      if (response.ok) {
+        const updatedPlace = await response.json();
+        this.handlePlaceUpdated(updatedPlace);
+
+        // If the visits list modal happens to be open, update its content in place
+        if (
+          this.elements.visitsListModal &&
+          this.elements.visitsListModal.style.display === "block" &&
+          this.currentPlaceForVisitModal?.id === updatedPlace.id
+        ) {
+          this.currentPlaceForVisitModal = updatedPlace;
+          this.renderVisitsList(updatedPlace.visits || [], updatedPlace);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch updated place after visit save:", error);
+    }
+  },
+
+  async handleDeleteVisit(visitId) {
+    if (!confirm("Delete this visit?")) return;
+    setStatusMessage(this.elements.visitsListStatus, "Deleting...", "loading");
+    try {
+      const response = await apiClient.delete(`/api/v1/visits/${visitId}`);
+      if (response.ok || response.status === 204) {
+        // Must fetch the place again because deleting a visit might have altered its PlaceStatus
+        if (this.currentPlaceForVisitModal) {
+          const placeId = this.currentPlaceForVisitModal.id;
+          const placeResponse = await apiClient.get(
+            `/api/v1/places/${placeId}`,
+          );
+          if (placeResponse.ok) {
+            const updatedPlace = await placeResponse.json();
+            this.handlePlaceUpdated(updatedPlace);
+            this.currentPlaceForVisitModal = updatedPlace;
+            this.renderVisitsList(updatedPlace.visits || [], updatedPlace);
+            setStatusMessage(
+              this.elements.visitsListStatus,
+              "Visit deleted.",
+              "success",
+            );
+
+            // Remove success message after a short delay
+            setTimeout(() => {
+              setStatusMessage(this.elements.visitsListStatus, "", "info");
+            }, 3000);
+          }
+        }
+      } else {
+        setStatusMessage(
+          this.elements.visitsListStatus,
+          "Failed to delete visit.",
+          "error",
+        );
+      }
+    } catch (error) {
+      setStatusMessage(
+        this.elements.visitsListStatus,
+        "Error deleting visit.",
+        "error",
+      );
+    }
+  },
+
+  // --- Modals logic ---
 
   async showVisitsListModal(placeDataInput) {
     let placeData =
@@ -517,25 +643,6 @@ const uiOrchestrator = {
           "'": "&#039;",
         })[m],
     );
-  },
-
-  async handleDeleteVisit(visitId) {
-    if (!confirm("Delete this visit?")) return;
-    setStatusMessage(this.elements.visitsListStatus, "Deleting...", "loading");
-    try {
-      const response = await apiClient.delete(`/api/v1/visits/${visitId}`);
-      if (response.ok) window.location.reload();
-    } catch (error) {
-      setStatusMessage(
-        this.elements.visitsListStatus,
-        "Error deleting visit.",
-        "error",
-      );
-    }
-  },
-
-  handleVisitSaved(savedVisitData, sourceForm = "unknown") {
-    window.location.reload();
   },
 };
 
