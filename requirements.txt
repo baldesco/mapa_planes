@@ -3,7 +3,7 @@ fastapi[all]>=0.100.0 # Includes uvicorn, jinja2, python-multipart, etc.
 pydantic-settings>=2.0.0 # For loading settings from .env
 
 #--- Database & Storage (Supabase) ---
-supabase>=2.15.0
+supabase~=2.28.0
 
 #--- Mapping & Geocoding ---
 folium>=0.14.0
