@@ -2,6 +2,7 @@
  * mapHandler.js
  * Manages the main Leaflet map instance and the pinning map instance.
  * Handles marker rendering, map centering, and viewport updates.
+ * Updated for SPA-Lite to maintain marker references.
  */
 import mapMarkers from "./components/mapMarkers.js";
 
@@ -9,6 +10,7 @@ let mainLeafletMap = null;
 let pinningLeafletMap = null;
 let pinningDraggableMarker = null;
 let markersLayer = null;
+let markerMap = {}; // Tracks markers by place ID: { [id]: markerInstance }
 
 const mapHandler = {
   /**
@@ -29,6 +31,10 @@ const mapHandler = {
     };
 
     try {
+      if (mainLeafletMap) {
+        mainLeafletMap.remove();
+      }
+
       mainLeafletMap = L.map(containerId).setView(center, zoom);
 
       L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -51,32 +57,39 @@ const mapHandler = {
   },
 
   /**
-   * Clears existing markers and renders a new set of places.
+   * Synchronizes the map markers with the provided list of places.
+   * Clears existing markers and rebuilds the layer.
    */
   renderMarkers(places) {
     if (!mainLeafletMap || !markersLayer) return;
 
+    // Clear existing layer and internal map
     markersLayer.clearLayers();
+    markerMap = {};
 
     places.forEach((place) => {
       if (place.latitude != null && place.longitude != null) {
         const icon = mapMarkers.createIcon(place.category, place.status);
-
-        // Get the DOM element for the popup
         const popupElement = mapMarkers.createPopupContainer(place);
 
         const marker = L.marker([place.latitude, place.longitude], {
           icon: icon,
         });
 
-        // Bind the DOM element directly
         marker.bindPopup(popupElement, { maxWidth: 300 });
-
         marker.bindTooltip(place.name || "Unnamed Place");
 
         markersLayer.addLayer(marker);
+        markerMap[place.id] = marker;
       }
     });
+  },
+
+  /**
+   * Returns the marker instance for a specific place ID.
+   */
+  getMarkerById(placeId) {
+    return markerMap[placeId] || null;
   },
 
   getMainMap() {

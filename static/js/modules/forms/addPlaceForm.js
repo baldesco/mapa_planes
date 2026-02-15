@@ -1,7 +1,7 @@
 /**
  * addPlaceForm.js
  * Manages interactions and state for the Add New Place form.
- * Coordinates with mapHandler and pinningUI for location selection.
+ * Updated to support SPA-Lite asynchronous submission.
  */
 import apiClient from "../apiClient.js";
 import mapHandler from "../mapHandler.js";
@@ -33,10 +33,12 @@ const addPlaceForm = {
   },
   isMapReady: false,
   hideCallback: null,
+  onSaveSuccess: null,
 
-  init(mapReady, showFn, hideFn) {
+  init(mapReady, showFn, hideFn, onSaveSuccess) {
     this.isMapReady = mapReady;
     this.hideCallback = hideFn;
+    this.onSaveSuccess = onSaveSuccess;
     this.cacheDOMElements();
     this.setupEventListeners();
     this.resetForm();
@@ -80,6 +82,9 @@ const addPlaceForm = {
 
   setupEventListeners() {
     if (!this.elements.form) return;
+
+    // Prevent default submission to handle via API
+    this.elements.form.addEventListener("submit", (e) => this.handleSubmit(e));
 
     if (this.elements.cancelBtn && this.hideCallback) {
       this.elements.cancelBtn.addEventListener("click", () =>
@@ -126,12 +131,19 @@ const addPlaceForm = {
       if (this.elements[field]) this.elements[field].textContent = "";
     });
 
-    if (this.elements.submitBtn) this.elements.submitBtn.disabled = true;
+    if (this.elements.submitBtn) {
+      this.elements.submitBtn.disabled = true;
+      this.elements.submitBtn.textContent = "Add Place";
+    }
+
     if (this.elements.pinOnMapBtn)
       this.elements.pinOnMapBtn.textContent = "Pin Location on Map";
+
     if (this.elements.mapPinInstruction)
       this.elements.mapPinInstruction.style.display = "none";
+
     if (this.elements.addressInput) this.elements.addressInput.disabled = false;
+
     if (this.elements.findCoordsBtn)
       this.elements.findCoordsBtn.disabled = !this.isMapReady;
 
@@ -217,6 +229,50 @@ const addPlaceForm = {
       this.elements.submitBtn.disabled = !(
         this.elements.hiddenLat?.value && this.elements.hiddenLon?.value
       );
+    }
+  },
+
+  async handleSubmit(event) {
+    event.preventDefault();
+    if (this.elements.submitBtn.disabled) return;
+
+    this.setStatusMessage("Saving place...", "loading");
+    this.elements.submitBtn.disabled = true;
+    this.elements.submitBtn.textContent = "Saving...";
+
+    const payload = {
+      name: this.elements.nameInput.value,
+      latitude: parseFloat(this.elements.hiddenLat.value),
+      longitude: parseFloat(this.elements.hiddenLon.value),
+      category: this.elements.categorySelect.value,
+      status: this.elements.statusSelect.value,
+      address: this.elements.hiddenAddress.value || null,
+      city: this.elements.hiddenCity.value || null,
+      country: this.elements.hiddenCountry.value || null,
+    };
+
+    try {
+      const response = await apiClient.post("/api/v1/places/", payload);
+      if (response.ok) {
+        const newPlace = await response.json();
+        if (this.onSaveSuccess) {
+          this.onSaveSuccess(newPlace);
+        }
+        this.resetForm();
+      } else {
+        const errorData = await response.json();
+        this.setStatusMessage(
+          `Error: ${errorData.detail || "Failed to save place."}`,
+          "error",
+        );
+        this.elements.submitBtn.disabled = false;
+        this.elements.submitBtn.textContent = "Add Place";
+      }
+    } catch (error) {
+      console.error("Error submitting add place form:", error);
+      this.setStatusMessage("A network error occurred.", "error");
+      this.elements.submitBtn.disabled = false;
+      this.elements.submitBtn.textContent = "Add Place";
     }
   },
 

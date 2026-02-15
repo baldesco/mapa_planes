@@ -1,9 +1,7 @@
-import asyncio
 from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
-from supabase import Client as SupabaseClient
 from datetime import datetime, timezone, timedelta
-from gotrue.errors import AuthApiError
+from supabase import AsyncClient, AuthApiError
 
 from app.core.config import settings, logger
 from app.models.auth import Token, UserCreate, UserInToken, PasswordResetRequest
@@ -24,13 +22,12 @@ async def login_for_access_token(
     request: Request,
     response: Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
-    db: SupabaseClient = Depends(get_base_supabase_client),
+    db: AsyncClient = Depends(get_base_supabase_client),
 ):
     """Handles user login via API, sets HttpOnly cookie with token."""
     logger.info(f"API Login attempt for user: {form_data.username}")
     try:
-        auth_response = await asyncio.to_thread(
-            db.auth.sign_in_with_password,
+        auth_response = await db.auth.sign_in_with_password(
             {"email": form_data.username, "password": form_data.password},
         )
         if (
@@ -101,7 +98,7 @@ async def login_for_access_token(
 @router.post("/signup", response_model=Msg, status_code=status.HTTP_201_CREATED)
 async def signup_user(
     user_in: UserCreate,
-    db: SupabaseClient = Depends(get_base_supabase_client),
+    db: AsyncClient = Depends(get_base_supabase_client),
 ):
     """Handles new user registration via API."""
     logger.info(f"API Signup attempt for email: {user_in.email}")
@@ -115,7 +112,7 @@ async def signup_user(
 async def request_password_reset(
     request: Request,
     reset_data: PasswordResetRequest,
-    db: SupabaseClient = Depends(get_base_supabase_client),
+    db: AsyncClient = Depends(get_base_supabase_client),
 ):
     """Initiates the password reset flow via API."""
     logger.info(f"API Password reset request for: {reset_data.email}")
@@ -130,13 +127,13 @@ async def request_password_reset(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     response: Response,
-    auth_db: SupabaseClient = Depends(get_db),
+    auth_db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """Logs the current user out via API by calling Supabase sign_out and clearing the cookie."""
     logger.info(f"API Logout request for user: {current_user.email}")
     try:
-        await asyncio.to_thread(auth_db.auth.sign_out)
+        await auth_db.auth.sign_out()
         logger.info(
             f"Supabase sign_out API call completed successfully for user: {current_user.email}"
         )

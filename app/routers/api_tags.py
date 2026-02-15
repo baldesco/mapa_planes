@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, Query, HTTPException, status
 from typing import List, Optional
-from supabase import Client as SupabaseClient
-import uuid
+from supabase import AsyncClient
 
 from app.crud import tags as crud_tags
 from app.models import tags as models_tags
@@ -17,7 +16,7 @@ async def list_tags_api(
     query: Optional[str] = Query(
         None, description="Search query to filter tags by name (case-insensitive)."
     ),
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """

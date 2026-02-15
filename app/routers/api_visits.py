@@ -9,7 +9,7 @@ from fastapi import (
     Response,
 )
 from typing import List, Optional
-from supabase import Client as SupabaseClient
+from supabase import AsyncClient
 import uuid
 import json
 import re
@@ -38,7 +38,7 @@ router = APIRouter(prefix="/api/v1", tags=["API - Visits & Calendar"])
 async def create_new_visit_for_place(
     place_id: int,
     visit_in: models_visits.VisitCreate,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     place = await crud_places.get_place_by_id(
@@ -74,7 +74,7 @@ async def create_new_visit_for_place(
 @router.get("/places/{place_id}/visits", response_model=List[models_visits.Visit])
 async def list_visits_for_place(
     place_id: int,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     place = await crud_places.get_place_by_id(
@@ -96,7 +96,7 @@ async def list_visits_for_place(
 @router.get("/visits/{visit_id}", response_model=models_visits.Visit)
 async def get_visit_details(
     visit_id: int,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     logger.info(f"API Get visit request: ID {visit_id} by user {current_user.email}")
@@ -126,9 +126,9 @@ async def update_existing_visit(
         None, description="'remove' to delete image, or keep empty"
     ),
     image_file: Optional[UploadFile] = File(None, alias="image_file"),
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
+    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
 ):
     logger.info(f"API Update visit request: ID {visit_id} by user {current_user.email}")
 
@@ -226,9 +226,9 @@ async def update_existing_visit(
 @router.delete("/visits/{visit_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_existing_visit(
     visit_id: int,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
+    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
 ):
     logger.warning(
         f"API Delete visit request: ID {visit_id} by user {current_user.email}"
@@ -269,7 +269,7 @@ async def delete_existing_visit(
 async def generate_calendar_event_for_visit(
     visit_id: int,
     customization_data: models_visits.CalendarEventCustomization,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     logger.info(f"API: Generating ICS for visit {visit_id}, user {current_user.email}")

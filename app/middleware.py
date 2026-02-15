@@ -1,9 +1,8 @@
-import asyncio
 from fastapi import Request, Response, HTTPException, status
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from urllib.parse import urlencode
-from supabase import Client as SupabaseClient
+from supabase import AsyncClient
 
 from app.auth.dependencies import get_token_from_cookie
 from app.db.setup import get_base_supabase_client
@@ -51,17 +50,15 @@ class AuthRedirectMiddleware(BaseHTTPMiddleware):
             user: UserInToken | None = None
             should_redirect = False
             clear_cookie_on_response = False
-            db_client: SupabaseClient | None = None
+            db_client: AsyncClient | None = None
 
             if token:
                 # logger.debug(f"Middleware: Found token for path {request_path}. Validating...") # Removed debug log
                 try:
-                    db_client = get_base_supabase_client()
+                    db_client = await get_base_supabase_client()
                     try:
-                        # logger.debug(f"Middleware: Validating token {token[:10]}... via Supabase (sync in thread)") # Removed debug log
-                        auth_response = await asyncio.to_thread(
-                            db_client.auth.get_user, token
-                        )
+                        # logger.debug(f"Middleware: Validating token {token[:10]}... via Supabase (async)") # Removed debug log
+                        auth_response = await db_client.auth.get_user(token)
 
                         supabase_user_data = auth_response.user
                         if not supabase_user_data or not supabase_user_data.id:

@@ -8,7 +8,7 @@ from fastapi import (
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from typing import Optional, List, Dict, Any
-from supabase import Client as SupabaseClient
+from supabase import AsyncClient
 import json
 
 from app.core.config import logger, settings
@@ -31,7 +31,7 @@ router = APIRouter(tags=["Pages"])
 @router.get("/", response_class=HTMLResponse, name="serve_root_page")
 async def serve_root_page(
     request: Request,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
     category_str: Optional[str] = Query(None, alias="category"),
     status_str: Optional[str] = Query(None, alias="status"),
