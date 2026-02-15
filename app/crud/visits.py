@@ -1,12 +1,10 @@
 import uuid
 import os
-import asyncio
 from datetime import datetime, timezone
 from typing import List, Optional
 
 from fastapi import UploadFile
-from supabase import Client as SupabaseClient
-from postgrest import APIResponse, APIError  # type: ignore
+from supabase import AsyncClient
 
 from app.core.config import settings, logger
 from app.models.visits import Visit, VisitCreate, VisitUpdate, VisitInDB
@@ -18,26 +16,21 @@ PLACES_TABLE = "places"
 
 
 async def _update_parent_place_status(
-    db: SupabaseClient, place_id: int, user_id: uuid.UUID
+    db: AsyncClient, place_id: int, user_id: uuid.UUID
 ):
     logger.info(
         f"CRUD Visits: Updating status for parent place {place_id} based on its visits."
     )
     visits_data = []
     try:
-        visits_query = (
-            db.table(VISITS_TABLE)
+        visits_response = (
+            await db.table(VISITS_TABLE)
             .select("id, visit_datetime, rating, review_text, review_title")
             .eq("place_id", place_id)
             .eq("user_id", str(user_id))
+            .execute()
         )
-        visits_response: APIResponse = await asyncio.to_thread(visits_query.execute)
         visits_data = visits_response.data or []
-    except APIError as e:
-        logger.error(
-            f"_update_parent_place_status: APIError fetching visits for place {place_id}: {e.message}"
-        )
-        return
     except Exception as e:
         logger.error(
             f"_update_parent_place_status: Unexpected error fetching visits for place {place_id}: {e}",
@@ -94,15 +87,13 @@ async def _update_parent_place_status(
             new_status_val = PlaceStatus.VISITED
         else:
             try:
-                current_place_query = (
-                    db.table(PLACES_TABLE)
+                current_place_response = (
+                    await db.table(PLACES_TABLE)
                     .select("status")
                     .eq("id", place_id)
                     .eq("user_id", str(user_id))
                     .single()
-                )
-                current_place_response: APIResponse = await asyncio.to_thread(
-                    current_place_query.execute
+                    .execute()
                 )
                 current_status_str = (
                     current_place_response.data.get("status")
@@ -114,13 +105,6 @@ async def _update_parent_place_status(
                     new_status_val = PlaceStatus.PENDING_PRIORITIZED
                 else:
                     new_status_val = PlaceStatus.PENDING
-            except (
-                APIError
-            ) as e:  # Catches error if .single() finds no row or multiple rows
-                logger.error(
-                    f"_update_parent_place_status: APIError fetching current status for place {place_id} to revert: {e.message}"
-                )
-                new_status_val = PlaceStatus.PENDING
             except Exception as e:
                 logger.error(
                     f"_update_parent_place_status: Unexpected error fetching current status for place {place_id} to revert: {e}",
@@ -133,21 +117,15 @@ async def _update_parent_place_status(
     )
 
     try:
-        update_query = (
+        await (
             db.table(PLACES_TABLE)
             .update({"status": new_status_val.value, "updated_at": now_utc.isoformat()})
             .eq("id", place_id)
             .eq("user_id", str(user_id))
+            .execute()
         )
-        await asyncio.to_thread(
-            update_query.execute
-        )  # No need to check response.data for simple update
         logger.info(
             f"Place {place_id} status update to {new_status_val.value} processed by DB."
-        )
-    except APIError as e:
-        logger.error(
-            f"_update_parent_place_status: APIError updating status for place {place_id} to {new_status_val.value}: {e.message}"
         )
     except Exception as e:
         logger.error(
@@ -157,7 +135,7 @@ async def _update_parent_place_status(
 
 
 async def create_visit(
-    db: SupabaseClient, visit_create: VisitCreate, user_id: uuid.UUID
+    db: AsyncClient, visit_create: VisitCreate, user_id: uuid.UUID
 ) -> VisitInDB | None:
     logger.info(
         f"CRUD Visits: Creating new visit for place {visit_create.place_id} by user {user_id}"
@@ -169,8 +147,7 @@ async def create_visit(
         visit_data["updated_at"] = now_utc_iso
         visit_data["user_id"] = str(user_id)
 
-        query = db.table(VISITS_TABLE).insert(visit_data, returning="representation")
-        response: APIResponse = await asyncio.to_thread(query.execute)
+        response = await db.table(VISITS_TABLE).insert(visit_data).execute()
 
         if response.data:
             created_visit_data = response.data[0]
@@ -184,14 +161,9 @@ async def create_visit(
             return validated_visit
         else:
             logger.error(
-                f"CRUD Visits: Failed to create visit for place {visit_create.place_id} - no data returned and no APIError raised."
+                f"CRUD Visits: Failed to create visit for place {visit_create.place_id} - no data returned."
             )
             return None
-    except APIError as e:
-        logger.error(
-            f"CRUD Visits: APIError creating visit for place {visit_create.place_id}: {e.message} (Code: {e.code}, Details: {e.details})"
-        )
-        return None
     except Exception as e:
         logger.error(
             f"CRUD Visits: General Exception creating visit for place {visit_create.place_id}: {e}",
@@ -201,24 +173,19 @@ async def create_visit(
 
 
 async def get_visit_by_id(
-    db: SupabaseClient, visit_id: int, user_id: uuid.UUID
+    db: AsyncClient, visit_id: int, user_id: uuid.UUID
 ) -> VisitInDB | None:
     try:
-        query = (
-            db.table(VISITS_TABLE)
+        response = (
+            await db.table(VISITS_TABLE)
             .select("*")
             .eq("id", visit_id)
             .eq("user_id", str(user_id))
             .maybe_single()
+            .execute()
         )
-        response: APIResponse = await asyncio.to_thread(query.execute)
         if response.data:
             return VisitInDB(**response.data)
-        return None
-    except APIError as e:
-        logger.error(
-            f"CRUD Visits: APIError in get_visit_by_id for ID {visit_id}: {e.message}"
-        )
         return None
     except Exception as e:
         logger.error(
@@ -229,17 +196,17 @@ async def get_visit_by_id(
 
 
 async def get_visits_for_place(
-    db: SupabaseClient, place_id: int, user_id: uuid.UUID
+    db: AsyncClient, place_id: int, user_id: uuid.UUID
 ) -> List[Visit]:
     visits_list: List[Visit] = []
     try:
-        query = (
-            db.table(VISITS_TABLE)
+        response = (
+            await db.table(VISITS_TABLE)
             .select("*")
             .eq("place_id", place_id)
             .eq("user_id", str(user_id))
+            .execute()
         )
-        response: APIResponse = await asyncio.to_thread(query.execute)
         if response.data:
             for visit_data in response.data:
                 try:
@@ -260,11 +227,6 @@ async def get_visits_for_place(
             reverse=True,
         )
         return future_visits + past_visits
-    except APIError as e:
-        logger.error(
-            f"CRUD Visits: APIError fetching visits for place {place_id}: {e.message}"
-        )
-        return []
     except Exception as e:
         logger.error(
             f"CRUD Visits: Error fetching visits for place {place_id}: {e}",
@@ -274,12 +236,12 @@ async def get_visits_for_place(
 
 
 async def update_visit(
-    db: SupabaseClient,
+    db: AsyncClient,
     visit_id: int,
     visit_update: VisitUpdate,
     user_id: uuid.UUID,
     place_id: int,
-    db_service: Optional[SupabaseClient] = None,
+    db_service: Optional[AsyncClient] = None,
     image_file: Optional[UploadFile] = None,
 ) -> VisitInDB | None:
     logger.info(
@@ -317,15 +279,12 @@ async def update_visit(
                 "cache-control": "3600",
                 "upsert": "false",
             }
-            await asyncio.to_thread(
-                storage_from.upload,
+            await storage_from.upload(
                 path=image_path_on_storage,
                 file=content,
                 file_options=file_options,
             )
-            public_url_response = await asyncio.to_thread(
-                storage_from.get_public_url, image_path_on_storage
-            )
+            public_url_response = storage_from.get_public_url(image_path_on_storage)
             update_data_dict["image_url"] = (
                 str(public_url_response) if public_url_response else None
             )
@@ -361,23 +320,17 @@ async def update_visit(
     update_data_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     try:
-        query_builder = (
+        await (
             db.table(VISITS_TABLE)
             .update(update_data_dict)
             .eq("id", visit_id)
             .eq("user_id", str(user_id))
+            .execute()
         )
-        response: APIResponse = await asyncio.to_thread(query_builder.execute)
-        # For supabase-py v2, update with default returning="minimal" returns an empty list in response.data on success.
-        # An error (like RLS violation if no rows matched for this user) would typically raise APIError.
-        # If 0 rows were updated because data was identical, it's still a "successful" DB operation.
         logger.info(f"CRUD Visits: Update for visit ID {visit_id} processed by DB.")
 
         await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
         return await get_visit_by_id(db=db, visit_id=visit_id, user_id=user_id)
-    except APIError as e:
-        logger.error(f"CRUD Visits: APIError updating visit ID {visit_id}: {e.message}")
-        return None
     except Exception as e:
         logger.error(
             f"CRUD Visits: General Exception updating visit ID {visit_id}: {e}",
@@ -387,11 +340,11 @@ async def update_visit(
 
 
 async def delete_visit(
-    db: SupabaseClient,
+    db: AsyncClient,
     visit_id: int,
     user_id: uuid.UUID,
     place_id: int,
-    db_service: Optional[SupabaseClient] = None,
+    db_service: Optional[AsyncClient] = None,
 ) -> bool:
     logger.warning(f"CRUD Visits: Deleting visit ID {visit_id} for user {user_id}")
     visit_to_delete = await get_visit_by_id(db=db, visit_id=visit_id, user_id=user_id)
@@ -406,30 +359,23 @@ async def delete_visit(
         await _delete_storage_object(visit_to_delete.image_url, db_service)
 
     try:
-        query = (
-            db.table(VISITS_TABLE)
+        response = (
+            await db.table(VISITS_TABLE)
             .delete()
             .eq("id", visit_id)
             .eq("user_id", str(user_id))
+            .execute()
         )
-        response: APIResponse = await asyncio.to_thread(query.execute)
 
-        # If delete is successful and matches rows, response.data contains the deleted records.
-        # If no rows match (already deleted or RLS), response.data is empty.
         if response.data:
             logger.info(f"CRUD Visits: Successfully deleted visit ID {visit_id}.")
         else:
             logger.warning(
-                f"CRUD Visits: Delete for visit {visit_id} affected 0 rows (no data returned from DB). Assuming already gone or RLS."
+                f"CRUD Visits: Delete for visit {visit_id} affected 0 rows. Assuming already gone or RLS."
             )
 
         await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
         return True
-    except APIError as e:
-        logger.error(f"CRUD Visits: APIError deleting visit {visit_id}: {e.message}")
-        # Attempt status update even on error as a safeguard, though it might also fail
-        await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
-        return False
     except Exception as e:
         logger.error(
             f"CRUD Visits: General Exception deleting visit ID {visit_id}: {e}",

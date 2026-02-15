@@ -12,7 +12,7 @@ from fastapi.responses import RedirectResponse
 from typing import Optional, List  # Import List
 from pydantic import ValidationError
 from datetime import datetime, timezone
-from supabase import Client as SupabaseClient
+from supabase import AsyncClient
 
 from app.crud import places as crud_places
 from app.models import places as models_places
@@ -30,7 +30,7 @@ router = APIRouter(tags=["Forms"])
 @router.post("/places/", status_code=status.HTTP_303_SEE_OTHER)
 async def handle_create_new_place_form(
     request: Request,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
     # Form fields extracted using Form()
     name: str = Form(...),
@@ -88,7 +88,7 @@ async def handle_update_place_status_form(
     request: Request,
     place_id: int,
     new_status: models_places.PlaceStatus = Form(..., alias="status"),
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
 ):
     """Handles status updates submitted from the map popup dropdown form."""
@@ -122,7 +122,7 @@ async def handle_update_place_status_form(
 async def handle_edit_place_form(
     request: Request,
     place_id: int,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
     # --- Core Place Fields ---
     name: str = Form(...),
@@ -207,9 +207,9 @@ async def handle_edit_place_form(
 async def handle_add_review_image_form(
     request: Request,
     place_id: int,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
+    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
     # Form fields for review/image
     review_title: str = Form(""),
     review_text: str = Form(""),
@@ -360,9 +360,9 @@ async def handle_add_review_image_form(
 async def handle_delete_place_form(
     request: Request,
     place_id: int,
-    db: SupabaseClient = Depends(get_db),
+    db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[SupabaseClient] = Depends(get_supabase_service_client),
+    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
 ):
     """Handles the submission of the delete confirmation from the map popup."""
     # No changes needed for tags here
