@@ -1,14 +1,16 @@
-from typing import List, Dict, Any
-from app.models.places import Place
-from app.core.config import logger
+from typing import Any
 
-def prepare_map_data(places: List[Place]) -> Dict[str, Any]:
+from app.core.config import logger
+from app.models.places import Place
+
+
+def prepare_map_data(places: list[Place]) -> dict[str, Any]:
     """
     Serializes place data and calculates initial map configuration for native Leaflet.
-    
+
     Args:
         places: A list of Place objects retrieved from the database.
-        
+
     Returns:
         A dictionary containing the serialized places and the map configuration (center, zoom).
     """
@@ -28,12 +30,12 @@ def prepare_map_data(places: List[Place]) -> Dict[str, Any]:
             for p in places
             if p.latitude is not None and p.longitude is not None
         ]
-        
+
         if valid_coords:
             avg_lat = sum(lat for lat, lon in valid_coords) / len(valid_coords)
             avg_lon = sum(lon for lat, lon in valid_coords) / len(valid_coords)
             map_center = [avg_lat, avg_lon]
-            
+
             # Adjust zoom based on density
             if len(valid_coords) > 50:
                 zoom_start = 10
@@ -44,8 +46,5 @@ def prepare_map_data(places: List[Place]) -> Dict[str, Any]:
 
     return {
         "places": serialized_places,
-        "config": {
-            "center": map_center,
-            "zoom": zoom_start
-        }
+        "config": {"center": map_center, "zoom": zoom_start},
     }

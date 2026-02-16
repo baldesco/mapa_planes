@@ -1,5 +1,6 @@
 import uuid
-from pydantic import BaseModel, Field, EmailStr
+
+from pydantic import BaseModel, EmailStr, Field
 
 
 class UserBase(BaseModel):
@@ -38,7 +39,8 @@ class Token(BaseModel):
 
 
 class TokenData(BaseModel):
-    # Represents potential data decoded from a JWT (not used directly with Supabase validation)
+    # Represents potential data decoded from a JWT
+    # (not used directly with Supabase validation)
     sub: str | None = None
     id: uuid.UUID | None = None
     email: EmailStr | None = None

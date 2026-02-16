@@ -1,12 +1,11 @@
-from fastapi import Depends, HTTPException, status, Request
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-
-from supabase import AsyncClient, AuthApiError
 from pydantic import ValidationError
+from supabase import AsyncClient, AuthApiError
 
 from app.core.config import logger
-from app.models.auth import UserInToken
 from app.db.setup import get_base_supabase_client
+from app.models.auth import UserInToken
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
@@ -77,7 +76,7 @@ async def get_current_user(
                 f"Token validation error: Mapping failed. Error: {e}, Data: {user_data}",
                 exc_info=True,
             )
-            raise credentials_exception
+            raise credentials_exception from None
 
     except AuthApiError as api_error:
         logger.warning(
@@ -183,7 +182,7 @@ async def get_db(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to configure database client for authenticated access.",
-        )
+        ) from None
 
     return request_client
 

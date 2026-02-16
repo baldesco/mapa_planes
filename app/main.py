@@ -1,14 +1,14 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, HTTPException, status
-from fastapi.staticfiles import StaticFiles
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-
-from app.core.config import settings, logger
-from app.routers import api_auth, api_places, forms, pages, system
-from app.routers import api_visits
-from app.middleware import AuthRedirectMiddleware
+from app.core.config import logger, settings
 from app.db.setup import init_service_client
+from app.middleware import AuthRedirectMiddleware
+from app.routers import api_auth, api_places, api_visits, forms, pages, system
+
 
 # --- Lifespan Events ---
 @asynccontextmanager
@@ -20,12 +20,13 @@ async def lifespan(app: FastAPI):
     # Shutdown: Cleanup if needed
     logger.info("Application shutting down...")
 
+
 # --- App Initialization ---
 app = FastAPI(
     title="Mapa Planes",
     description="A web app to manage and map places to visit.",
     version="1.0.0",
-    lifespan=lifespan
+    lifespan=lifespan,
 )
 
 # --- Add Middleware ---
