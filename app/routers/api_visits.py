@@ -118,9 +118,7 @@ async def update_existing_visit(
     review_text: str | None = Form(None),
     rating: int | None = Form(None),
     reminder_enabled: bool | None = Form(None),
-    reminder_offsets_hours_str: str | None = Form(
-        None, alias="reminder_offsets_hours"
-    ),
+    reminder_offsets_hours_str: str | None = Form(None, alias="reminder_offsets_hours"),
     image_url_action: str | None = Form(
         None, description="'remove' to delete image, or keep empty"
     ),
