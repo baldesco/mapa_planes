@@ -1,18 +1,18 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
+from datetime import UTC, datetime, timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from datetime import datetime, timezone, timedelta
 from supabase import AsyncClient, AuthApiError
 
-from app.core.config import settings, logger
-from app.models.auth import Token, UserCreate, UserInToken, PasswordResetRequest
-from app.models.general import Msg
-from app.db.setup import get_base_supabase_client
+from app.auth import utils as auth_utils
 from app.auth.dependencies import (
     get_current_active_user,
     get_db,
 )
-from app.auth import utils as auth_utils
-
+from app.core.config import logger, settings
+from app.db.setup import get_base_supabase_client
+from app.models.auth import PasswordResetRequest, Token, UserCreate, UserInToken
+from app.models.general import Msg
 
 router = APIRouter(prefix="/api/v1/auth", tags=["API - Authentication"])
 
@@ -162,7 +162,7 @@ async def logout(
         samesite="Lax",
         secure=settings.APP_ENV != "development",
     )
-    past_date = datetime.now(timezone.utc) - timedelta(days=1)
+    past_date = datetime.now(UTC) - timedelta(days=1)
     expires_formatted = past_date.strftime("%a, %d %b %Y %H:%M:%S GMT")
     secure_flag = "; Secure" if settings.APP_ENV != "development" else ""
     manual_cookie_header = f"access_token=deleted; Path=/; Max-Age=0; Expires={expires_formatted}; HttpOnly; SameSite=Lax{secure_flag}"

@@ -1,14 +1,13 @@
 from pydantic import BaseModel
-from typing import Optional
 
 
 # --- Geocoding Response Model ---
 class GeocodeResult(BaseModel):
     latitude: float
     longitude: float
-    address: Optional[str] = None
-    city: Optional[str] = None
-    country: Optional[str] = None
+    address: str | None = None
+    city: str | None = None
+    country: str | None = None
     display_name: str
 
 

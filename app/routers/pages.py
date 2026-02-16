@@ -1,27 +1,27 @@
+import json
+from typing import Any
+
 from fastapi import (
     APIRouter,
     Depends,
-    Request,
     Query,
+    Request,
     status,
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from typing import Optional, List, Dict, Any
 from supabase import AsyncClient
-import json
 
-from app.core.config import logger, settings
-from app.models import places as models_places
-from app.models import tags as models_tags
-from app.models.auth import UserInToken
-from app.crud import places as crud_places
-from app.crud import tags as crud_tags
 from app.auth.dependencies import (
     get_current_active_user,
-    get_optional_current_user,
     get_db,
+    get_optional_current_user,
 )
+from app.core.config import logger, settings
+from app.crud import places as crud_places
+from app.crud import tags as crud_tags
+from app.models import places as models_places
+from app.models.auth import UserInToken
 from app.services.mapping import prepare_map_data
 
 templates = Jinja2Templates(directory="templates")
@@ -33,36 +33,36 @@ async def serve_root_page(
     request: Request,
     db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    category_str: Optional[str] = Query(None, alias="category"),
-    status_str: Optional[str] = Query(None, alias="status"),
-    tags_str: Optional[str] = Query(None, alias="tags"),
+    category_str: str | None = Query(None, alias="category"),
+    status_str: str | None = Query(None, alias="status"),
+    tags_str: str | None = Query(None, alias="tags"),
 ):
     logger.info(
         f"Request root page for user {current_user.email}. Filters: category='{category_str}', status='{status_str}', tags='{tags_str}'"
     )
 
-    category: Optional[models_places.PlaceCategory] = None
+    category: models_places.PlaceCategory | None = None
     if category_str:
         try:
             category = models_places.PlaceCategory(category_str)
         except ValueError:
             category_str = None
 
-    status_filter: Optional[models_places.PlaceStatus] = None
+    status_filter: models_places.PlaceStatus | None = None
     if status_str:
         try:
             status_filter = models_places.PlaceStatus(status_str)
         except ValueError:
             status_str = None
 
-    current_tags_filter: List[str] = (
+    current_tags_filter: list[str] = (
         [tag.strip().lower() for tag in tags_str.split(",") if tag.strip()]
         if tags_str
         else []
     )
 
-    places_list: List[models_places.Place] = []
-    all_user_tags_for_js: List[Dict[str, Any]] = []
+    places_list: list[models_places.Place] = []
+    all_user_tags_for_js: list[dict[str, Any]] = []
     map_data_json = "{}"
 
     try:
@@ -79,7 +79,7 @@ async def serve_root_page(
             tag_names=current_tags_filter,
             limit=500,
         )
-        
+
         # Prepare data for native Leaflet implementation
         map_data = prepare_map_data(places=places_list)
         map_data_json = json.dumps(map_data)
@@ -111,7 +111,7 @@ async def serve_root_page(
 @router.get("/login", response_class=HTMLResponse, name="serve_login_page")
 async def serve_login_page(
     request: Request,
-    reason: Optional[str] = Query(None),
+    reason: str | None = Query(None),
     user: UserInToken | None = Depends(get_optional_current_user),
 ):
     if reason in ["logged_out", "session_expired", "password_reset_success"]:

@@ -1,8 +1,9 @@
 import uuid
-from pydantic import BaseModel, Field, HttpUrl, field_validator
-from typing import Optional, List, TYPE_CHECKING
-from enum import Enum
 from datetime import datetime
+from enum import Enum
+from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field, field_validator
 
 from .tags import Tag
 
@@ -33,10 +34,10 @@ class PlaceBase(BaseModel):
     category: PlaceCategory = Field(default=PlaceCategory.OTHER)
     latitude: float = Field(..., ge=-90, le=90)
     longitude: float = Field(..., ge=-180, le=180)
-    address: Optional[str] = Field(None, max_length=255)
-    city: Optional[str] = Field(None, max_length=100)
-    country: Optional[str] = Field(None, max_length=100)
-    timezone_iana: Optional[str] = Field(None, description="e.g., America/Bogota")
+    address: str | None = Field(None, max_length=255)
+    city: str | None = Field(None, max_length=100)
+    country: str | None = Field(None, max_length=100)
+    timezone_iana: str | None = Field(None, description="e.g., America/Bogota")
     # image_url removed from PlaceBase
 
 
@@ -48,32 +49,32 @@ class PlaceCreate(PlaceBase):
 
 # --- Update Model (Input for PUT /places/{id}) ---
 class PlaceUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    category: Optional[PlaceCategory] = None
-    latitude: Optional[float] = Field(None, ge=-90, le=90)
-    longitude: Optional[float] = Field(None, ge=-180, le=180)
-    address: Optional[str] = Field(None, max_length=255)
-    city: Optional[str] = Field(None, max_length=100)
-    country: Optional[str] = Field(None, max_length=100)
-    timezone_iana: Optional[str] = None
-    status: Optional[PlaceStatus] = None
+    name: str | None = Field(None, min_length=1, max_length=100)
+    category: PlaceCategory | None = None
+    latitude: float | None = Field(None, ge=-90, le=90)
+    longitude: float | None = Field(None, ge=-180, le=180)
+    address: str | None = Field(None, max_length=255)
+    city: str | None = Field(None, max_length=100)
+    country: str | None = Field(None, max_length=100)
+    timezone_iana: str | None = None
+    status: PlaceStatus | None = None
     # image_url removed from PlaceUpdate
-    deleted_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    tags: Optional[List[str]] = Field(
+    deleted_at: datetime | None = None
+    updated_at: datetime | None = None
+    tags: list[str] | None = Field(
         None, description="List of tag names to associate with the place."
     )
 
     @field_validator("name", "address", "city", "country", "timezone_iana")
     @classmethod
-    def strip_text_fields(cls, v: Optional[str]) -> Optional[str]:
+    def strip_text_fields(cls, v: str | None) -> str | None:
         if v is not None:
             return v.strip()
         return v
 
     @field_validator("tags", mode="before")
     @classmethod
-    def clean_tags(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+    def clean_tags(cls, v: list[str] | None) -> list[str] | None:
         if v is None:
             return None
         if not isinstance(v, list):
@@ -93,9 +94,9 @@ class PlaceInDB(PlaceBase):
     status: PlaceStatus
     created_at: datetime
     updated_at: datetime
-    deleted_at: Optional[datetime] = None
-    tags: List[Tag] = []
-    visits: List["Visit"] = []  # Will be populated by CRUD
+    deleted_at: datetime | None = None
+    tags: list[Tag] = []
+    visits: list["Visit"] = []  # Will be populated by CRUD
 
     class Config:
         from_attributes = True
@@ -109,4 +110,4 @@ class Place(PlaceInDB):
 
 # --- List Response Model ---
 class PlaceList(BaseModel):
-    places: List[Place]
+    places: list[Place]

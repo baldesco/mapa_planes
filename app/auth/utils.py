@@ -1,9 +1,10 @@
-from supabase import AsyncClient, AuthApiError
 from urllib.parse import urljoin
-from fastapi import HTTPException, status, Request
+
+from fastapi import HTTPException, Request, status
+from supabase import AsyncClient, AuthApiError
 
 from app.core.config import logger
-from app.models.auth import UserCreate, SupabaseUser
+from app.models.auth import SupabaseUser, UserCreate
 
 
 async def create_supabase_user(
@@ -12,7 +13,7 @@ async def create_supabase_user(
     """Registers a new user using Supabase Auth asynchronously."""
     try:
         logger.info(f"Attempting to sign up user: {user_data.email}")
-        
+
         # Native async sign_up call in Supabase-py v2
         response = await db.auth.sign_up(
             {
@@ -47,9 +48,12 @@ async def create_supabase_user(
                 detail="User already exists or requires confirmation.",
             )
         else:
-            logger.error(f"Unexpected Supabase sign_up response for {user_data.email}: {response}")
+            logger.error(
+                f"Unexpected Supabase sign_up response for {user_data.email}: {response}"
+            )
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST, detail="Unknown error during sign up."
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Unknown error during sign up.",
             )
 
     except HTTPException as http_exc:
@@ -92,12 +96,14 @@ async def initiate_supabase_password_reset(
         reset_url_object = request.url_for("serve_reset_password_page")
         reset_path_str = str(reset_url_object.path)
         redirect_url = urljoin(base_url.rstrip("/") + "/", reset_path_str.lstrip("/"))
-        
-        logger.info(f"Initiating password reset for: {email} with redirect: {redirect_url}")
-        
+
+        logger.info(
+            f"Initiating password reset for: {email} with redirect: {redirect_url}"
+        )
+
         # Native async reset_password_email call
         await db.auth.reset_password_email(email, options={"redirect_to": redirect_url})
-        
+
         logger.info(f"Password reset email request sent successfully for: {email}")
         return True
     except AuthApiError as api_error:

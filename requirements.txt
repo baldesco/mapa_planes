@@ -22,3 +22,4 @@ email-validator>=2.0.0 # For Pydantic EmailStr validation
 #--- Environment Loading ---
 python-dotenv>=1.0.0 # For loading .env files
 gunicorn>=20.1.0,<22.0.0 # Production ASGI server process manager
+ruff>=0.1.0 # Added for linting and formatting

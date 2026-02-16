@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Query, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
-from app.services.geocoding import perform_geocode
-from app.models.general import GeocodeResult
 from app.core.config import logger, settings  # Import settings to check geocoder key
+from app.models.general import GeocodeResult
+from app.services.geocoding import perform_geocode
 
 router = APIRouter(tags=["System"])
 
