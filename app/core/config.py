@@ -1,8 +1,7 @@
 import logging
-import os
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
 from dotenv import load_dotenv
-from typing import List
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Load .env file explicitly for flexibility
 load_dotenv()
@@ -28,7 +27,7 @@ class Settings(BaseSettings):
 
     # --- CORS ---
     # List of allowed origins for CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]  # Adjust for production
+    BACKEND_CORS_ORIGINS: list[str] = ["*"]  # Adjust for production
 
     # Pydantic V2 configuration
     model_config = SettingsConfigDict(

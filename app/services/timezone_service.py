@@ -1,12 +1,12 @@
 import asyncio
-from typing import Optional
+
 from timezonefinder import TimezoneFinder  # type: ignore
 
 from app.core.config import logger
 
 # Initialize TimezoneFinder. It loads data on first use, so can be slow initially.
 # It's thread-safe after initialization.
-_tf: Optional[TimezoneFinder] = None
+_tf: TimezoneFinder | None = None
 
 
 async def _init_timezone_finder() -> TimezoneFinder:
@@ -22,7 +22,7 @@ async def _init_timezone_finder() -> TimezoneFinder:
 
 async def get_timezone_from_coordinates(
     latitude: float, longitude: float
-) -> Optional[str]:
+) -> str | None:
     """
     Gets the IANA timezone string from latitude and longitude.
     Returns None if the timezone cannot be determined or for invalid coordinates.

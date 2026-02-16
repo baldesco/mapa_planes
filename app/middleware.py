@@ -1,12 +1,13 @@
-from fastapi import Request, Response, HTTPException, status
+from urllib.parse import urlencode
+
+from fastapi import HTTPException, Request, Response, status
 from fastapi.responses import RedirectResponse
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from urllib.parse import urlencode
 from supabase import AsyncClient
 
 from app.auth.dependencies import get_token_from_cookie
-from app.db.setup import get_base_supabase_client
 from app.core.config import logger, settings
+from app.db.setup import get_base_supabase_client
 from app.models.auth import UserInToken
 
 

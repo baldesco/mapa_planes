@@ -1,17 +1,18 @@
 import uuid
-from pydantic import BaseModel, Field, HttpUrl
-from typing import Optional, List, Literal
 from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, Field, HttpUrl
 
 
 class VisitBase(BaseModel):
     visit_datetime: datetime
-    review_title: Optional[str] = Field(None, max_length=150)
-    review_text: Optional[str] = Field(None, max_length=1000)
-    rating: Optional[int] = Field(None, ge=1, le=5)
-    image_url: Optional[HttpUrl | str] = None
+    review_title: str | None = Field(None, max_length=150)
+    review_text: str | None = Field(None, max_length=1000)
+    rating: int | None = Field(None, ge=1, le=5)
+    image_url: HttpUrl | str | None = None
     reminder_enabled: bool = False  # This might become deprecated if only using .ics
-    reminder_offsets_hours: Optional[List[int]] = Field(
+    reminder_offsets_hours: list[int] | None = Field(
         None, description="e.g., [12, 24, 48]"
     )
 
@@ -21,18 +22,18 @@ class VisitCreate(VisitBase):
 
 
 class VisitUpdate(BaseModel):
-    visit_datetime: Optional[datetime] = None
-    review_title: Optional[str] = Field(None, max_length=150)
-    review_text: Optional[str] = Field(None, max_length=1000)
-    rating: Optional[int] = Field(None, ge=1, le=5)
-    image_url: Optional[HttpUrl | str | None] = Field(
+    visit_datetime: datetime | None = None
+    review_title: str | None = Field(None, max_length=150)
+    review_text: str | None = Field(None, max_length=1000)
+    rating: int | None = Field(None, ge=1, le=5)
+    image_url: HttpUrl | str | None | None = Field(
         None, description="URL of image or None to remove"
     )
-    reminder_enabled: Optional[bool] = None  # Might be deprecated
-    reminder_offsets_hours: Optional[List[int] | None] = Field(
+    reminder_enabled: bool | None = None  # Might be deprecated
+    reminder_offsets_hours: list[int] | None | None = Field(
         None, description="List of hours or None to clear"
     )
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class VisitInDB(VisitBase):

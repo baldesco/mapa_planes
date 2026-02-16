@@ -1,31 +1,30 @@
+import json
+import re
+import uuid
+from datetime import UTC, datetime, timedelta
+
+import pytz
 from fastapi import (
     APIRouter,
     Depends,
-    HTTPException,
-    status,
-    UploadFile,
     File,
     Form,
+    HTTPException,
     Response,
+    UploadFile,
+    status,
 )
-from typing import List, Optional
-from supabase import AsyncClient
-import uuid
-import json
-import re
-from datetime import datetime, timezone, timedelta
-
 from ics import Calendar, Event
 from ics.alarm import DisplayAlarm
-import pytz
+from supabase import AsyncClient
 
-from app.crud import visits as crud_visits
+from app.auth.dependencies import get_current_active_user, get_db
+from app.core.config import logger
 from app.crud import places as crud_places
+from app.crud import visits as crud_visits
+from app.db.setup import get_supabase_service_client
 from app.models import visits as models_visits
 from app.models.auth import UserInToken
-from app.auth.dependencies import get_current_active_user, get_db
-from app.db.setup import get_supabase_service_client
-from app.core.config import logger
 
 router = APIRouter(prefix="/api/v1", tags=["API - Visits & Calendar"])
 
@@ -71,7 +70,7 @@ async def create_new_visit_for_place(
     return models_visits.Visit(**created_visit.model_dump())
 
 
-@router.get("/places/{place_id}/visits", response_model=List[models_visits.Visit])
+@router.get("/places/{place_id}/visits", response_model=list[models_visits.Visit])
 async def list_visits_for_place(
     place_id: int,
     db: AsyncClient = Depends(get_db),
@@ -114,21 +113,21 @@ async def get_visit_details(
 @router.put("/visits/{visit_id}", response_model=models_visits.Visit)
 async def update_existing_visit(
     visit_id: int,
-    visit_datetime: Optional[datetime] = Form(None),
-    review_title: Optional[str] = Form(None),
-    review_text: Optional[str] = Form(None),
-    rating: Optional[int] = Form(None),
-    reminder_enabled: Optional[bool] = Form(None),
-    reminder_offsets_hours_str: Optional[str] = Form(
+    visit_datetime: datetime | None = Form(None),
+    review_title: str | None = Form(None),
+    review_text: str | None = Form(None),
+    rating: int | None = Form(None),
+    reminder_enabled: bool | None = Form(None),
+    reminder_offsets_hours_str: str | None = Form(
         None, alias="reminder_offsets_hours"
     ),
-    image_url_action: Optional[str] = Form(
+    image_url_action: str | None = Form(
         None, description="'remove' to delete image, or keep empty"
     ),
-    image_file: Optional[UploadFile] = File(None, alias="image_file"),
+    image_file: UploadFile | None = File(None, alias="image_file"),
     db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
+    db_service: AsyncClient | None = Depends(get_supabase_service_client),
 ):
     logger.info(f"API Update visit request: ID {visit_id} by user {current_user.email}")
 
@@ -153,7 +152,7 @@ async def update_existing_visit(
     if reminder_enabled is not None:
         update_payload_dict["reminder_enabled"] = reminder_enabled
 
-    parsed_offsets: Optional[List[int]] = None
+    parsed_offsets: list[int] | None = None
     if reminder_offsets_hours_str is not None:
         try:
             if reminder_offsets_hours_str.strip().startswith(
@@ -228,7 +227,7 @@ async def delete_existing_visit(
     visit_id: int,
     db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
+    db_service: AsyncClient | None = Depends(get_supabase_service_client),
 ):
     logger.warning(
         f"API Delete visit request: ID {visit_id} by user {current_user.email}"
@@ -293,7 +292,7 @@ async def generate_calendar_event_for_visit(
 
     visit_dt_utc = visit.visit_datetime
     if visit_dt_utc.tzinfo is None:
-        visit_dt_utc = visit_dt_utc.replace(tzinfo=timezone.utc)
+        visit_dt_utc = visit_dt_utc.replace(tzinfo=UTC)
 
     duration_delta = timedelta()
     if customization_data.duration_unit == "minutes":

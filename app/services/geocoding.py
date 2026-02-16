@@ -1,8 +1,9 @@
 import asyncio
+
 from fastapi import HTTPException, status
 from opencage.geocoder import OpenCageGeocode, RateLimitExceededError
 
-from app.core.config import settings, logger
+from app.core.config import logger, settings
 from app.models.general import GeocodeResult
 
 # --- Geocoder Setup ---
@@ -91,15 +92,15 @@ async def perform_geocode(address: str) -> GeocodeResult | None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Geocoding limit reached. Please try again later.",
-        )
+        ) from None
     except HTTPException as http_exc:
         raise http_exc  # Re-raise known HTTP exceptions
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.error(f"OpenCage geocoding timed out for address: '{address}'")
         raise HTTPException(
             status_code=status.HTTP_408_REQUEST_TIMEOUT,
             detail="Geocoding request timed out.",
-        )
+        ) from None
     except Exception as e:
         logger.error(
             f"OpenCage geocoding unexpected error for '{address}': {e}", exc_info=True
@@ -107,4 +108,4 @@ async def perform_geocode(address: str) -> GeocodeResult | None:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="An internal error occurred during geocoding.",
-        )
+        ) from None

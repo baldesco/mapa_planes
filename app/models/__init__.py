@@ -2,34 +2,34 @@
 
 # Import all your model classes here first
 from .auth import (
-    UserBase,
-    UserCreate,
-    User,
-    UserInToken,
+    PasswordResetRequest,
     SupabaseUser,
     Token,
     TokenData,
-    PasswordResetRequest,
+    User,
+    UserBase,
+    UserCreate,
+    UserInToken,
 )
 from .general import GeocodeResult, Msg
-from .tags import TagBase, TagCreate, TagInDB, Tag
+from .places import (  # Ensure Place models are imported AFTER Visit if Place references Visit
+    Place,
+    PlaceBase,
+    PlaceCategory,
+    PlaceCreate,
+    PlaceInDB,
+    PlaceList,
+    PlaceStatus,
+    PlaceUpdate,
+)
+from .tags import Tag, TagBase, TagCreate, TagInDB
 from .visits import (
+    Visit,
     VisitBase,
     VisitCreate,
-    VisitUpdate,
     VisitInDB,
-    Visit,
+    VisitUpdate,
 )  # Ensure Visit is imported
-from .places import (  # Ensure Place models are imported AFTER Visit if Place references Visit
-    PlaceCategory,
-    PlaceStatus,
-    PlaceBase,
-    PlaceCreate,
-    PlaceUpdate,
-    PlaceInDB,
-    Place,
-    PlaceList,
-)
 
 # --- Crucial step for Pydantic V2 with forward references ---
 # After all models are defined (or imported), rebuild them to resolve forward references.

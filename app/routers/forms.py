@@ -1,25 +1,25 @@
+from datetime import UTC, datetime
+
 from fastapi import (
     APIRouter,
     Depends,
-    Request,
-    Form,
-    UploadFile,
     File,
+    Form,
     HTTPException,
+    Request,
+    UploadFile,
     status,
 )
 from fastapi.responses import RedirectResponse
-from typing import Optional, List  # Import List
 from pydantic import ValidationError
-from datetime import datetime, timezone
 from supabase import AsyncClient
 
+from app.auth.dependencies import get_current_active_user, get_db
+from app.core.config import logger
 from app.crud import places as crud_places
+from app.db.setup import get_supabase_service_client
 from app.models import places as models_places
 from app.models.auth import UserInToken
-from app.auth.dependencies import get_current_active_user, get_db
-from app.db.setup import get_supabase_service_client
-from app.core.config import logger
 
 # Using APIRouter even for non-API endpoints allows for better organization
 router = APIRouter(tags=["Forms"])
@@ -38,9 +38,9 @@ async def handle_create_new_place_form(
     longitude: float = Form(...),
     category: models_places.PlaceCategory = Form(...),
     place_status_input: models_places.PlaceStatus = Form(..., alias="status"),
-    address: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
-    country: Optional[str] = Form(None),
+    address: str | None = Form(None),
+    city: str | None = Form(None),
+    country: str | None = Form(None),
     # Tags are not added on creation via this form
 ):
     """Handles the submission of the 'Add New Place' form from the main page."""
@@ -98,7 +98,7 @@ async def handle_update_place_status_form(
     )
     redirect_url = request.url_for("serve_root_page")
     place_update = models_places.PlaceUpdate(
-        status=new_status, updated_at=datetime.now(timezone.utc)
+        status=new_status, updated_at=datetime.now(UTC)
     )
     updated_place = await crud_places.update_place(
         place_id=place_id, user_id=current_user.id, place_update=place_update, db=db
@@ -130,9 +130,9 @@ async def handle_edit_place_form(
     longitude: float = Form(...),
     category: models_places.PlaceCategory = Form(...),
     status_input: models_places.PlaceStatus = Form(..., alias="status"),
-    address: Optional[str] = Form(None),
-    city: Optional[str] = Form(None),
-    country: Optional[str] = Form(None),
+    address: str | None = Form(None),
+    city: str | None = Form(None),
+    country: str | None = Form(None),
     # --- Add tags input ---
     tags_input: str = Form("", description="Comma-separated list of tag names"),
 ):
@@ -145,7 +145,7 @@ async def handle_edit_place_form(
     # Parse tags from the comma-separated input string
     # The JS library (Tagify) should ideally populate this input correctly.
     # We still clean it up here.
-    tag_list: List[str] = [tag.strip() for tag in tags_input.split(",") if tag.strip()]
+    tag_list: list[str] = [tag.strip() for tag in tags_input.split(",") if tag.strip()]
     logger.debug(f"FORM Parsed tags for update: {tag_list}")
 
     try:
@@ -159,7 +159,7 @@ async def handle_edit_place_form(
             "address": address if address is not None else None,
             "city": city if city is not None else None,
             "country": country if country is not None else None,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
             "tags": tag_list,  # Add the parsed tag list
         }
 
@@ -209,13 +209,13 @@ async def handle_add_review_image_form(
     place_id: int,
     db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
+    db_service: AsyncClient | None = Depends(get_supabase_service_client),
     # Form fields for review/image
     review_title: str = Form(""),
     review_text: str = Form(""),
-    rating: Optional[str] = Form(None),
-    image_file: Optional[UploadFile] = File(None, alias="image"),
-    remove_image: Optional[str] = Form(None),  # Checkbox value 'yes'
+    rating: str | None = Form(None),
+    image_file: UploadFile | None = File(None, alias="image"),
+    remove_image: str | None = Form(None),  # Checkbox value 'yes'
 ):
     """Handles the submission of the review and image form."""
     logger.info(
@@ -269,7 +269,7 @@ async def handle_add_review_image_form(
 
     # 2. Prepare and Execute Database Update for Review/Rating/Image URL
     try:
-        valid_rating: Optional[int] = None
+        valid_rating: int | None = None
         if rating is not None and rating.strip() != "":
             try:
                 parsed_rating = int(rating)
@@ -291,7 +291,7 @@ async def handle_add_review_image_form(
             "status": models_places.PlaceStatus.VISITED
             if (valid_rating or review_title or review_text or image_public_url)
             else None,
-            "updated_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(UTC),
         }
         if update_payload["status"] is None:
             del update_payload["status"]
@@ -362,7 +362,7 @@ async def handle_delete_place_form(
     place_id: int,
     db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
+    db_service: AsyncClient | None = Depends(get_supabase_service_client),
 ):
     """Handles the submission of the delete confirmation from the map popup."""
     # No changes needed for tags here

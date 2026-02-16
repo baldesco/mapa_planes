@@ -1,15 +1,14 @@
-import uuid
 import os
-from datetime import datetime, timezone
-from typing import List, Optional
+import uuid
+from datetime import UTC, datetime
 
 from fastapi import UploadFile
 from supabase import AsyncClient
 
-from app.core.config import settings, logger
-from app.models.visits import Visit, VisitCreate, VisitUpdate, VisitInDB
-from app.models.places import PlaceStatus
+from app.core.config import logger, settings
 from app.crud.places import _delete_storage_object  # Using helper from places CRUD
+from app.models.places import PlaceStatus
+from app.models.visits import Visit, VisitCreate, VisitInDB, VisitUpdate
 
 VISITS_TABLE = "visits"
 PLACES_TABLE = "places"
@@ -38,7 +37,7 @@ async def _update_parent_place_status(
         )
         return
 
-    now_utc = datetime.now(timezone.utc)
+    now_utc = datetime.now(UTC)
 
     has_future_visits = False
     for v_data in visits_data:
@@ -46,7 +45,7 @@ async def _update_parent_place_status(
             visit_dt_str = v_data["visit_datetime"]
             visit_dt = datetime.fromisoformat(visit_dt_str.replace("Z", "+00:00"))
             if visit_dt.tzinfo is None:
-                visit_dt = visit_dt.replace(tzinfo=timezone.utc)
+                visit_dt = visit_dt.replace(tzinfo=UTC)
             if visit_dt >= now_utc:
                 has_future_visits = True
                 break
@@ -69,7 +68,7 @@ async def _update_parent_place_status(
                 visit_dt_str = v_data["visit_datetime"]
                 visit_dt = datetime.fromisoformat(visit_dt_str.replace("Z", "+00:00"))
                 if visit_dt.tzinfo is None:
-                    visit_dt = visit_dt.replace(tzinfo=timezone.utc)
+                    visit_dt = visit_dt.replace(tzinfo=UTC)
 
                 is_reviewed = (
                     v_data.get("rating") is not None
@@ -142,7 +141,7 @@ async def create_visit(
     )
     try:
         visit_data = visit_create.model_dump(mode="json", exclude_unset=True)
-        now_utc_iso = datetime.now(timezone.utc).isoformat()
+        now_utc_iso = datetime.now(UTC).isoformat()
         visit_data["created_at"] = now_utc_iso
         visit_data["updated_at"] = now_utc_iso
         visit_data["user_id"] = str(user_id)
@@ -197,8 +196,8 @@ async def get_visit_by_id(
 
 async def get_visits_for_place(
     db: AsyncClient, place_id: int, user_id: uuid.UUID
-) -> List[Visit]:
-    visits_list: List[Visit] = []
+) -> list[Visit]:
+    visits_list: list[Visit] = []
     try:
         response = (
             await db.table(VISITS_TABLE)
@@ -216,7 +215,7 @@ async def get_visits_for_place(
                         f"CRUD Visits: Pydantic validation for visit data failed: {val_err}, data: {visit_data}"
                     )
 
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         future_visits = sorted(
             [v for v in visits_list if v.visit_datetime >= now],
             key=lambda v_item: v_item.visit_datetime,
@@ -241,8 +240,8 @@ async def update_visit(
     visit_update: VisitUpdate,
     user_id: uuid.UUID,
     place_id: int,
-    db_service: Optional[AsyncClient] = None,
-    image_file: Optional[UploadFile] = None,
+    db_service: AsyncClient | None = None,
+    image_file: UploadFile | None = None,
 ) -> VisitInDB | None:
     logger.info(
         f"CRUD Visits: Attempting to update visit ID {visit_id} for user {user_id}"
@@ -317,7 +316,7 @@ async def update_visit(
             await _update_parent_place_status(db, place_id=place_id, user_id=user_id)
         return await get_visit_by_id(db=db, visit_id=visit_id, user_id=user_id)
 
-    update_data_dict["updated_at"] = datetime.now(timezone.utc).isoformat()
+    update_data_dict["updated_at"] = datetime.now(UTC).isoformat()
 
     try:
         await (
@@ -344,7 +343,7 @@ async def delete_visit(
     visit_id: int,
     user_id: uuid.UUID,
     place_id: int,
-    db_service: Optional[AsyncClient] = None,
+    db_service: AsyncClient | None = None,
 ) -> bool:
     logger.warning(f"CRUD Visits: Deleting visit ID {visit_id} for user {user_id}")
     visit_to_delete = await get_visit_by_id(db=db, visit_id=visit_id, user_id=user_id)

@@ -1,19 +1,18 @@
-from fastapi import APIRouter, Depends, Query, HTTPException, status
-from typing import List, Optional
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from supabase import AsyncClient
 
+from app.auth.dependencies import get_current_active_user, get_db
+from app.core.config import logger
 from app.crud import tags as crud_tags
 from app.models import tags as models_tags
 from app.models.auth import UserInToken
-from app.auth.dependencies import get_current_active_user, get_db
-from app.core.config import logger
 
 router = APIRouter(prefix="/api/v1/tags", tags=["API - Tags"])
 
 
-@router.get("/", response_model=List[models_tags.Tag])
+@router.get("/", response_model=list[models_tags.Tag])
 async def list_tags_api(
-    query: Optional[str] = Query(
+    query: str | None = Query(
         None, description="Search query to filter tags by name (case-insensitive)."
     ),
     db: AsyncClient = Depends(get_db),
@@ -39,7 +38,7 @@ async def list_tags_api(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve tags.",
-        )
+        ) from None
 
 
 # Potential future endpoints (not strictly required by current plan but good practice):

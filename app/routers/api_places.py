@@ -1,14 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Response
-from typing import List, Optional
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from supabase import AsyncClient
 
+from app.auth.dependencies import get_current_active_user, get_db
+from app.core.config import logger
 from app.crud import places as crud_places
+from app.db.setup import get_supabase_service_client
 from app.models import places as models_places
 from app.models.auth import UserInToken
-from app.auth.dependencies import get_current_active_user, get_db
-from app.db.setup import get_supabase_service_client
-from app.core.config import logger
 
 router = APIRouter(prefix="/api/v1/places", tags=["API - Places"])
 
@@ -45,11 +45,11 @@ async def create_new_place_api(
     return created_place
 
 
-@router.get("/", response_model=List[models_places.Place])
+@router.get("/", response_model=list[models_places.Place])
 async def list_places_api(
-    category: Optional[models_places.PlaceCategory] = Query(None),
-    status_filter: Optional[models_places.PlaceStatus] = Query(None, alias="status"),
-    tags: Optional[str] = Query(None, description="Comma-separated list of tag names"),
+    category: models_places.PlaceCategory | None = Query(None),
+    status_filter: models_places.PlaceStatus | None = Query(None, alias="status"),
+    tags: str | None = Query(None, description="Comma-separated list of tag names"),
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
     db: AsyncClient = Depends(get_db),
@@ -100,7 +100,7 @@ async def update_place_api(
     place_update: models_places.PlaceUpdate,
     db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
+    db_service: AsyncClient | None = Depends(get_supabase_service_client),
 ):
     """
     Updates an existing place and returns the updated hydrated object (SPA-Lite ready).
@@ -110,7 +110,7 @@ async def update_place_api(
     )
 
     if place_update.updated_at is None:
-        place_update.updated_at = datetime.now(timezone.utc)
+        place_update.updated_at = datetime.now(UTC)
 
     # crud_places.update_place returns the fully hydrated updated object
     updated_place = await crud_places.update_place(
@@ -140,7 +140,7 @@ async def delete_place_api(
     place_id: int,
     db: AsyncClient = Depends(get_db),
     current_user: UserInToken = Depends(get_current_active_user),
-    db_service: Optional[AsyncClient] = Depends(get_supabase_service_client),
+    db_service: AsyncClient | None = Depends(get_supabase_service_client),
 ):
     """API endpoint to soft delete a place. Cleanup happens in CRUD layer."""
     logger.warning(
