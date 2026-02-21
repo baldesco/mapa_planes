@@ -254,6 +254,25 @@
     text-decoration: underline;
 }
 
+.show-results-shortcut {
+    background: var(--primary-color);
+    color: white;
+    border: none;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-left: 8px;
+    white-space: nowrap;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.show-results-shortcut:hover {
+    background: var(--primary-dark, #002d24);
+    transform: scale(1.05);
+}
+
 .close-btn {
     background: none;
     border: none;
