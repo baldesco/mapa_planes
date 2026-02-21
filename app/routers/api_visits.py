@@ -2,6 +2,7 @@ import json
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 import pytz
 from fastapi import (
@@ -37,8 +38,8 @@ router = APIRouter(prefix="/api/v1", tags=["API - Visits & Calendar"])
 async def create_new_visit_for_place(
     place_id: int,
     visit_in: models_visits.VisitCreate,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     place = await crud_places.get_place_by_id(
         db=db, place_id=place_id, user_id=current_user.id
@@ -73,8 +74,8 @@ async def create_new_visit_for_place(
 @router.get("/places/{place_id}/visits", response_model=list[models_visits.Visit])
 async def list_visits_for_place(
     place_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     place = await crud_places.get_place_by_id(
         db=db, place_id=place_id, user_id=current_user.id
@@ -95,8 +96,8 @@ async def list_visits_for_place(
 @router.get("/visits/{visit_id}", response_model=models_visits.Visit)
 async def get_visit_details(
     visit_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     logger.info(f"API Get visit request: ID {visit_id} by user {current_user.email}")
     visit = await crud_visits.get_visit_by_id(
@@ -113,19 +114,23 @@ async def get_visit_details(
 @router.put("/visits/{visit_id}", response_model=models_visits.Visit)
 async def update_existing_visit(
     visit_id: int,
-    visit_datetime: datetime | None = Form(None),
-    review_title: str | None = Form(None),
-    review_text: str | None = Form(None),
-    rating: int | None = Form(None),
-    reminder_enabled: bool | None = Form(None),
-    reminder_offsets_hours_str: str | None = Form(None, alias="reminder_offsets_hours"),
-    image_url_action: str | None = Form(
-        None, description="'remove' to delete image, or keep empty"
-    ),
-    image_file: UploadFile | None = File(None, alias="image_file"),
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    db_service: AsyncClient | None = Depends(get_supabase_service_client),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
+    visit_datetime: Annotated[datetime | None, Form()] = None,
+    review_title: Annotated[str | None, Form()] = None,
+    review_text: Annotated[str | None, Form()] = None,
+    rating: Annotated[int | None, Form()] = None,
+    reminder_enabled: Annotated[bool | None, Form()] = None,
+    reminder_offsets_hours_str: Annotated[
+        str | None, Form(alias="reminder_offsets_hours")
+    ] = None,
+    image_url_action: Annotated[
+        str | None, Form(description="'remove' to delete image, or keep empty")
+    ] = None,
+    image_file: Annotated[UploadFile | None, File(alias="image_file")] = None,
 ):
     logger.info(f"API Update visit request: ID {visit_id} by user {current_user.email}")
 
@@ -176,7 +181,7 @@ async def update_existing_visit(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid format for reminder_offsets_hours: {e}",
-            )
+            ) from e
 
     if parsed_offsets is not None:
         update_payload_dict["reminder_offsets_hours"] = parsed_offsets
@@ -192,7 +197,7 @@ async def update_existing_visit(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid update data: {pydantic_error}",
-        )
+        ) from pydantic_error
 
     updated_visit = await crud_visits.update_visit(
         db=db,
@@ -223,9 +228,11 @@ async def update_existing_visit(
 @router.delete("/visits/{visit_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_existing_visit(
     visit_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    db_service: AsyncClient | None = Depends(get_supabase_service_client),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
 ):
     logger.warning(
         f"API Delete visit request: ID {visit_id} by user {current_user.email}"
@@ -266,8 +273,8 @@ async def delete_existing_visit(
 async def generate_calendar_event_for_visit(
     visit_id: int,
     customization_data: models_visits.CalendarEventCustomization,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     logger.info(f"API: Generating ICS for visit {visit_id}, user {current_user.email}")
 

@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from supabase import AsyncClient
 
@@ -12,11 +14,12 @@ router = APIRouter(prefix="/api/v1/tags", tags=["API - Tags"])
 
 @router.get("/", response_model=list[models_tags.Tag])
 async def list_tags_api(
-    query: str | None = Query(
-        None, description="Search query to filter tags by name (case-insensitive)."
-    ),
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    query: Annotated[
+        str | None,
+        Query(description="Search query to filter tags by name (case-insensitive)."),
+    ] = None,
 ):
     """
     API endpoint to list tags for the authenticated user.

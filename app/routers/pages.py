@@ -1,5 +1,5 @@
 import json
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import (
     APIRouter,
@@ -31,14 +31,15 @@ router = APIRouter(tags=["Pages"])
 @router.get("/", response_class=HTMLResponse, name="serve_root_page")
 async def serve_root_page(
     request: Request,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    category_str: str | None = Query(None, alias="category"),
-    status_str: str | None = Query(None, alias="status"),
-    tags_str: str | None = Query(None, alias="tags"),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    category_str: Annotated[str | None, Query(alias="category")] = None,
+    status_str: Annotated[str | None, Query(alias="status")] = None,
+    tags_str: Annotated[str | None, Query(alias="tags")] = None,
+    q: Annotated[str | None, Query()] = None,
 ):
     logger.info(
-        f"Request root page for user {current_user.email}. Filters: category='{category_str}', status='{status_str}', tags='{tags_str}'"
+        f"Request root page for user {current_user.email}. Filters: category='{category_str}', status='{status_str}', tags='{tags_str}', q='{q}'"
     )
 
     category: models_places.PlaceCategory | None = None
@@ -77,6 +78,7 @@ async def serve_root_page(
             category=category,
             status_filter=status_filter,
             tag_names=current_tags_filter,
+            search_query=q,
             limit=500,
         )
 
@@ -111,8 +113,8 @@ async def serve_root_page(
 @router.get("/login", response_class=HTMLResponse, name="serve_login_page")
 async def serve_login_page(
     request: Request,
-    reason: str | None = Query(None),
-    user: UserInToken | None = Depends(get_optional_current_user),
+    reason: Annotated[str | None, Query()] = None,
+    user: Annotated[UserInToken | None, Depends(get_optional_current_user)] = None,
 ):
     if reason in ["logged_out", "session_expired", "password_reset_success"]:
         return templates.TemplateResponse(
@@ -128,7 +130,8 @@ async def serve_login_page(
 
 @router.get("/signup", response_class=HTMLResponse, name="serve_signup_page")
 async def serve_signup_page(
-    request: Request, user: UserInToken | None = Depends(get_optional_current_user)
+    request: Request,
+    user: Annotated[UserInToken | None, Depends(get_optional_current_user)] = None,
 ):
     if user:
         return RedirectResponse(
@@ -144,7 +147,8 @@ async def serve_signup_page(
     name="serve_request_password_reset_page",
 )
 async def serve_request_password_reset_page(
-    request: Request, user: UserInToken | None = Depends(get_optional_current_user)
+    request: Request,
+    user: Annotated[UserInToken | None, Depends(get_optional_current_user)] = None,
 ):
     if user:
         return RedirectResponse(

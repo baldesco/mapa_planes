@@ -190,19 +190,16 @@ async def get_places(
     category: PlaceCategory | None = None,
     status_filter: PlaceStatus | None = None,
     tag_names: list[str] | None = None,
+    search_query: str | None = None,
     skip: int = 0,
     limit: int = 100,
     include_deleted: bool = False,
 ) -> list[Place]:
-    """Fetches list of places with all relations asynchronously."""
+    """Fetches list of places with all relations and optional search asynchronously."""
     try:
-        query = (
-            db.table(TABLE_NAME)
-            .select("*")
-            .eq("user_id", str(user_id))
-            .order("created_at", desc=True)
-        )
+        query = db.table(TABLE_NAME).select("*").eq("user_id", str(user_id))
 
+        # Base filters
         if category:
             query = query.eq("category", category.value)
         if status_filter:
@@ -210,8 +207,10 @@ async def get_places(
         if not include_deleted:
             query = query.is_("deleted_at", None)
 
-        # Note: Advanced tag filtering typically requires an inner join or RPC.
-        # For parity, we execute the standard query and filter by tag_names in the hydration step if provided.
+        # If no search query, maintain original ordering
+        if not search_query:
+            query = query.order("created_at", desc=True)
+
         response = await query.range(skip, skip + limit - 1).execute()
         place_data_list = response.data or []
 
@@ -222,7 +221,9 @@ async def get_places(
         tags_map = await _get_tags_for_place_ids(db=db, place_ids=place_ids)
         visits_map = await _get_visits_for_place_ids(db=db, place_ids=place_ids)
 
-        places_validated: list[Place] = []
+        places_validated: list[tuple[float, Place]] = []
+        search_terms = search_query.lower().split() if search_query else []
+
         for p_data in place_data_list:
             try:
                 place_id = p_data.get("id")
@@ -236,13 +237,58 @@ async def get_places(
                     if not (clean_filter & place_tag_names):
                         continue
 
-                places_validated.append(Place(**p_data))
+                place_obj = Place(**p_data)
+
+                # Search relevance ranking
+                relevance_score = 0.0
+                if search_terms:
+                    name_lower = (place_obj.name or "").lower()
+                    desc_lower = (place_obj.description or "").lower()
+
+                    matches_any = False
+                    for term in search_terms:
+                        term_score = 0.0
+                        if term == name_lower:
+                            term_score += 10.0
+                        elif term in name_lower:
+                            term_score += 5.0
+
+                        if desc_lower and term in desc_lower:
+                            term_score += 3.0
+
+                        # Tags match
+                        for tag in place_obj.tags:
+                            if term in tag.name.lower():
+                                term_score += 4.0
+
+                        # Visits match
+                        for visit in place_obj.visits:
+                            if (
+                                visit.review_title
+                                and term in visit.review_title.lower()
+                            ):
+                                term_score += 2.0
+                            if visit.review_text and term in visit.review_text.lower():
+                                term_score += 1.0
+
+                        if term_score > 0:
+                            matches_any = True
+                            relevance_score += term_score
+
+                    if not matches_any:
+                        continue  # Filter out non-matching if searching
+
+                places_validated.append((relevance_score, place_obj))
             except Exception as validation_error:
                 logger.error(
                     f"CRUD: Pydantic validation error for place ID {p_data.get('id')}: {validation_error}"
                 )
 
-        return places_validated
+        # Sort by relevance if searching, otherwise maintain original order (already sorted by DB if no search)
+        if search_query:
+            places_validated.sort(key=lambda x: x[0], reverse=True)
+
+        return [p[1] for p in places_validated]
     except Exception as e:
         logger.error(f"CRUD: General Exception during get_places: {e}", exc_info=True)
         return []

@@ -32,38 +32,75 @@
             {% endif %}
         </header>
 
-        <section class="controls-section filter-section">
-            <form id="filter-form" method="get" action="{{ request.url_for('serve_root_page') }}">
-                <div>
-                    <label for="category">Category:</label>
-                    <select id="category" name="category" onchange="this.form.submit()">
-                        <option value="" {% if not current_category %}selected{% endif %}>All</option>
-                        {% for cat in categories %}
-                        <option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{ cat|capitalize }}
-                        </option>
-                        {% endfor %}
-                    </select>
+        <section class="controls-section search-filter-section">
+            <div class="search-bar-container">
+                <div class="search-input-group">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" id="search-input" name="q" placeholder="Search by name, tags, description..."
+                        value="{{ q or '' }}">
+                    <button type="button" id="toggle-search-filters-btn" title="Toggle detailed filters">
+                        <i class="fas fa-sliders-h"></i>
+                    </button>
+                    <button type="button" id="clear-search-btn" title="Clear search">
+                        <i class="fas fa-times"></i>
+                    </button>
                 </div>
-                <div>
-                    <label for="status">Status:</label>
-                    <select id="status" name="status" onchange="this.form.submit()">
-                        <option value="" {% if not current_status %}selected{% endif %}>All</option>
-                        {% for stat_val in statuses %}
-                        <option value="{{ stat_val }}" {% if stat_val==current_status %}selected{% endif %}>{{
-                            stat_val|replace('_', ' ')|capitalize }}</option>
-                        {% endfor %}
-                    </select>
+            </div>
+
+            <form id="filter-form" method="get" action="{{ request.url_for('serve_root_page') }}"
+                style="display: none;">
+                <input type="hidden" name="q" id="filter-q-hidden" value="{{ q or '' }}">
+                <div class="filter-controls-row">
+                    <div>
+                        <label for="category">Category:</label>
+                        <select id="category" name="category" onchange="this.form.submit()">
+                            <option value="" {% if not current_category %}selected{% endif %}>All</option>
+                            {% for cat in categories %}
+                            <option value="{{ cat }}" {% if cat==current_category %}selected{% endif %}>{{
+                                cat|capitalize }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="status">Status:</label>
+                        <select id="status" name="status" onchange="this.form.submit()">
+                            <option value="" {% if not current_status %}selected{% endif %}>All</option>
+                            {% for stat_val in statuses %}
+                            <option value="{{ stat_val }}" {% if stat_val==current_status %}selected{% endif %}>{{
+                                stat_val|replace('_', ' ')|capitalize }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="tag-filter-container">
+                        <label for="tag-filter-input">Tags:</label>
+                        <input id="tag-filter-input" name="tags" placeholder="Filter by tags..."
+                            value="{{ current_tags_filter|join(',') }}">
+                    </div>
                 </div>
-                <div class="tag-filter-container">
-                    <label for="tag-filter-input">Tags:</label>
-                    <input id="tag-filter-input" name="tags" placeholder="Filter by tags..."
-                        value="{{ current_tags_filter|join(',') }}">
+                <div class="filter-actions">
+                    <button type="submit">Apply Filters</button>
+                    <button type="button"
+                        onclick="window.location.href='{{ request.url_for('serve_root_page') }}';">Clear All</button>
+                    <label class="map-toggle-label">
+                        <input type="checkbox" id="search-only-map-toggle">
+                        Show only results on map
+                    </label>
                 </div>
-                <button type="submit">Filter</button>
-                <button type="button" onclick="window.location.href='{{ request.url_for('serve_root_page') }}'">Clear
-                    Filters</button>
             </form>
-            <button type="button" id="toggle-add-place-form-btn">Add New Place</button>
+            <div class="main-actions">
+                <button type="button" id="toggle-add-place-form-btn">Add New Place</button>
+            </div>
+
+            <div id="search-results-panel" class="search-results-panel" style="display: none;">
+                <div class="search-results-header">
+                    <h3>Search Results</h3>
+                    <button type="button" id="close-search-results-btn" class="close-btn">&times;</button>
+                </div>
+                <div id="search-results-list" class="search-results-list">
+                    <!-- Results dynamically populated -->
+                </div>
+            </div>
         </section>
 
         <!-- Container for the native Leaflet map -->
@@ -100,6 +137,9 @@
                         <option value="{{ cat }}">{{ cat|capitalize }}</option>
                         {% endfor %}
                     </select>
+                    <label for="add-description">Description:</label>
+                    <textarea id="add-description" name="description" rows="3" maxlength="1000"
+                        placeholder="A brief description of this place..."></textarea>
                     <label for="add-status">Initial Status:</label>
                     <select id="add-status" name="status" required>
                         {% for stat_val in statuses %}
@@ -154,6 +194,9 @@
                         <option value="{{ stat_val }}">{{ stat_val|replace('_', ' ')|capitalize }}</option>
                         {% endfor %}
                     </select>
+                    <label for="edit-description">Description:</label>
+                    <textarea id="edit-description" name="description" rows="3" maxlength="1000"
+                        placeholder="A brief description of this place..."></textarea>
                     <label for="edit-tags-input">Tags:</label>
                     <input id="edit-tags-input" name="tags_input" placeholder="Add tags...">
                     <div class="form-actions">
