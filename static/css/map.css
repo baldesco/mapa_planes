@@ -215,6 +215,10 @@
     position: relative;
 }
 
+#pinning-map-container.visible {
+    display: block;
+}
+
 #pinning-map {
     height: 350px;
     width: 100%;
@@ -287,7 +291,7 @@
         aspect-ratio: 3 / 4;
     }
 
-    #pinning-map-container {
+    #pinning-map-container.visible {
         height: auto;
         max-height: 70vh;
         display: flex;
