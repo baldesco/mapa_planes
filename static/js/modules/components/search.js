@@ -19,7 +19,8 @@ const search = {
         submitBtn: null,
         totalClearBtn: null,
         sortSelect: null,
-        panelClearBtn: null
+        panelClearBtn: null,
+        showResultsBtn: null
     },
     
     currentResults: [],
@@ -55,6 +56,7 @@ const search = {
         this.elements.totalClearBtn = document.getElementById('clear-all-filters-btn');
         this.elements.sortSelect = document.getElementById('search-results-sort');
         this.elements.panelClearBtn = document.getElementById('panel-clear-search-btn');
+        this.elements.showResultsBtn = document.getElementById('show-search-results-btn');
     },
 
     setupEventListeners() {
@@ -105,6 +107,9 @@ const search = {
 
         this.elements.closeResultsBtn.addEventListener('click', () => {
             this.elements.resultsPanel.style.display = 'none';
+            if (this.currentResults.length > 0 && this.elements.showResultsBtn) {
+                this.elements.showResultsBtn.style.display = 'block';
+            }
         });
 
         if (this.elements.mapOnlyToggle) {
@@ -124,8 +129,26 @@ const search = {
                 this.clearAll();
             });
         }
+
+        if (this.elements.showResultsBtn) {
+            this.elements.showResultsBtn.addEventListener('click', () => {
+                this.openResultsPanel();
+            });
+        }
         
         this.updateClearButton();
+    },
+
+    openResultsPanel() {
+        if (!this.elements.resultsPanel) return;
+        if (window.innerWidth > 768) {
+            this.elements.resultsPanel.style.display = 'flex';
+        } else {
+            this.elements.resultsPanel.style.display = 'block';
+        }
+        if (this.elements.showResultsBtn) {
+            this.elements.showResultsBtn.style.display = 'none';
+        }
     },
 
     clearAll() {
@@ -142,6 +165,7 @@ const search = {
         this.updateClearButton();
         this.applyMapFiltering();
         if (this.elements.resultsPanel) this.elements.resultsPanel.style.display = 'none';
+        if (this.elements.showResultsBtn) this.elements.showResultsBtn.style.display = 'none';
         
         // Also trigger the "Clear All" logic from the filters too if needed, 
         // but simplest is just window.location.href = '/' to be sure everything is clean
@@ -166,8 +190,10 @@ const search = {
 
         if (!query) {
             if (this.elements.resultsPanel) this.elements.resultsPanel.style.display = 'none';
+            if (this.elements.showResultsBtn) this.elements.showResultsBtn.style.display = 'none';
             this.currentResults = [];
             this.applyMapFiltering();
+            this.updateURL(new URLSearchParams());
             return;
         }
 
@@ -198,8 +224,15 @@ const search = {
                 this.currentResults = await response.json();
                 this.originalOrderResults = [...this.currentResults]; // Back up relevance order
                 console.log(`Search module: Found ${this.currentResults.length} results`);
+                
+                // Ensure shortcut is hidden when we trigger a new search (as panel usually opens)
+                if (this.elements.showResultsBtn) {
+                    this.elements.showResultsBtn.style.display = 'none';
+                }
+                
                 this.renderResults();
                 this.applyMapFiltering();
+                this.updateURL(params);
             } else {
                 console.error("Search module: API returned error", response.status);
                 this.elements.resultsList.innerHTML = `<div class="search-result-item error">Error loading results (${response.status})</div>`;
@@ -208,6 +241,13 @@ const search = {
             console.error("Search failed:", error);
             this.elements.resultsList.innerHTML = '<div class="search-result-item error">Search failed. Check console.</div>';
         }
+    },
+
+    updateURL(params) {
+        if (!params) return;
+        const newUrl = `${window.location.pathname}?${params.toString()}`;
+        console.log("Search module: Updating URL to:", newUrl);
+        window.history.replaceState({ path: newUrl }, '', newUrl);
     },
 
     renderResults() {
