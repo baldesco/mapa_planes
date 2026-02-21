@@ -35,7 +35,9 @@
         <section class="controls-section search-filter-section">
             <div class="search-bar-container">
                 <div class="search-input-group">
-                    <i class="fas fa-search search-icon"></i>
+                    <button type="button" id="search-submit-btn" class="search-btn" title="Run search">
+                        <i class="fas fa-search search-icon"></i>
+                    </button>
                     <input type="text" id="search-input" name="q" placeholder="Search by name, tags, description..."
                         value="{{ q or '' }}">
                     <button type="button" id="toggle-search-filters-btn" title="Toggle detailed filters">
@@ -80,10 +82,9 @@
                 </div>
                 <div class="filter-actions">
                     <button type="submit">Apply Filters</button>
-                    <button type="button"
-                        onclick="window.location.href='{{ request.url_for('serve_root_page') }}';">Clear All</button>
+                    <button type="button" id="clear-all-filters-btn">Clear All</button>
                     <label class="map-toggle-label">
-                        <input type="checkbox" id="search-only-map-toggle">
+                        <input type="checkbox" id="search-only-map-toggle" checked>
                         Show only results on map
                     </label>
                 </div>
@@ -91,20 +92,30 @@
             <div class="main-actions">
                 <button type="button" id="toggle-add-place-form-btn">Add New Place</button>
             </div>
+        </section>
 
-            <div id="search-results-panel" class="search-results-panel" style="display: none;">
+        <div class="map-layout-container">
+            <aside id="search-results-panel" class="search-results-panel" style="display: none;">
                 <div class="search-results-header">
                     <h3>Search Results</h3>
                     <button type="button" id="close-search-results-btn" class="close-btn">&times;</button>
                 </div>
+                <div class="search-results-controls">
+                    <select id="search-results-sort" class="search-sort-select" title="Sort by">
+                        <option value="relevance">Relevance</option>
+                        <option value="name">Name (A-Z)</option>
+                        <option value="rating">Stars Rating</option>
+                    </select>
+                    <button type="button" id="panel-clear-search-btn" class="text-btn">Clear Search</button>
+                </div>
                 <div id="search-results-list" class="search-results-list">
                     <!-- Results dynamically populated -->
                 </div>
-            </div>
-        </section>
+            </aside>
 
-        <!-- Container for the native Leaflet map -->
-        <section id="map"></section>
+            <!-- Container for the native Leaflet map -->
+            <section id="map"></section>
+        </div>
 
         <section id="add-place-wrapper-section" class="form-section">
             <!-- action and method removed; handled by addPlaceForm.js via API -->

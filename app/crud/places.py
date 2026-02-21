@@ -1,4 +1,5 @@
 import os
+import unicodedata
 import uuid
 from datetime import UTC, datetime
 
@@ -184,6 +185,20 @@ async def create_place(
         return None
 
 
+def _normalize_text(text: str | None) -> str:
+    """Helper to remove accents and lowercase text for flexible matching."""
+    if not text:
+        return ""
+    # Remove accents using NFKD decomposition
+    normalized = (
+        unicodedata.normalize("NFKD", text)
+        .encode("ascii", "ignore")
+        .decode("utf-8")
+        .lower()
+    )
+    return normalized
+
+
 async def get_places(
     db: AsyncClient,
     user_id: uuid.UUID,
@@ -222,7 +237,12 @@ async def get_places(
         visits_map = await _get_visits_for_place_ids(db=db, place_ids=place_ids)
 
         places_validated: list[tuple[float, Place]] = []
-        search_terms = search_query.lower().split() if search_query else []
+
+        # Normalize search query once
+        search_terms = []
+        if search_query:
+            normalized_query = _normalize_text(search_query)
+            search_terms = normalized_query.split()
 
         for p_data in place_data_list:
             try:
@@ -232,8 +252,8 @@ async def get_places(
 
                 # Apply in-memory tag filter if requested
                 if tag_names:
-                    clean_filter = {t.strip().lower() for t in tag_names}
-                    place_tag_names = {t.name.lower() for t in p_data["tags"]}
+                    clean_filter = {_normalize_text(t) for t in tag_names}
+                    place_tag_names = {_normalize_text(t.name) for t in p_data["tags"]}
                     if not (clean_filter & place_tag_names):
                         continue
 
@@ -242,34 +262,33 @@ async def get_places(
                 # Search relevance ranking
                 relevance_score = 0.0
                 if search_terms:
-                    name_lower = (place_obj.name or "").lower()
-                    desc_lower = (place_obj.description or "").lower()
+                    name_norm = _normalize_text(place_obj.name)
+                    desc_norm = _normalize_text(place_obj.description)
 
                     matches_any = False
                     for term in search_terms:
                         term_score = 0.0
-                        if term == name_lower:
+                        if term == name_norm:
                             term_score += 10.0
-                        elif term in name_lower:
+                        elif term in name_norm:
                             term_score += 5.0
 
-                        if desc_lower and term in desc_lower:
+                        if desc_norm and term in desc_norm:
                             term_score += 3.0
 
                         # Tags match
                         for tag in place_obj.tags:
-                            if term in tag.name.lower():
+                            if term in _normalize_text(tag.name):
                                 term_score += 4.0
 
                         # Visits match
                         for visit in place_obj.visits:
-                            if (
-                                visit.review_title
-                                and term in visit.review_title.lower()
-                            ):
-                                term_score += 2.0
-                            if visit.review_text and term in visit.review_text.lower():
-                                term_score += 1.0
+                            if visit.review_title:
+                                if term in _normalize_text(visit.review_title):
+                                    term_score += 2.0
+                            if visit.review_text:
+                                if term in _normalize_text(visit.review_text):
+                                    term_score += 1.0
 
                         if term_score > 0:
                             matches_any = True
