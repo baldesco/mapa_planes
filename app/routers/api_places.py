@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from supabase import AsyncClient
@@ -18,8 +19,8 @@ router = APIRouter(prefix="/api/v1/places", tags=["API - Places"])
 )
 async def create_new_place_api(
     place_in: models_places.PlaceCreate,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     """
     Creates a new place and returns the fully hydrated object (SPA-Lite ready).
@@ -47,18 +48,23 @@ async def create_new_place_api(
 
 @router.get("/", response_model=list[models_places.Place])
 async def list_places_api(
-    category: models_places.PlaceCategory | None = Query(None),
-    status_filter: models_places.PlaceStatus | None = Query(None, alias="status"),
-    tags: str | None = Query(None, description="Comma-separated list of tag names"),
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    category: Annotated[models_places.PlaceCategory | None, Query()] = None,
+    status_filter: Annotated[
+        models_places.PlaceStatus | None, Query(alias="status")
+    ] = None,
+    tags: Annotated[
+        str | None, Query(description="Comma-separated list of tag names")
+    ] = None,
+    q: Annotated[str | None, Query(description="Search query keyword")] = None,
+    skip: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ):
     """API endpoint to list hydrated places, including their visits and tags."""
     tag_list = [tag.strip() for tag in tags.split(",")] if tags else None
     logger.info(
-        f"API List places request for user {current_user.email}, Filters: cat={category}, status={status_filter}, tags={tag_list}"
+        f"API List places request for user {current_user.email}, Filters: cat={category}, status={status_filter}, tags={tag_list}, q={q}"
     )
 
     places_db = await crud_places.get_places(
@@ -67,6 +73,7 @@ async def list_places_api(
         category=category,
         status_filter=status_filter,
         tag_names=tag_list,
+        search_query=q,
         skip=skip,
         limit=limit,
     )
@@ -76,8 +83,8 @@ async def list_places_api(
 @router.get("/{place_id}", response_model=models_places.Place)
 async def get_place_api(
     place_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     """API endpoint to retrieve a specific hydrated place by ID."""
     logger.info(f"API Get place request: ID {place_id} by user {current_user.email}")
@@ -98,9 +105,11 @@ async def get_place_api(
 async def update_place_api(
     place_id: int,
     place_update: models_places.PlaceUpdate,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    db_service: AsyncClient | None = Depends(get_supabase_service_client),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
 ):
     """
     Updates an existing place and returns the updated hydrated object (SPA-Lite ready).
@@ -138,9 +147,11 @@ async def update_place_api(
 @router.delete("/{place_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_place_api(
     place_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    db_service: AsyncClient | None = Depends(get_supabase_service_client),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
 ):
     """API endpoint to soft delete a place. Cleanup happens in CRUD layer."""
     logger.warning(

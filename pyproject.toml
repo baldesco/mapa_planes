@@ -49,7 +49,10 @@ select = [
 ]
 
 # Ignore specific rules if needed
-ignore = []
+ignore = [
+    "E501", # Line too long
+    "C901", # Too complex
+]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]

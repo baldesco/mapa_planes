@@ -111,6 +111,23 @@ const mapHandler = {
     }
   },
 
+  /**
+   * Filters visible markers on the map based on a predicate.
+   * @param {Function} predicate - Function that takes a place ID and returns true to show or false to hide.
+   */
+  filterMarkers(predicate) {
+    if (!markersLayer) return;
+
+    Object.entries(markerMap).forEach(([id, marker]) => {
+      const show = predicate(id);
+      if (show && !markersLayer.hasLayer(marker)) {
+        markersLayer.addLayer(marker);
+      } else if (!show && markersLayer.hasLayer(marker)) {
+        markersLayer.removeLayer(marker);
+      }
+    });
+  },
+
   // --- Pinning Map Logic ---
 
   initPinningMap(containerId = "pinning-map", initialCoords = null) {

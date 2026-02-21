@@ -38,6 +38,7 @@ class PlaceBase(BaseModel):
     city: str | None = Field(None, max_length=100)
     country: str | None = Field(None, max_length=100)
     timezone_iana: str | None = Field(None, description="e.g., America/Bogota")
+    description: str | None = Field(None, max_length=1000)
     # image_url removed from PlaceBase
 
 
@@ -61,11 +62,14 @@ class PlaceUpdate(BaseModel):
     # image_url removed from PlaceUpdate
     deleted_at: datetime | None = None
     updated_at: datetime | None = None
+    description: str | None = Field(None, max_length=1000)
     tags: list[str] | None = Field(
         None, description="List of tag names to associate with the place."
     )
 
-    @field_validator("name", "address", "city", "country", "timezone_iana")
+    @field_validator(
+        "name", "address", "city", "country", "timezone_iana", "description"
+    )
     @classmethod
     def strip_text_fields(cls, v: str | None) -> str | None:
         if v is not None:

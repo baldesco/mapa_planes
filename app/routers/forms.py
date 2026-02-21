@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Annotated
 
 from fastapi import (
     APIRouter,
@@ -30,18 +31,16 @@ router = APIRouter(tags=["Forms"])
 @router.post("/places/", status_code=status.HTTP_303_SEE_OTHER)
 async def handle_create_new_place_form(
     request: Request,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    # Form fields extracted using Form()
-    name: str = Form(...),
-    latitude: float = Form(...),
-    longitude: float = Form(...),
-    category: models_places.PlaceCategory = Form(...),
-    place_status_input: models_places.PlaceStatus = Form(..., alias="status"),
-    address: str | None = Form(None),
-    city: str | None = Form(None),
-    country: str | None = Form(None),
-    # Tags are not added on creation via this form
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    name: Annotated[str, Form(...)],
+    latitude: Annotated[float, Form(...)],
+    longitude: Annotated[float, Form(...)],
+    category: Annotated[models_places.PlaceCategory, Form(...)],
+    place_status_input: Annotated[models_places.PlaceStatus, Form(alias="status")],
+    address: Annotated[str | None, Form()] = None,
+    city: Annotated[str | None, Form()] = None,
+    country: Annotated[str | None, Form()] = None,
 ):
     """Handles the submission of the 'Add New Place' form from the main page."""
     logger.info(f"FORM Create place received for user {current_user.email}.")
@@ -87,9 +86,9 @@ async def handle_create_new_place_form(
 async def handle_update_place_status_form(
     request: Request,
     place_id: int,
-    new_status: models_places.PlaceStatus = Form(..., alias="status"),
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    new_status: Annotated[models_places.PlaceStatus, Form(alias="status")] = ...,
 ):
     """Handles status updates submitted from the map popup dropdown form."""
     # This endpoint remains unchanged as it only updates status
@@ -122,19 +121,19 @@ async def handle_update_place_status_form(
 async def handle_edit_place_form(
     request: Request,
     place_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    # --- Core Place Fields ---
-    name: str = Form(...),
-    latitude: float = Form(...),
-    longitude: float = Form(...),
-    category: models_places.PlaceCategory = Form(...),
-    status_input: models_places.PlaceStatus = Form(..., alias="status"),
-    address: str | None = Form(None),
-    city: str | None = Form(None),
-    country: str | None = Form(None),
-    # --- Add tags input ---
-    tags_input: str = Form("", description="Comma-separated list of tag names"),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    name: Annotated[str, Form(...)],
+    latitude: Annotated[float, Form(...)],
+    longitude: Annotated[float, Form(...)],
+    category: Annotated[models_places.PlaceCategory, Form(...)],
+    status_input: Annotated[models_places.PlaceStatus, Form(alias="status")],
+    address: Annotated[str | None, Form()] = None,
+    city: Annotated[str | None, Form()] = None,
+    country: Annotated[str | None, Form()] = None,
+    tags_input: Annotated[
+        str, Form(description="Comma-separated list of tag names")
+    ] = "",
 ):
     """Handles the submission of the 'Edit Place' form (core details + tags)."""
     logger.info(
@@ -207,15 +206,16 @@ async def handle_edit_place_form(
 async def handle_add_review_image_form(
     request: Request,
     place_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    db_service: AsyncClient | None = Depends(get_supabase_service_client),
-    # Form fields for review/image
-    review_title: str = Form(""),
-    review_text: str = Form(""),
-    rating: str | None = Form(None),
-    image_file: UploadFile | None = File(None, alias="image"),
-    remove_image: str | None = Form(None),  # Checkbox value 'yes'
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
+    review_title: Annotated[str, Form()] = "",
+    review_text: Annotated[str, Form()] = "",
+    rating: Annotated[str | None, Form()] = None,
+    image_file: Annotated[UploadFile | None, File(alias="image")] = None,
+    remove_image: Annotated[str | None, Form()] = None,
 ):
     """Handles the submission of the review and image form."""
     logger.info(
@@ -360,9 +360,11 @@ async def handle_add_review_image_form(
 async def handle_delete_place_form(
     request: Request,
     place_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    db_service: AsyncClient | None = Depends(get_supabase_service_client),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
 ):
     """Handles the submission of the delete confirmation from the map popup."""
     # No changes needed for tags here

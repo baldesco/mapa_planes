@@ -15,6 +15,7 @@ import mapHandler from "./mapHandler.js";
 import tagInput from "./components/tagInput.js";
 import { setStatusMessage } from "./components/statusMessages.js";
 import apiClient from "./apiClient.js";
+import search from "./components/search.js";
 
 function debounce(func, wait) {
   let timeout;
@@ -94,6 +95,7 @@ const uiOrchestrator = {
     icsCustomizeForm.init(this.hideIcsCustomizeModal.bind(this));
     modals.init(this.showVisitReviewForm.bind(this));
     pinningUI.init(this.isMapReady);
+    search.init();
 
     // 3. Initialize Tag Filters
     if (this.elements.tagFilterInput) {

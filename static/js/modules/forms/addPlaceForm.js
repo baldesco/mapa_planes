@@ -29,6 +29,7 @@ const addPlaceForm = {
     hiddenCountry: null,
     categorySelect: null,
     statusSelect: null,
+    descriptionInput: null,
     submitBtn: null,
   },
   isMapReady: false,
@@ -71,6 +72,7 @@ const addPlaceForm = {
     this.elements.hiddenCountry = document.getElementById("country");
     this.elements.categorySelect = document.getElementById("add-category");
     this.elements.statusSelect = document.getElementById("add-status");
+    this.elements.descriptionInput = document.getElementById("add-description");
     this.elements.submitBtn = document.getElementById("add-place-submit-btn");
 
     if (!this.isMapReady) {
@@ -249,6 +251,7 @@ const addPlaceForm = {
       address: this.elements.hiddenAddress.value || null,
       city: this.elements.hiddenCity.value || null,
       country: this.elements.hiddenCountry.value || null,
+      description: this.elements.descriptionInput?.value || null,
     };
 
     try {
