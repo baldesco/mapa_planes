@@ -95,7 +95,7 @@ const pinningUI = {
     if (!container) return;
 
     this.moveMapContainer(formType);
-    container.style.display = "block";
+    container.classList.add("visible");
 
     if (mapHandler.initPinningMap("pinning-map", initialCoords)) {
       mapHandler.placeDraggableMarker(initialCoords);
@@ -115,7 +115,7 @@ const pinningUI = {
 
     mapHandler.destroyPinningMap();
     if (this.elements.mapContainer) {
-      this.elements.mapContainer.style.display = "none";
+      this.elements.mapContainer.classList.remove("visible");
     }
     if (formType) {
       this.updateFormUI(false, formType);
