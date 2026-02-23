@@ -4,7 +4,6 @@ import uuid
 from datetime import UTC, datetime
 
 from fastapi import UploadFile
-from supabase import AsyncClient
 
 from app.core.config import logger, settings
 from app.crud import tags as crud_tags
@@ -18,6 +17,7 @@ from app.models.places import (
 from app.models.tags import Tag
 from app.models.visits import Visit
 from app.services.timezone_service import get_timezone_from_coordinates
+from supabase import AsyncClient
 
 TABLE_NAME = "places"
 PLACE_TAGS_TABLE = "place_tags"
@@ -559,7 +559,7 @@ async def upload_place_image(
         )
 
         # 4. Get and return public URL
-        public_url_response = storage_from.get_public_url(storage_path)
+        public_url_response = await storage_from.get_public_url(storage_path)
         return str(public_url_response) if public_url_response else None
 
     except Exception as e:

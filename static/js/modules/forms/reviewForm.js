@@ -61,15 +61,12 @@ const reviewForm = {
     );
     this.elements.ratingInput = document.getElementById("visit-review-rating");
     this.elements.imageInput = document.getElementById("visit-review-image");
-    this.elements.removeImageCheckbox = document.getElementById(
-      "visit-review-remove-image",
+    
+    this.elements.photosManagementSection = document.getElementById(
+      "visit-photos-management-section",
     );
-    this.elements.currentImageSection = document.getElementById(
-      "current-visit-image-review-section",
-    );
-    this.elements.currentImageThumb = document.getElementById(
-      "current-visit-image-review-thumb",
-    );
+    this.elements.photosList = document.getElementById("visit-photos-list");
+    
     this.elements.statusMessage = document.getElementById(
       "visit-review-status",
     );
@@ -92,20 +89,6 @@ const reviewForm = {
       this.elements.cancelBtn.addEventListener("click", () =>
         this.hideCallback(),
       );
-    }
-
-    if (this.elements.removeImageCheckbox && this.elements.imageInput) {
-      this.elements.removeImageCheckbox.addEventListener("change", (event) => {
-        if (event.target.checked) this.elements.imageInput.value = "";
-      });
-    }
-
-    if (this.elements.imageInput && this.elements.removeImageCheckbox) {
-      this.elements.imageInput.addEventListener("change", (event) => {
-        if (event.target.files && event.target.files.length > 0) {
-          this.elements.removeImageCheckbox.checked = false;
-        }
-      });
     }
   },
 
@@ -142,22 +125,92 @@ const reviewForm = {
     this.updateRatingStars(els.ratingStarsContainer, currentRating);
 
     if (els.imageInput) els.imageInput.value = "";
-    if (els.removeImageCheckbox) els.removeImageCheckbox.checked = false;
 
-    if (els.currentImageSection && els.currentImageThumb) {
-      if (visitData.image_url) {
-        els.currentImageThumb.src = visitData.image_url;
-        els.currentImageSection.style.display = "block";
-      } else {
-        els.currentImageSection.style.display = "none";
-      }
-    }
+    this.renderPhotosList(visitData.photos || []);
 
     if (els.submitBtn) {
       els.submitBtn.disabled = false;
-      els.submitBtn.textContent = "Save Review & Image";
+      els.submitBtn.textContent = "Save Review & Photos";
     }
     return true;
+  },
+
+  renderPhotosList(photos) {
+    const els = this.elements;
+    if (!els.photosList) return;
+
+    els.photosList.innerHTML = "";
+    if (photos.length > 0) {
+      els.photosManagementSection.style.display = "block";
+      photos.forEach((photo) => {
+        const photoDiv = document.createElement("div");
+        photoDiv.className = `visit-photo-item ${photo.is_main ? "is-main" : ""}`;
+        photoDiv.innerHTML = `
+          <div class="photo-thumb-wrapper">
+            <img src="${photo.image_url}" alt="Visit photo">
+            ${photo.is_main ? '<span class="main-badge">Main</span>' : ""}
+          </div>
+          <div class="photo-item-actions">
+            ${!photo.is_main ? `<button type="button" class="btn-set-main" data-id="${photo.id}">Make Main</button>` : ""}
+            <button type="button" class="btn-delete-photo" data-id="${photo.id}"><i class="fas fa-trash"></i></button>
+          </div>
+        `;
+        
+        // Add event listeners
+        const mainBtn = photoDiv.querySelector(".btn-set-main");
+        if (mainBtn) {
+          mainBtn.addEventListener("click", () => this.handleSetMainPhoto(photo.id));
+        }
+        
+        photoDiv.querySelector(".btn-delete-photo").addEventListener("click", () => this.handleDeletePhoto(photo.id));
+        
+        els.photosList.appendChild(photoDiv);
+      });
+    } else {
+      els.photosManagementSection.style.display = "none";
+    }
+  },
+
+  async handleSetMainPhoto(photoId) {
+    const visitId = this.currentVisitData.id;
+    try {
+      const response = await apiClient.patch(`/api/v1/visits/${visitId}/photos/${photoId}/main`);
+      if (response.ok) {
+        // Refresh the form data
+        const updatedVisitRes = await apiClient.get(`/api/v1/visits/${visitId}`);
+        if (updatedVisitRes.ok) {
+           const updatedVisit = await updatedVisitRes.json();
+           this.populateForm(updatedVisit, this.currentPlaceName);
+        }
+      } else {
+        const error = await response.json();
+        alert(`Error setting main photo: ${error.detail}`);
+      }
+    } catch (e) {
+      console.error("Error setting main photo:", e);
+    }
+  },
+
+  async handleDeletePhoto(photoId) {
+    if (!confirm("Are you sure you want to delete this photo?")) return;
+    
+    const visitId = this.currentVisitData.id;
+    try {
+      const response = await apiClient.delete(`/api/v1/visits/${visitId}/photos/${photoId}`);
+      if (response.ok) {
+        // Refresh the form data
+        const updatedVisitRes = await apiClient.get(`/api/v1/visits/${visitId}`);
+        if (updatedVisitRes.ok) {
+           const updatedVisit = await updatedVisitRes.json();
+           this.populateForm(updatedVisit, this.currentPlaceName);
+        }
+      } else {
+        const error = await response.json();
+        alert(`Error deleting photo: ${error.detail}`);
+      }
+    } catch (e) {
+      console.error("Error deleting photo:", e);
+    }
   },
 
   async handleSubmit(event) {
@@ -166,55 +219,73 @@ const reviewForm = {
 
     setStatusMessage(
       this.elements.statusMessage,
-      "Saving review...",
+      "Saving review and photos...",
       "loading",
     );
     if (this.elements.submitBtn) this.elements.submitBtn.disabled = true;
 
     const visitId = this.currentVisitData.id;
+    
+    // 1. Update basic visit info (review, rating)
     const formData = new FormData();
-
     formData.append("review_title", this.elements.titleInput.value.trim());
     formData.append("review_text", this.elements.textInput.value.trim());
-
     const ratingVal = this.elements.ratingInput.value;
     if (ratingVal) formData.append("rating", ratingVal);
-
-    if (this.elements.imageInput?.files?.[0]) {
-      formData.append("image_file", this.elements.imageInput.files[0]);
-    } else if (this.elements.removeImageCheckbox?.checked) {
-      formData.append("image_url_action", "remove");
-    }
 
     try {
       const response = await apiClient.fetch(`/api/v1/visits/${visitId}`, {
         method: "PUT",
         body: formData,
       });
-      const result = await response.json();
 
-      if (response.ok) {
-        setStatusMessage(
-          els.statusMessage,
-          "Review saved successfully!",
-          "success",
-        );
-        if (this.onReviewSavedCallback) {
-          this.onReviewSavedCallback(result);
+      if (!response.ok) {
+        const result = await response.json();
+        throw new Error(result.detail || "Failed to save review.");
+      }
+
+      // 2. Upload new photos if any
+      const photofiles = this.elements.imageInput.files;
+      if (photofiles && photofiles.length > 0) {
+        for (let i = 0; i < photofiles.length; i++) {
+          setStatusMessage(
+            this.elements.statusMessage,
+            `Uploading photo ${i + 1} of ${photofiles.length}...`,
+            "loading",
+          );
+          
+          const photoFormData = new FormData();
+          photoFormData.append("image_file", photofiles[i]);
+          
+          const photoRes = await apiClient.fetch(`/api/v1/visits/${visitId}/photos`, {
+            method: "POST",
+            body: photoFormData
+          });
+          
+          if (!photoRes.ok) {
+            console.error(`Failed to upload photo ${i+1}`);
+          }
         }
-      } else {
-        setStatusMessage(
-          this.elements.statusMessage,
-          result.detail || "Failed to save review.",
-          "error",
-        );
-        if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;
+      }
+
+      // 3. Success! Get full updated visit data
+      const finalRes = await apiClient.get(`/api/v1/visits/${visitId}`);
+      const finalResult = await finalRes.json();
+
+      setStatusMessage(
+        this.elements.statusMessage,
+        "Review and photos saved successfully!",
+        "success",
+      );
+      
+      if (this.onReviewSavedCallback) {
+        this.onReviewSavedCallback(finalResult);
       }
     } catch (error) {
       console.error("Error saving visit review:", error);
       setStatusMessage(
         this.elements.statusMessage,
-        "An error occurred. Please try again.",
+        error.message || "An error occurred. Please try again.",
         "error",
       );
       if (this.elements.submitBtn) this.elements.submitBtn.disabled = false;

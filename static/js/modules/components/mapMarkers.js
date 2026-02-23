@@ -81,12 +81,17 @@ const mapMarkers = {
       visitInfo = `${place.visits.length} past visit(s) recorded.`;
     }
 
+        const descriptionHtml = place.description
+      ? `<p class="popup-description">${this.escapeHtml(place.description)}</p>`
+      : "";
+
     container.innerHTML = `
             <h4>${name}</h4>
             <div class="popup-content-scrollable">
                 <p><b>Category:</b> ${categoryLabel}</p>
                 <p><b>Status:</b> ${statusLabel}</p>
                 ${addressInfo ? `<p><b>Address:</b> ${addressInfo}</p>` : ""}
+                ${descriptionHtml}
                 ${tagsHtml}
             </div>
             <div class="popup-visits-info">
