@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.core.config import logger, settings  # Import settings to check geocoder key
@@ -26,7 +28,9 @@ async def health_check():
     if not settings.OPENCAGE_API_KEY
     else [],  # Optional: Disable if no key
 )
-async def geocode_address_endpoint(address: str = Query(..., min_length=3)):
+async def geocode_address_endpoint(
+    address: Annotated[str, Query(min_length=3)],
+):
     """Geocodes a given address string using OpenCage."""
     if not settings.OPENCAGE_API_KEY:
         logger.error("Geocode endpoint called but OPENCAGE_API_KEY is not set.")
