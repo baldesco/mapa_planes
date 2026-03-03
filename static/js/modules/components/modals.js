@@ -12,14 +12,20 @@ const modals = {
     seeVisitReviewRatingDisplay: null,
     seeVisitReviewDisplayTitle: null,
     seeVisitReviewDisplayText: null,
-    seeVisitReviewDisplayImage: null,
+    seeVisitReviewPhotosContainer: null,
     seeVisitReviewEditBtn: null,
     seeVisitReviewCloseBtn: null,
+    seeVisitReviewPrevBtn: null,
+    seeVisitReviewNextBtn: null,
+    seeVisitReviewDotsContainer: null,
+    carouselContainer: null,
     imageOverlayInstance: null,
   },
   currentVisitDataForReviewModal: null,
   currentPlaceNameForReviewModal: null,
   editVisitReviewCallback: null,
+  currentSlideIndex: 0,
+  totalSlides: 0,
 
   /**
    * @param {Function} editReviewFn - Callback to show the edit review form.
@@ -31,50 +37,32 @@ const modals = {
   },
 
   cacheDOMElements() {
-    this.elements.seeVisitReviewSection = document.getElementById(
-      "see-visit-review-section",
-    );
+    this.elements.seeVisitReviewSection = document.getElementById("see-visit-review-section");
     if (!this.elements.seeVisitReviewSection) return;
 
-    this.elements.seeVisitReviewPlaceTitle = document.getElementById(
-      "see-visit-review-place-title",
-    );
-    this.elements.seeVisitReviewDateTime = document.getElementById(
-      "see-visit-review-datetime-display",
-    );
-    this.elements.seeVisitReviewRatingDisplay = document.getElementById(
-      "see-visit-review-rating-display",
-    );
-    this.elements.seeVisitReviewDisplayTitle = document.getElementById(
-      "see-visit-review-display-title",
-    );
-    this.elements.seeVisitReviewDisplayText = document.getElementById(
-      "see-visit-review-display-text",
-    );
-    this.elements.seeVisitReviewDisplayImage = document.getElementById(
-      "see-visit-review-display-image",
-    );
-    this.elements.seeVisitReviewEditBtn = document.getElementById(
-      "see-visit-review-edit-btn",
-    );
-    this.elements.seeVisitReviewCloseBtn = document.getElementById(
-      "see-visit-review-close-btn",
-    );
+    this.elements.seeVisitReviewPlaceTitle = document.getElementById("see-visit-review-place-title");
+    this.elements.seeVisitReviewDateTime = document.getElementById("see-visit-review-datetime-display");
+    this.elements.seeVisitReviewRatingDisplay = document.getElementById("see-visit-review-rating-display");
+    this.elements.seeVisitReviewDisplayTitle = document.getElementById("see-visit-review-display-title");
+    this.elements.seeVisitReviewDisplayText = document.getElementById("see-visit-review-display-text");
+    this.elements.seeVisitReviewPhotosContainer = document.getElementById("see-visit-review-photos-container");
+    this.elements.seeVisitReviewEditBtn = document.getElementById("see-visit-review-edit-btn");
+    this.elements.seeVisitReviewCloseBtn = document.getElementById("see-visit-review-close-btn");
+    
+    this.elements.seeVisitReviewPrevBtn = document.getElementById("see-visit-review-prev-btn");
+    this.elements.seeVisitReviewNextBtn = document.getElementById("see-visit-review-next-btn");
+    this.elements.seeVisitReviewDotsContainer = document.getElementById("see-visit-review-dots-container");
+    this.elements.carouselContainer = document.querySelector(".carousel-container");
   },
 
   setupEventListeners() {
     if (this.elements.seeVisitReviewCloseBtn) {
-      this.elements.seeVisitReviewCloseBtn.addEventListener("click", () =>
-        this.hideSeeReviewModal(),
-      );
+      this.elements.seeVisitReviewCloseBtn.addEventListener("click", () => this.hideSeeReviewModal());
     }
 
     if (this.elements.seeVisitReviewEditBtn) {
       this.elements.seeVisitReviewEditBtn.addEventListener("click", () => {
-        if (
-          this.currentVisitDataForReviewModal &&
-          this.editVisitReviewCallback
-        ) {
+        if (this.currentVisitDataForReviewModal && this.editVisitReviewCallback) {
           const data = this.currentVisitDataForReviewModal;
           const name = this.currentPlaceNameForReviewModal;
           this.hideSeeReviewModal();
@@ -83,10 +71,11 @@ const modals = {
       });
     }
 
-    if (this.elements.seeVisitReviewDisplayImage) {
-      this.elements.seeVisitReviewDisplayImage.addEventListener("click", (e) =>
-        this.showImageOverlay(e),
-      );
+    if (this.elements.seeVisitReviewPrevBtn) {
+      this.elements.seeVisitReviewPrevBtn.addEventListener("click", () => this.moveCarousel(-1));
+    }
+    if (this.elements.seeVisitReviewNextBtn) {
+      this.elements.seeVisitReviewNextBtn.addEventListener("click", () => this.moveCarousel(1));
     }
   },
 
@@ -111,54 +100,146 @@ const modals = {
    * Populates and shows the review modal.
    */
   showSeeReviewModal(visitDataInput, placeName = "this place") {
-    let visitData =
-      typeof visitDataInput === "string"
-        ? JSON.parse(visitDataInput)
-        : visitDataInput;
+    try {
+      console.log("Opening See Review Modal for visit:", visitDataInput);
+      
+      let visitData = typeof visitDataInput === "string"
+          ? JSON.parse(visitDataInput)
+          : visitDataInput;
 
-    if (!visitData || !visitData.id) return;
+      if (!visitData || !visitData.id) {
+        console.error("Invalid visit data provided to showSeeReviewModal");
+        return;
+      }
 
-    this.currentVisitDataForReviewModal = visitData;
-    this.currentPlaceNameForReviewModal = placeName;
-    const els = this.elements;
+      this.currentVisitDataForReviewModal = visitData;
+      this.currentPlaceNameForReviewModal = placeName;
+      const els = this.elements;
 
-    els.seeVisitReviewPlaceTitle.textContent = `"${placeName}"`;
+      if (!els.seeVisitReviewSection) {
+        console.error("Critical Error: see-visit-review-section not found in DOM");
+        alert("System error: Review dialog container missing.");
+        return;
+      }
 
-    if (visitData.visit_datetime) {
-      const date = new Date(visitData.visit_datetime);
-      els.seeVisitReviewDateTime.textContent = date.toLocaleString(undefined, {
-        year: "numeric",
-        month: "long",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      // Populate text fields with safety checks
+      if (els.seeVisitReviewPlaceTitle) els.seeVisitReviewPlaceTitle.textContent = `"${placeName}"`;
+      
+      if (els.seeVisitReviewDateTime && visitData.visit_datetime) {
+        const date = new Date(visitData.visit_datetime);
+        els.seeVisitReviewDateTime.textContent = date.toLocaleString(undefined, {
+          year: "numeric", month: "long", day: "numeric", 
+          hour: "2-digit", minute: "2-digit"
+        });
+      }
+
+      this.displayStaticRatingStars(els.seeVisitReviewRatingDisplay, visitData.rating);
+
+      if (els.seeVisitReviewDisplayTitle) {
+        els.seeVisitReviewDisplayTitle.textContent = visitData.review_title || "";
+        els.seeVisitReviewDisplayTitle.style.display = visitData.review_title ? "block" : "none";
+      }
+
+      if (els.seeVisitReviewDisplayText) {
+        els.seeVisitReviewDisplayText.textContent = visitData.review_text || 
+          (visitData.rating ? "" : "(No review text)");
+      }
+
+      // Render photos using the carousel system
+      this.renderReviewPhotos(visitData.photos || []);
+
+      // Show the section
+      els.seeVisitReviewSection.style.display = "block";
+      els.seeVisitReviewSection.scrollIntoView({ behavior: "smooth", block: "center" });
+
+    } catch (err) {
+      console.error("Failed to show See Review modal:", err);
+      alert("Error: Could not display review. See console for details.");
+    }
+  },
+
+  renderReviewPhotos(photos) {
+    const container = this.elements.seeVisitReviewPhotosContainer;
+    const dotsContainer = this.elements.seeVisitReviewDotsContainer;
+    const carouselWrapper = this.elements.carouselContainer;
+    
+    if (!container || !dotsContainer || !carouselWrapper) {
+      console.warn("Carousel elements not found in review modal.");
+      return;
     }
 
-    this.displayStaticRatingStars(
-      els.seeVisitReviewRatingDisplay,
-      visitData.rating,
-    );
+    container.innerHTML = "";
+    dotsContainer.innerHTML = "";
+    this.currentSlideIndex = 0;
+    
+    const validPhotos = (photos || []).filter(p => p.image_url);
 
-    els.seeVisitReviewDisplayTitle.textContent = visitData.review_title || "";
-    els.seeVisitReviewDisplayTitle.style.display = visitData.review_title
-      ? "block"
-      : "none";
+    if (validPhotos.length === 0) {
+      carouselWrapper.style.display = "none";
+      return;
+    }
 
-    els.seeVisitReviewDisplayText.textContent =
-      visitData.review_text || (visitData.rating ? "" : "(No review text)");
+    carouselWrapper.style.display = "block";
+    
+    // Sort: Main photo first
+    const sortedPhotos = [...validPhotos].sort((a, b) => (b.is_main ? 1 : 0) - (a.is_main ? 1 : 0));
+    this.totalSlides = sortedPhotos.length;
 
-    if (visitData.image_url) {
-      els.seeVisitReviewDisplayImage.src = visitData.image_url;
-      els.seeVisitReviewDisplayImage.style.display = "block";
+    // Visibility of arrows
+    if (this.totalSlides <= 1) {
+      if (this.elements.seeVisitReviewPrevBtn) this.elements.seeVisitReviewPrevBtn.style.display = "none";
+      if (this.elements.seeVisitReviewNextBtn) this.elements.seeVisitReviewNextBtn.style.display = "none";
     } else {
-      els.seeVisitReviewDisplayImage.style.display = "none";
+      if (this.elements.seeVisitReviewPrevBtn) this.elements.seeVisitReviewPrevBtn.style.display = "flex";
+      if (this.elements.seeVisitReviewNextBtn) this.elements.seeVisitReviewNextBtn.style.display = "flex";
     }
 
-    els.seeVisitReviewSection.style.display = "block";
-    els.seeVisitReviewSection.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
+    sortedPhotos.forEach((photo, index) => {
+      const img = document.createElement("img");
+      img.src = photo.image_url;
+      img.alt = "Visit photo";
+      img.onerror = () => {
+        console.error(`Failed to load image: ${photo.image_url}`);
+        img.style.objectFit = "none";
+        img.title = "Image failed to load";
+      };
+      img.addEventListener("click", (e) => this.showImageOverlay(e));
+      container.appendChild(img);
+
+      // Dots
+      if (this.totalSlides > 1) {
+        const dot = document.createElement("span");
+        dot.className = "dot" + (index === 0 ? " active" : "");
+        dot.addEventListener("click", () => this.goToSlide(index));
+        dotsContainer.appendChild(dot);
+      }
+    });
+
+    this.updateCarousel();
+  },
+
+  moveCarousel(direction) {
+    this.currentSlideIndex += direction;
+    if (this.currentSlideIndex >= this.totalSlides) this.currentSlideIndex = 0;
+    if (this.currentSlideIndex < 0) this.currentSlideIndex = this.totalSlides - 1;
+    this.updateCarousel();
+  },
+
+  goToSlide(index) {
+    this.currentSlideIndex = index;
+    this.updateCarousel();
+  },
+
+  updateCarousel() {
+    const container = this.elements.seeVisitReviewPhotosContainer;
+    const dots = this.elements.seeVisitReviewDotsContainer.querySelectorAll(".dot");
+    
+    if (container) {
+      container.style.transform = `translateX(-${this.currentSlideIndex * 100}%)`;
+    }
+    
+    dots.forEach((dot, idx) => {
+      dot.classList.toggle("active", idx === this.currentSlideIndex);
     });
   },
 
@@ -169,9 +250,6 @@ const modals = {
     this.currentVisitDataForReviewModal = null;
   },
 
-  /**
-   * Creates and shows a full-screen image overlay.
-   */
   showImageOverlay(event) {
     const src = event.target.src;
     if (!src) return;
@@ -187,11 +265,11 @@ const modals = {
 
     document.body.appendChild(this.elements.imageOverlayInstance);
 
-    // Trigger transition
-    setTimeout(
-      () => this.elements.imageOverlayInstance.classList.add("visible"),
-      10,
-    );
+    setTimeout(() => {
+      if (this.elements.imageOverlayInstance) {
+        this.elements.imageOverlayInstance.classList.add("visible");
+      }
+    }, 10);
   },
 
   hideImageOverlay() {
@@ -199,9 +277,7 @@ const modals = {
     if (!overlay) return;
 
     overlay.classList.remove("visible");
-    overlay.addEventListener("transitionend", () => overlay.remove(), {
-      once: true,
-    });
+    overlay.addEventListener("transitionend", () => overlay.remove(), { once: true });
     this.elements.imageOverlayInstance = null;
   },
 };

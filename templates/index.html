@@ -286,16 +286,15 @@
                         <span class="star" data-value="5"><i class="far fa-star"></i></span>
                     </div>
                     <input type="hidden" id="visit-review-rating" name="rating">
-                    <label for="visit-review-image">Upload/Replace Image for this Visit (Optional):</label>
+                    <label for="visit-review-image">Add Photos for this Visit (Optional):</label>
                     <input type="file" id="visit-review-image" name="image"
-                        accept="image/jpeg, image/png, image/gif, image/webp">
-                    <p class="password-hint">Max file size ~5MB recommended.</p>
-                    <div id="current-visit-image-review-section" style="display:none;">
-                        <label>Current Visit Image:</label>
-                        <img id="current-visit-image-review-thumb" src="" alt="Current visit image">
-                        <div>
-                            <input type="checkbox" id="visit-review-remove-image" name="remove_image" value="yes">
-                            <label for="visit-review-remove-image">Remove Current Visit Image</label>
+                        accept="image/jpeg, image/png, image/gif, image/webp" multiple>
+                    <p class="password-hint">You can select multiple files. Max file size ~5MB recommended.</p>
+
+                    <div id="visit-photos-management-section" style="display:none; margin-top: 15px;">
+                        <label>Current Visit Photos:</label>
+                        <div id="visit-photos-list" class="visit-photos-grid">
+                            <!-- Dynamic list of photos with 'Set Main' and 'Delete' buttons -->
                         </div>
                     </div>
                     <div id="visit-review-status" class="status-message"></div>
@@ -315,7 +314,18 @@
                     <div id="see-visit-review-rating-display" class="rating-stars-display"></div>
                     <h3 id="see-visit-review-display-title"></h3>
                     <p id="see-visit-review-display-text"></p>
-                    <img id="see-visit-review-display-image" src="" alt="Visit review image" />
+                    <div class="carousel-container">
+                        <button type="button" class="carousel-btn prev-btn" id="see-visit-review-prev-btn">
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <div id="see-visit-review-photos-container" class="visit-photos-display-carousel">
+                            <!-- Photos will be injected here -->
+                        </div>
+                        <button type="button" class="carousel-btn next-btn" id="see-visit-review-next-btn">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                        <div class="carousel-dots" id="see-visit-review-dots-container"></div>
+                    </div>
                 </div>
                 <div class="modal-actions">
                     <button type="button" id="see-visit-review-edit-btn" class="edit-review-btn">Edit This Visit's

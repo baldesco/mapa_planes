@@ -5,12 +5,26 @@ from typing import Literal
 from pydantic import BaseModel, Field, HttpUrl
 
 
+class VisitPhoto(BaseModel):
+    id: int
+    visit_id: int
+    user_id: uuid.UUID
+    image_url: HttpUrl | str
+    storage_path: str | None = None
+    is_main: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 class VisitBase(BaseModel):
     visit_datetime: datetime
     review_title: str | None = Field(None, max_length=150)
     review_text: str | None = Field(None, max_length=1000)
     rating: int | None = Field(None, ge=1, le=5)
-    image_url: HttpUrl | str | None = None
+    image_url: HttpUrl | str | None = None  # Deprecated
     reminder_enabled: bool = False  # This might become deprecated if only using .ics
     reminder_offsets_hours: list[int] | None = Field(
         None, description="e.g., [12, 24, 48]"
@@ -42,6 +56,7 @@ class VisitInDB(VisitBase):
     user_id: uuid.UUID
     created_at: datetime
     updated_at: datetime
+    photos: list[VisitPhoto] = []
 
     class Config:
         from_attributes = True

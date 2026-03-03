@@ -156,6 +156,43 @@ const apiClient = {
   async delete(url, options = {}) {
     return this.fetch(url, { ...options, method: "DELETE" });
   },
+
+  /**
+   * Performs a PATCH request, defaulting to JSON content type.
+   * @param {string} url - The URL endpoint.
+   * @param {object} [body] - The request body.
+   * @param {object} [options={}] - Additional fetch options.
+   * @returns {Promise<Response>}
+   */
+  async patch(url, body, options = {}) {
+    const defaultHeaders = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      ...options.headers,
+    };
+    const fetchOptions = {
+      ...options,
+      method: "PATCH",
+      headers: defaultHeaders,
+    };
+    if (body) fetchOptions.body = JSON.stringify(body);
+    return this.fetch(url, fetchOptions);
+  },
+
+  /**
+   * Performs a PATCH request with FormData.
+   * @param {string} url - The URL endpoint.
+   * @param {FormData} formData - The FormData object.
+   * @param {object} [options={}] - Additional fetch options.
+   * @returns {Promise<Response>}
+   */
+  async patchForm(url, formData, options = {}) {
+    return this.fetch(url, {
+      ...options,
+      method: "PATCH",
+      body: formData,
+    });
+  },
 };
 
 export default apiClient;

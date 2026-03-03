@@ -162,37 +162,188 @@
     margin-bottom: 15px;
 }
 
-#current-visit-image-review-section {
-    margin-bottom: 15px;
-    padding: 10px;
+#visit-photos-management-section {
+    margin-bottom: 20px;
+}
+
+.visit-photos-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 15px;
+    margin-top: 10px;
+}
+
+.visit-photo-item {
+    position: relative;
     border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    background: #fff;
+    transition: transform 0.2s;
+}
+
+.visit-photo-item:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--box-shadow-sm);
+}
+
+.visit-photo-item.is-main {
+    border: 2px solid var(--primary-color);
+    box-shadow: 0 0 8px var(--primary-color-light);
+}
+
+.photo-thumb-wrapper {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    background: #f0f0f0;
+}
+
+.photo-thumb-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.main-badge {
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    background: var(--primary-color);
+    color: white;
+    font-size: 0.7em;
+    padding: 2px 6px;
     border-radius: 4px;
-    background-color: #fafafa;
+    font-weight: 600;
+    text-transform: uppercase;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
 }
 
-#current-visit-image-review-section label {
-    font-weight: 500;
-    font-size: 0.9em;
-    color: var(--text-muted);
-    margin-bottom: 5px;
-    display: block;
+.photo-item-actions {
+    padding: 8px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 5px;
 }
 
-#current-visit-image-review-thumb {
-    max-width: 100px;
-    max-height: 75px;
-    border-radius: 4px;
-    display: block;
-    margin-bottom: 8px;
-    border: 1px solid var(--border-color);
+.photo-item-actions button {
+    padding: 4px 8px !important;
+    font-size: 0.8em !important;
+    margin-bottom: 0 !important;
 }
 
-#visit-review-image-section #current-visit-image-review-section input[type="checkbox"]+label {
-    font-size: 0.9em;
-    color: var(--text-color);
-    font-weight: normal;
-    display: inline;
-    margin-bottom: 0;
+.btn-set-main {
+    background-color: var(--secondary-color) !important;
+    color: var(--text-color) !important;
+    flex-grow: 1;
+}
+
+.btn-delete-photo {
+    background-color: var(--error-color) !important;
+    width: 32px;
+}
+
+/* See Visit Review Photo Display - Carousel */
+.carousel-container {
+    position: relative;
+    width: 100%;
+    max-width: 600px;
+    margin: 20px auto 10px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: var(--box-shadow-sm);
+}
+
+.visit-photos-display-carousel {
+    display: flex;
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    height: 400px;
+}
+
+.visit-photos-display-carousel img {
+    min-width: 100%;
+    width: 100%;
+    height: 400px;
+    object-fit: contain;
+    background: #000;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: opacity 0.3s;
+}
+
+.visit-photos-display-carousel img:hover {
+    opacity: 0.9;
+}
+
+.carousel-btn {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 255, 255, 0.85);
+    border: none;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--primary-color-dark);
+    font-size: 1.2em;
+    box-shadow: var(--box-shadow-sm);
+    transition: all 0.2s ease;
+}
+
+.carousel-btn:hover {
+    background: #fff;
+    color: var(--primary-color);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+}
+
+.carousel-btn.prev-btn {
+    left: 10px;
+}
+
+.carousel-btn.next-btn {
+    right: 10px;
+}
+
+.carousel-dots {
+    position: absolute;
+    bottom: 15px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+}
+
+.dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.5);
+    cursor: pointer;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.dot.active {
+    background: #fff;
+    transform: scale(1.2);
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
+}
+
+@media (max-width: 600px) {
+    .visit-photos-display-carousel {
+        height: 300px;
+    }
+
+    .visit-photos-display-carousel img {
+        height: 300px;
+    }
 }
 
 
