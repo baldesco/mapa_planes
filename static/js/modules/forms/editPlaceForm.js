@@ -31,6 +31,7 @@ const editPlaceForm = {
     categorySelect: null,
     statusSelect: null,
     tagsInputElement: null,
+    descriptionInput: null,
     submitBtn: null,
   },
   isMapReady: false,
@@ -85,6 +86,7 @@ const editPlaceForm = {
     this.elements.categorySelect = document.getElementById("edit-category");
     this.elements.statusSelect = document.getElementById("edit-status");
     this.elements.tagsInputElement = document.getElementById("edit-tags-input");
+    this.elements.descriptionInput = document.getElementById("edit-description");
     this.elements.submitBtn = document.getElementById("edit-place-submit-btn");
   },
 
@@ -136,6 +138,7 @@ const editPlaceForm = {
     els.nameInput.value = placeData.name || "";
     els.categorySelect.value = placeData.category || "other";
     els.statusSelect.value = placeData.status || "pending";
+    els.descriptionInput.value = placeData.description || "";
     els.addressInput.value = "";
 
     els.latitudeInput.value = placeData.latitude || "";
@@ -250,6 +253,7 @@ const editPlaceForm = {
       address: this.elements.addressHidden.value || null,
       city: this.elements.cityHidden.value || null,
       country: this.elements.countryHidden.value || null,
+      description: this.elements.descriptionInput?.value || null,
       tags: tags,
     };
 

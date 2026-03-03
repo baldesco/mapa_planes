@@ -116,6 +116,15 @@
     font-size: 0.9em;
 }
 
+.popup-description {
+    font-style: italic;
+    color: var(--text-muted);
+    background: #fdfdfd;
+    padding: 8px;
+    border-left: 3px solid var(--primary-color);
+    margin: 10px 0 !important;
+}
+
 .popup-tags-container {
     margin-top: 6px;
 }
@@ -215,6 +224,10 @@
     position: relative;
 }
 
+#pinning-map-container.visible {
+    display: block;
+}
+
 #pinning-map {
     height: 350px;
     width: 100%;
@@ -287,7 +300,7 @@
         aspect-ratio: 3 / 4;
     }
 
-    #pinning-map-container {
+    #pinning-map-container.visible {
         height: auto;
         max-height: 70vh;
         display: flex;

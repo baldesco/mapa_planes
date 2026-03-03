@@ -1,7 +1,9 @@
 import json
+import os
 import re
 import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Annotated
 
 import pytz
 from fastapi import (
@@ -16,15 +18,15 @@ from fastapi import (
 )
 from ics import Calendar, Event
 from ics.alarm import DisplayAlarm
-from supabase import AsyncClient
 
 from app.auth.dependencies import get_current_active_user, get_db
-from app.core.config import logger
+from app.core.config import logger, settings
 from app.crud import places as crud_places
 from app.crud import visits as crud_visits
 from app.db.setup import get_supabase_service_client
 from app.models import visits as models_visits
 from app.models.auth import UserInToken
+from supabase import AsyncClient
 
 router = APIRouter(prefix="/api/v1", tags=["API - Visits & Calendar"])
 
@@ -37,8 +39,8 @@ router = APIRouter(prefix="/api/v1", tags=["API - Visits & Calendar"])
 async def create_new_visit_for_place(
     place_id: int,
     visit_in: models_visits.VisitCreate,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     place = await crud_places.get_place_by_id(
         db=db, place_id=place_id, user_id=current_user.id
@@ -73,8 +75,8 @@ async def create_new_visit_for_place(
 @router.get("/places/{place_id}/visits", response_model=list[models_visits.Visit])
 async def list_visits_for_place(
     place_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     place = await crud_places.get_place_by_id(
         db=db, place_id=place_id, user_id=current_user.id
@@ -95,8 +97,8 @@ async def list_visits_for_place(
 @router.get("/visits/{visit_id}", response_model=models_visits.Visit)
 async def get_visit_details(
     visit_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     logger.info(f"API Get visit request: ID {visit_id} by user {current_user.email}")
     visit = await crud_visits.get_visit_by_id(
@@ -113,19 +115,23 @@ async def get_visit_details(
 @router.put("/visits/{visit_id}", response_model=models_visits.Visit)
 async def update_existing_visit(
     visit_id: int,
-    visit_datetime: datetime | None = Form(None),
-    review_title: str | None = Form(None),
-    review_text: str | None = Form(None),
-    rating: int | None = Form(None),
-    reminder_enabled: bool | None = Form(None),
-    reminder_offsets_hours_str: str | None = Form(None, alias="reminder_offsets_hours"),
-    image_url_action: str | None = Form(
-        None, description="'remove' to delete image, or keep empty"
-    ),
-    image_file: UploadFile | None = File(None, alias="image_file"),
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    db_service: AsyncClient | None = Depends(get_supabase_service_client),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
+    visit_datetime: Annotated[datetime | None, Form()] = None,
+    review_title: Annotated[str | None, Form()] = None,
+    review_text: Annotated[str | None, Form()] = None,
+    rating: Annotated[int | None, Form()] = None,
+    reminder_enabled: Annotated[bool | None, Form()] = None,
+    reminder_offsets_hours_str: Annotated[
+        str | None, Form(alias="reminder_offsets_hours")
+    ] = None,
+    image_url_action: Annotated[
+        str | None, Form(description="'remove' to delete image, or keep empty")
+    ] = None,
+    image_file: Annotated[UploadFile | None, File(alias="image_file")] = None,
 ):
     logger.info(f"API Update visit request: ID {visit_id} by user {current_user.email}")
 
@@ -176,7 +182,7 @@ async def update_existing_visit(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Invalid format for reminder_offsets_hours: {e}",
-            )
+            ) from e
 
     if parsed_offsets is not None:
         update_payload_dict["reminder_offsets_hours"] = parsed_offsets
@@ -192,7 +198,7 @@ async def update_existing_visit(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid update data: {pydantic_error}",
-        )
+        ) from pydantic_error
 
     updated_visit = await crud_visits.update_visit(
         db=db,
@@ -223,9 +229,11 @@ async def update_existing_visit(
 @router.delete("/visits/{visit_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_existing_visit(
     visit_id: int,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
-    db_service: AsyncClient | None = Depends(get_supabase_service_client),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
 ):
     logger.warning(
         f"API Delete visit request: ID {visit_id} by user {current_user.email}"
@@ -262,12 +270,164 @@ async def delete_existing_visit(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post(
+    "/visits/{visit_id}/photos",
+    response_model=models_visits.VisitPhoto,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_new_visit_photo(
+    visit_id: int,
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    image_file: Annotated[UploadFile, File()],
+):
+    logger.info(
+        f"API: Uploading photo for visit {visit_id} by user {current_user.email}"
+    )
+
+    visit = await crud_visits.get_visit_by_id(
+        db=db, visit_id=visit_id, user_id=current_user.id
+    )
+    if not visit:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Visit not found."
+        )
+
+    # 1. Upload to storage
+    # Reusing the logic from upload_place_image but adapted for visits
+    file_extension = (
+        os.path.splitext(image_file.filename)[1].lower()
+        if image_file.filename
+        else ".jpg"
+    )
+    allowed = [".jpg", ".jpeg", ".png", ".gif", ".webp"]
+    if file_extension not in allowed:
+        file_extension = ".jpg"
+
+    storage_path = f"places/{current_user.id}/{visit.place_id}/visits/{visit_id}/{uuid.uuid4()}{file_extension}"
+    content = await image_file.read()
+
+    try:
+        storage_from = db.storage.from_(settings.SUPABASE_BUCKET_NAME)
+        await storage_from.upload(
+            path=storage_path,
+            file=content,
+            file_options={
+                "content-type": image_file.content_type or "image/jpeg",
+                "cache-control": "3600",
+                "upsert": "false",
+            },
+        )
+        public_url = str(await storage_from.get_public_url(storage_path))
+
+        # Check if this is the first photo for this visit
+        existing_photos = await crud_visits.get_visit_by_id(
+            db=db, visit_id=visit_id, user_id=current_user.id
+        )
+        is_first_photo = not (existing_photos.photos if existing_photos else [])
+
+        # 2. Add to DB
+        created_photo = await crud_visits.add_visit_photo(
+            db=db,
+            visit_id=visit_id,
+            user_id=current_user.id,
+            image_url=public_url,
+            storage_path=storage_path,
+            is_main=is_first_photo,
+        )
+
+        if created_photo and is_first_photo:
+            # Sync to visits table for backward compatibility
+            await (
+                db.table("visits")
+                .update({"image_url": public_url})
+                .eq("id", visit_id)
+                .execute()
+            )
+        if not created_photo:
+            # Cleanup storage if DB insert fails
+            await storage_from.remove([storage_path])
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not save photo info to database.",
+            )
+
+        return created_photo
+    except Exception as e:
+        logger.error(f"API: Exception uploading visit photo: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)
+        ) from e
+
+
+@router.delete(
+    "/visits/{visit_id}/photos/{photo_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+async def delete_visit_photo(
+    visit_id: int,
+    photo_id: int,
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+    db_service: Annotated[
+        AsyncClient | None, Depends(get_supabase_service_client)
+    ] = None,
+):
+    logger.info(
+        f"API: Deleting photo {photo_id} for visit {visit_id} by user {current_user.email}"
+    )
+
+    success = await crud_visits.delete_visit_photo(
+        db=db, photo_id=photo_id, user_id=current_user.id, db_service=db_service
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Photo not found or access denied.",
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch(
+    "/visits/{visit_id}/photos/{photo_id}/main",
+    response_model=models_visits.VisitPhoto,
+)
+async def set_visit_main_photo(
+    visit_id: int,
+    photo_id: int,
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+):
+    logger.info(
+        f"API: Setting photo {photo_id} as main for visit {visit_id} by user {current_user.email}"
+    )
+
+    success = await crud_visits.set_main_photo(
+        db=db, visit_id=visit_id, photo_id=photo_id, user_id=current_user.id
+    )
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Photo not found or access denied.",
+        )
+
+    # Return the updated photo object
+    response = (
+        await db.table("visit_photos")
+        .select("*")
+        .eq("id", photo_id)
+        .maybe_single()
+        .execute()
+    )
+    return models_visits.VisitPhoto(**response.data)
+
+
 @router.post("/visits/{visit_id}/calendar_event", response_class=Response)
 async def generate_calendar_event_for_visit(
     visit_id: int,
     customization_data: models_visits.CalendarEventCustomization,
-    db: AsyncClient = Depends(get_db),
-    current_user: UserInToken = Depends(get_current_active_user),
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
 ):
     logger.info(f"API: Generating ICS for visit {visit_id}, user {current_user.email}")
 

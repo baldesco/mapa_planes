@@ -1,9 +1,9 @@
 import os
+import unicodedata
 import uuid
 from datetime import UTC, datetime
 
 from fastapi import UploadFile
-from supabase import AsyncClient
 
 from app.core.config import logger, settings
 from app.crud import tags as crud_tags
@@ -17,6 +17,7 @@ from app.models.places import (
 from app.models.tags import Tag
 from app.models.visits import Visit
 from app.services.timezone_service import get_timezone_from_coordinates
+from supabase import AsyncClient
 
 TABLE_NAME = "places"
 PLACE_TAGS_TABLE = "place_tags"
@@ -184,25 +185,36 @@ async def create_place(
         return None
 
 
+def _normalize_text(text: str | None) -> str:
+    """Helper to remove accents and lowercase text for flexible matching."""
+    if not text:
+        return ""
+    # Remove accents using NFKD decomposition
+    normalized = (
+        unicodedata.normalize("NFKD", text)
+        .encode("ascii", "ignore")
+        .decode("utf-8")
+        .lower()
+    )
+    return normalized
+
+
 async def get_places(
     db: AsyncClient,
     user_id: uuid.UUID,
     category: PlaceCategory | None = None,
     status_filter: PlaceStatus | None = None,
     tag_names: list[str] | None = None,
+    search_query: str | None = None,
     skip: int = 0,
     limit: int = 100,
     include_deleted: bool = False,
 ) -> list[Place]:
-    """Fetches list of places with all relations asynchronously."""
+    """Fetches list of places with all relations and optional search asynchronously."""
     try:
-        query = (
-            db.table(TABLE_NAME)
-            .select("*")
-            .eq("user_id", str(user_id))
-            .order("created_at", desc=True)
-        )
+        query = db.table(TABLE_NAME).select("*").eq("user_id", str(user_id))
 
+        # Base filters
         if category:
             query = query.eq("category", category.value)
         if status_filter:
@@ -210,8 +222,10 @@ async def get_places(
         if not include_deleted:
             query = query.is_("deleted_at", None)
 
-        # Note: Advanced tag filtering typically requires an inner join or RPC.
-        # For parity, we execute the standard query and filter by tag_names in the hydration step if provided.
+        # If no search query, maintain original ordering
+        if not search_query:
+            query = query.order("created_at", desc=True)
+
         response = await query.range(skip, skip + limit - 1).execute()
         place_data_list = response.data or []
 
@@ -222,7 +236,14 @@ async def get_places(
         tags_map = await _get_tags_for_place_ids(db=db, place_ids=place_ids)
         visits_map = await _get_visits_for_place_ids(db=db, place_ids=place_ids)
 
-        places_validated: list[Place] = []
+        places_validated: list[tuple[float, Place]] = []
+
+        # Normalize search query once
+        search_terms = []
+        if search_query:
+            normalized_query = _normalize_text(search_query)
+            search_terms = normalized_query.split()
+
         for p_data in place_data_list:
             try:
                 place_id = p_data.get("id")
@@ -231,18 +252,62 @@ async def get_places(
 
                 # Apply in-memory tag filter if requested
                 if tag_names:
-                    clean_filter = {t.strip().lower() for t in tag_names}
-                    place_tag_names = {t.name.lower() for t in p_data["tags"]}
+                    clean_filter = {_normalize_text(t) for t in tag_names}
+                    place_tag_names = {_normalize_text(t.name) for t in p_data["tags"]}
                     if not (clean_filter & place_tag_names):
                         continue
 
-                places_validated.append(Place(**p_data))
+                place_obj = Place(**p_data)
+
+                # Search relevance ranking
+                relevance_score = 0.0
+                if search_terms:
+                    name_norm = _normalize_text(place_obj.name)
+                    desc_norm = _normalize_text(place_obj.description)
+
+                    matches_any = False
+                    for term in search_terms:
+                        term_score = 0.0
+                        if term == name_norm:
+                            term_score += 10.0
+                        elif term in name_norm:
+                            term_score += 5.0
+
+                        if desc_norm and term in desc_norm:
+                            term_score += 3.0
+
+                        # Tags match
+                        for tag in place_obj.tags:
+                            if term in _normalize_text(tag.name):
+                                term_score += 4.0
+
+                        # Visits match
+                        for visit in place_obj.visits:
+                            if visit.review_title:
+                                if term in _normalize_text(visit.review_title):
+                                    term_score += 2.0
+                            if visit.review_text:
+                                if term in _normalize_text(visit.review_text):
+                                    term_score += 1.0
+
+                        if term_score > 0:
+                            matches_any = True
+                            relevance_score += term_score
+
+                    if not matches_any:
+                        continue  # Filter out non-matching if searching
+
+                places_validated.append((relevance_score, place_obj))
             except Exception as validation_error:
                 logger.error(
                     f"CRUD: Pydantic validation error for place ID {p_data.get('id')}: {validation_error}"
                 )
 
-        return places_validated
+        # Sort by relevance if searching, otherwise maintain original order (already sorted by DB if no search)
+        if search_query:
+            places_validated.sort(key=lambda x: x[0], reverse=True)
+
+        return [p[1] for p in places_validated]
     except Exception as e:
         logger.error(f"CRUD: General Exception during get_places: {e}", exc_info=True)
         return []
@@ -494,7 +559,7 @@ async def upload_place_image(
         )
 
         # 4. Get and return public URL
-        public_url_response = storage_from.get_public_url(storage_path)
+        public_url_response = await storage_from.get_public_url(storage_path)
         return str(public_url_response) if public_url_response else None
 
     except Exception as e:
