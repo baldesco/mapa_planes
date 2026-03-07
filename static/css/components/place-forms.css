@@ -54,20 +54,20 @@
     margin-top: 15px;
     margin-bottom: 20px;
     padding: 15px;
-    background-color: var(--light-blue-bg);
-    border: 1px dashed var(--light-blue-border);
+    background-color: rgba(99, 102, 241, 0.05);
+    border: 1px dashed var(--primary-light);
     border-radius: 6px;
     font-size: 0.95em;
 }
 
 .coords-section p {
     margin: 6px 0;
-    color: #01579b;
+    color: var(--primary-light);
 }
 
 .coords-section strong {
     font-weight: 500;
-    color: #014a7e;
+    color: var(--white);
 }
 
 /* --- Plan/Edit Visit Form Specifics --- */
@@ -117,12 +117,13 @@
     width: 100%;
     padding: 10px 12px 10px 40px;
     margin-bottom: 0;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     border-radius: 6px;
     font-size: 1em;
     font-family: inherit;
-    background-color: #fff;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    background-color: rgba(255, 255, 255, 0.05);
+    color: var(--white);
+    transition: var(--transition-base);
     appearance: none;
     -webkit-appearance: none;
     -moz-appearance: none;
@@ -175,10 +176,10 @@
 
 .visit-photo-item {
     position: relative;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
     overflow: hidden;
-    background: #fff;
+    background: var(--bg-surface);
     transition: transform 0.2s;
 }
 
@@ -195,7 +196,7 @@
 .photo-thumb-wrapper {
     position: relative;
     aspect-ratio: 4 / 3;
-    background: #f0f0f0;
+    background: rgba(0, 0, 0, 0.2);
 }
 
 .photo-thumb-wrapper img {
@@ -249,7 +250,7 @@
     width: 100%;
     max-width: 600px;
     margin: 20px auto 10px;
-    background: #f8f9fa;
+    background: rgba(0, 0, 0, 0.2);
     border-radius: 12px;
     overflow: hidden;
     box-shadow: var(--box-shadow-sm);
@@ -424,7 +425,7 @@
 .form-actions {
     margin-top: 25px;
     padding-top: 15px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--glass-border);
     display: flex;
     justify-content: flex-end;
     flex-wrap: wrap;

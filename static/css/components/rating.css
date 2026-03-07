@@ -30,7 +30,7 @@
 /* Style for selected/hovered stars */
 .rating-stars .star.selected,
 .rating-stars .star:hover {
-    color: #FFD700;
+    color: var(--star-color);
     /* Gold color for selected/hover */
 }
 
@@ -41,7 +41,7 @@
     /* Or block if needed */
     font-size: 1em;
     /* Adjust size as needed */
-    color: #ccc;
+    color: #475569;
     /* Default color for empty stars */
     line-height: 1;
     margin-bottom: 10px;
@@ -50,12 +50,12 @@
 
 .rating-stars-display .fas {
     /* Filled star */
-    color: #FFD700;
+    color: var(--star-color);
 }
 
 .rating-stars-display .far {
     /* Empty star */
-    color: #ccc;
+    color: #475569;
 }
 
 /* Style for rating stars inside Leaflet popups */
