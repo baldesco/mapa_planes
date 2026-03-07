@@ -108,7 +108,9 @@ document.addEventListener('DOMContentLoaded', () => {
     function getFilterRange() {
         const preset = dateRangePreset.value;
         const now = new Date();
-        let start = new Date(now.getTime()); // Base on now
+        const completedOnly = completedOnlyCheckbox.checked;
+        
+        let start = new Date(now.getTime());
         let end = new Date(now.getTime());
 
         if (preset === 'last-7-days') {
@@ -123,6 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
             start.setFullYear(now.getFullYear() - 1);
         } else if (preset === 'this-year') {
             start = new Date(now.getFullYear(), 0, 1);
+            end = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
         } else if (preset === 'last-year') {
             start = new Date(now.getFullYear() - 1, 0, 1);
             end = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59);
@@ -135,12 +138,22 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         } else if (preset === 'all') {
             start = new Date(0);
+            end = new Date(2099, 11, 31);
         }
+
+        // Clamp to TODAY if only showing completed visits
+        if (completedOnly) {
+            const todayEnd = new Date(now.getTime());
+            todayEnd.setHours(23, 59, 59, 999);
+            if (end > todayEnd) {
+                end = todayEnd;
+            }
+        }
+
         return { start, end };
     }
 
     function isVisitInRange(visit, range) {
-        if (dateRangePreset.value === 'all') return true;
         const dateStr = visit.visit_datetime || visit.created_at;
         if (!dateStr) return false;
         const d = new Date(dateStr);
