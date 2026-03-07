@@ -577,8 +577,9 @@ const uiOrchestrator = {
       .forEach((btn) => {
         btn.addEventListener("click", (e) => {
           const data = JSON.parse(e.currentTarget.dataset.visit);
+          const placeContext = this.currentPlaceForVisitModal;
           this.hideVisitsListModal();
-          this.showPlanVisitForm(this.currentPlaceForVisitModal, data);
+          this.showPlanVisitForm(placeContext, data);
         });
       });
 

@@ -7,111 +7,128 @@ body.auth-page {
 }
 
 .auth-container {
-    background: var(--white);
-    padding: 40px 35px;
-    border-radius: 12px;
-    box-shadow: var(--box-shadow);
-    max-width: 420px;
+    background: var(--bg-surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-xl);
+    box-shadow: var(--box-shadow-lg);
+    padding: 48px;
+    max-width: 440px;
     width: 90%;
-    /* Responsive width */
     margin: 20px;
-    /* Ensure some margin on small screens */
     text-align: center;
+    animation: zoomIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes zoomIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 .auth-container h1 {
     margin-top: 0;
-    margin-bottom: 35px;
-    font-size: 2.1em;
-    color: var(--primary-color);
-    border-bottom: none;
-    padding-bottom: 0;
+    margin-bottom: 40px;
+    font-size: 2.5em;
+    font-weight: 700;
 }
 
 .auth-container label {
     display: block;
-    margin-bottom: 8px;
-    font-weight: 500;
-    color: var(--text-muted);
+    margin-bottom: 10px;
+    font-weight: 600;
+    color: var(--primary-light);
     text-align: left;
-    font-size: 0.95em;
+    font-size: 0.9em;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .auth-container input[type="email"],
 .auth-container input[type="password"] {
     width: 100%;
-    padding: 14px 16px;
-    margin-bottom: 22px;
-    border: 1px solid var(--border-color);
-    border-radius: 8px;
-    font-size: 1em;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    color: var(--white);
+    padding: 14px 18px;
+    margin-bottom: 24px;
+    font-size: 1rem;
     font-family: inherit;
-    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    transition: var(--transition-base);
 }
 
 .auth-container input[type="email"]:focus,
 .auth-container input[type="password"]:focus {
-    border-color: var(--primary-color);
-    box-shadow: 0 0 0 3px var(--primary-color-light);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--primary-light);
+    box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
     outline: none;
 }
 
 /* Specific message styling for auth pages */
 .message-auth {
-    padding: 12px 15px;
-    border-radius: 6px;
-    margin-bottom: 20px;
+    padding: 14px 20px;
+    border-radius: var(--radius-md);
+    margin-bottom: 24px;
     display: none;
-    /* Hidden by default */
     text-align: center;
     font-size: 0.95em;
     border: 1px solid transparent;
 }
 
 .error-message-auth {
-    color: var(--error-color);
-    background-color: #ffcdd2;
-    border-color: #ef9a9a;
+    color: var(--white);
+    background: rgba(239, 68, 68, 0.2);
+    border-color: rgba(239, 68, 68, 0.3);
 }
 
 .info-message-auth {
-    color: #0d47a1;
-    /* Darker blue */
-    background-color: #bbdefb;
-    /* Lighter blue */
-    border-color: #90caf9;
+    color: var(--white);
+    background: rgba(59, 130, 246, 0.2);
+    border-color: rgba(59, 130, 246, 0.3);
 }
 
 .success-message-auth {
-    color: var(--primary-color-dark);
-    background-color: var(--primary-color-light);
-    border-color: #a5d6a7;
+    color: var(--white);
+    background: rgba(16, 185, 129, 0.2);
+    border-color: rgba(16, 185, 129, 0.3);
 }
 
 /* Auth form submit button */
 .auth-container button[type="submit"] {
     width: 100%;
-    padding: 14px;
-    margin-top: 15px;
-    /* Space above button */
+    padding: 16px;
+    margin-top: 10px;
     font-size: 1.1em;
-    background-color: var(--primary-color);
-    color: white;
+    font-weight: 700;
+    color: var(--white);
+    background: linear-gradient(135deg, var(--primary-color) 0%, var(--primary-dark) 100%);
     border: none;
-    border-radius: 8px;
+    border-radius: var(--radius-lg);
     cursor: pointer;
-    transition: background-color 0.2s ease, transform 0.1s ease;
+    box-shadow: 0 4px 14px 0 rgba(99, 102, 241, 0.4);
+    transition: var(--transition-base);
 }
 
 .auth-container button[type="submit"]:hover {
-    background-color: var(--primary-color-dark);
-    transform: translateY(-1px);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px 0 rgba(99, 102, 241, 0.5);
 }
 
 .auth-container button[type="submit"]:disabled {
-    background-color: #bdbdbd;
+    background: var(--bg-surface);
+    color: var(--text-dim);
     cursor: not-allowed;
     transform: none;
+    box-shadow: none;
 }
 
 

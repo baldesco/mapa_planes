@@ -20,6 +20,16 @@ A modern web application for creating and managing a personal, interactive map o
 - **Calendar Integration:** ics-based export for visits, allowing users to add planned visits to their personal calendars with customizable reminders and timezone support.
 - **Automatic Timezone Detection:** Uses `timezonefinder` to automatically determine the IANA timezone of a place based on its coordinates, ensuring accurate calendar events.
 - **Geocoding:** Uses OpenCage Geocoder API to convert addresses/place names into coordinates.
+- **Analytics Dashboard:**
+  - Dynamic bento-grid based reporting.
+  - Interactive charts for visit velocity, category distribution, and rating profiles (Chart.js).
+  - Advanced filtering by date (presets and custom ranges), category, and rating.
+  - "Photo Memories" carousel with smart image scaling (object-fit protection).
+  - Ability to toggle between completed visits and upcoming plans.
+- **Premium Visual Overhaul:**
+  - Modern "Obsidian & Aurora" glassmorphism theme.
+  - Fully responsive, mobile-first design system.
+  - Smooth global layout transitions and premium typography.
 - **Image Handling:** Upload and manage place images using Supabase Storage.
 - **Free Tier Focused:** Designed to run primarily on free services (Supabase, OpenCage free tier).
 
@@ -29,9 +39,10 @@ A modern web application for creating and managing a personal, interactive map o
 - **Authentication & Database:** Supabase (Auth, PostgreSQL, Storage) with Async Client
 - **Mapping:** Folium / Leaflet.js
 - **Geocoding:** OpenCage Geocoder API
-- **Frontend:** HTML (Jinja2), Vanilla JavaScript (Modular), CSS3
+- **Frontend:** HTML (Jinja2), Vanilla JavaScript (Modular), CSS3 (Custom Design System)
+- **Visualization:** Chart.js 4.x
 - **Dev Tools:** Ruff (Linting & Formatting)
-- **Key Dependencies:** `pydantic-settings`, `timezonefinder`, `ics`, `python-jose`, `passlib`, `python-dotenv`.
+- **Key Dependencies:** `pydantic-settings`, `timezonefinder`, `ics`, `python-jose`, `passlib`, `python-dotenv`, `flatpickr`.
 
 ## Project Structure
 
