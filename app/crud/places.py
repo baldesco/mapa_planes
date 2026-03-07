@@ -80,10 +80,32 @@ async def _get_visits_for_place_ids(
         )
 
         if response.data:
+            visit_ids = [v["id"] for v in response.data]
+            photos_by_visit = {}
+            try:
+                # Fetch all photos for these visits in one go
+                photos_response = (
+                    await db.table("visit_photos")
+                    .select("*")
+                    .in_("visit_id", visit_ids)
+                    .order("is_main", desc=True)
+                    .order("created_at", desc=False)
+                    .execute()
+                )
+
+                for photo in photos_response.data or []:
+                    vid = photo["visit_id"]
+                    if vid not in photos_by_visit:
+                        photos_by_visit[vid] = []
+                    photos_by_visit[vid].append(photo)
+            except Exception as photo_err:
+                logger.error(f"CRUD Places Helper: Error fetching photos for visits: {photo_err}")
+
             for visit_data in response.data:
                 pid = visit_data.get("place_id")
                 if pid and pid in visits_by_place_id:
                     try:
+                        visit_data["photos"] = photos_by_visit.get(visit_data["id"], [])
                         visits_by_place_id[pid].append(Visit(**visit_data))
                     except Exception as validation_error:
                         logger.error(

@@ -5,13 +5,14 @@
     max-width: 650px;
     margin-left: auto;
     margin-right: auto;
-    background-color: var(--white);
-    padding: 25px 30px;
-    border-radius: 8px;
-    box-shadow: var(--box-shadow);
-    border: 1px solid var(--border-color);
+    background: var(--bg-surface);
+    backdrop-filter: var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    padding: 32px 40px;
+    border-radius: var(--radius-xl);
+    box-shadow: var(--box-shadow-lg);
+    border: 1px solid var(--glass-border);
     margin-bottom: 30px;
-    /* display: none; is handled by ui.js */
 }
 
 .modal-section fieldset {
@@ -21,14 +22,14 @@
 }
 
 .modal-section h2 {
-    font-size: 1.5em;
+    font-size: 1.8em;
     margin-top: 0;
-    margin-bottom: 20px;
-    font-weight: 500;
-    color: var(--primary-color-dark);
+    margin-bottom: 24px;
+    font-weight: 700;
+    color: var(--white);
     text-align: left;
-    border-bottom: 1px solid #eee;
-    padding-bottom: 10px;
+    border-bottom: 1px solid var(--glass-border);
+    padding-bottom: 12px;
 }
 
 /* Contextual info below modal title (e.g., visit date) */
@@ -45,9 +46,9 @@
     max-height: 450px;
     overflow-y: auto;
     margin-bottom: 20px;
-    border: 1px solid var(--tertiary-color);
-    border-radius: 4px;
-    background-color: #fdfdfd;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.02);
 }
 
 /* Specific elements within the See Visit Review modal */
@@ -92,7 +93,7 @@
 /* Action buttons area at the bottom of the modal */
 .modal-actions {
     text-align: right;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--glass-border);
     padding-top: 20px;
     margin-top: 20px;
     display: flex;
@@ -118,10 +119,15 @@
 }
 
 .visit-item {
-    padding: 12px 15px;
-    border-bottom: 1px solid var(--tertiary-color);
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--glass-border);
     font-size: 0.95em;
     line-height: 1.5;
+    transition: var(--transition-base);
+}
+
+.visit-item:hover {
+    background: rgba(255, 255, 255, 0.03);
 }
 
 .visit-item:last-child {
@@ -129,14 +135,14 @@
 }
 
 .visit-item strong {
-    font-weight: 500;
-    color: var(--primary-color-dark);
+    font-weight: 600;
+    color: var(--primary-light);
     display: block;
     margin-bottom: 4px;
 }
 
 .visit-item em {
-    color: #555;
+    color: var(--text-dim);
     display: block;
     margin-top: 2px;
     font-size: 0.9em;
@@ -144,23 +150,23 @@
 }
 
 .future-visit {
-    background-color: var(--primary-color-light);
+    background-color: rgba(99, 102, 241, 0.1);
     border-left: 4px solid var(--primary-color);
     padding-left: calc(15px + 8px);
     margin-left: -15px;
 }
 
 .future-visit strong {
-    color: var(--primary-color-dark);
+    color: var(--primary-light);
 }
 
 .future-tag {
     font-size: 0.8em;
     font-weight: 600;
-    color: var(--primary-color-dark);
-    background-color: #fff;
-    border: 1px solid var(--primary-color-light);
-    padding: 1px 5px;
+    color: var(--primary-light);
+    background-color: rgba(99, 102, 241, 0.2);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    padding: 1px 6px;
     border-radius: 4px;
     margin-left: 8px;
     vertical-align: middle;

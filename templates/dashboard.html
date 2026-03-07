@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Mapa Planes</title>
+    <link rel="icon" href="{{ url_for('static', path='/penguin_favicon.png') }}" type="image/png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', path='/css/main.css') }}">
+    <!-- Chart.js and Date Pickers -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+    <style>
+        /* Specific page overrides if needed */
+        .chart-container {
+            flex: 1;
+            min-height: 0;
+            position: relative;
+        }
+    </style>
+</head>
+
+<body class="dashboard-page">
+    <!-- Raw data for JS -->
+    <input type="hidden" id="places-data" value='{{ places_json | safe }}'>
+
+    <div class="container">
+        <header class="main-header">
+            <div class="header-brand">
+                <h1>🐧 Dos en la ciudad 🦖</h1>
+            </div>
+            <nav class="main-nav">
+                <a href="{{ url_for('serve_root_page') }}" class="nav-link">
+                    <i class="fas fa-map"></i> Map
+                </a>
+                <a href="{{ url_for('serve_dashboard_page') }}" class="nav-link active">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </a>
+            </nav>
+            {% if user_email %}
+            <div class="user-info">
+                 <div class="user-meta">
+                    <span class="user-email">{{ user_email }}</span>
+                </div>
+                <button type="button" id="logout-btn" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+            {% endif %}
+        </header>
+
+        <section class="dashboard-filters glass-card">
+            <div class="filter-group">
+                <label><i class="fas fa-calendar-alt"></i> Range:</label>
+                <select id="date-range-preset">
+                    <option value="last-year">Last Year</option>
+                    <option value="last-month">Last Month</option>
+                    <option value="last-30-days" selected>Last 30 Days</option>
+                    <option value="this-year">This Year</option>
+                    <option value="last-7-days">Last 7 Days</option>
+                    <option value="last-12-months">Last 12 Months</option>
+                    <option value="all">All Time</option>
+                    <option value="custom">Custom Range</option>
+                </select>
+                <input type="text" id="custom-date-picker" style="display: none;" placeholder="Select dates...">
+            </div>
+
+            <div class="filter-group">
+                <input type="checkbox" id="completed-visits-only" checked>
+                <label for="completed-visits-only">Completed Visits Only</label>
+            </div>
+            <div class="filter-group">
+                <label><i class="fas fa-layer-group"></i> Category:</label>
+                <select id="category-filter">
+                    <option value="all">All Categories</option>
+                    <!-- Categories will be added by JS -->
+                </select>
+            </div>
+            <div class="filter-group">
+                <label><i class="fas fa-star"></i> Rating:</label>
+                <input type="range" id="min-rating" min="0" max="5" step="0.5" value="0">
+                <span id="rating-value">0+</span>
+            </div>
+        </section>
+
+        <div class="bento-grid">
+            <!-- Row 1: Essential Metrics -->
+            <div class="bento-item small glass-card" id="tile-key-metrics">
+                <h3><i class="fas fa-bolt"></i> Key Metrics</h3>
+                <div class="stats-container">
+                    <div class="stat-box">
+                        <span class="stat-label">Total Places</span>
+                        <span class="stat-value" id="stat-total-places">0</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-label">Visited</span>
+                        <span class="stat-value" id="stat-visited-total">0</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bento-item small glass-card" id="tile-status-overview">
+                <h3><i class="fas fa-tasks"></i> Status Breakdown</h3>
+                <div class="chart-container">
+                    <canvas id="chart-status-overview"></canvas>
+                </div>
+            </div>
+
+            <!-- Row 2: Main Activity Timeline (Moved Up) -->
+            <div class="bento-item large glass-card" id="tile-visit-timeline">
+                <h3><i class="fas fa-chart-bar"></i> Visit Activity</h3>
+                <div class="chart-container">
+                    <canvas id="chart-visit-timeline"></canvas>
+                </div>
+            </div>
+
+            <!-- Row 3: Distribution & Profile (Moved Down) -->
+            <div class="bento-item small glass-card" id="tile-category-breakdown">
+                <h3><i class="fas fa-chart-pie"></i> Category Distribution</h3>
+                <div class="chart-container">
+                    <canvas id="chart-category-breakdown"></canvas>
+                </div>
+            </div>
+
+            <div class="bento-item small glass-card" id="tile-rating-profile">
+                <h3><i class="fas fa-star-half-alt"></i> Rating Profile</h3>
+                <div class="chart-container">
+                    <canvas id="chart-rating-profile"></canvas>
+                </div>
+            </div>
+
+            <!-- Row 4: Discoveries & Photos -->
+            <div class="bento-item small glass-card" id="tile-tag-landscape">
+                <h3><i class="fas fa-tags"></i> Top Tags</h3>
+                <div class="chart-container">
+                    <canvas id="chart-tag-landscape"></canvas>
+                </div>
+            </div>
+
+            <div class="bento-item small glass-card" id="tile-photo-landscape">
+                <h3><i class="fas fa-camera-retro"></i> Photo Memories</h3>
+                <div class="gallery-carousel">
+                    <div class="gallery-carousel-inner" id="gallery-carousel-inner">
+                        <!-- Photos will be added by JS -->
+                    </div>
+                    <button class="gallery-nav prev" id="gallery-prev"><i class="fas fa-chevron-left"></i></button>
+                    <button class="gallery-nav next" id="gallery-next"><i class="fas fa-chevron-right"></i></button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Visit Review Modal (In-Dashboard) -->
+    <div id="dashboard-visit-modal" class="dashboard-modal" style="display: none;">
+        <div class="dashboard-modal-content glass-card">
+            <div class="dashboard-modal-header">
+                <h2 id="modal-place-name">Place Name</h2>
+                <button id="close-dashboard-modal" class="close-btn">&times;</button>
+            </div>
+            <div class="dashboard-modal-body">
+                <div class="visit-meta">
+                    <span id="modal-visit-date"><i class="fas fa-calendar-alt"></i> Date</span>
+                    <div id="modal-rating-display" class="rating-stars-display"></div>
+                </div>
+                <h3 id="modal-review-title">Review Title</h3>
+                <p id="modal-review-text">Review details go here...</p>
+                
+                <div class="dashboard-carousel" id="modal-carousel" style="display: none;">
+                    <div class="carousel-inner" id="modal-carousel-inner">
+                        <!-- Photos injected here -->
+                    </div>
+                    <button class="carousel-nav prev" id="modal-prev"><i class="fas fa-chevron-left"></i></button>
+                    <button class="carousel-nav next" id="modal-next"><i class="fas fa-chevron-right"></i></button>
+                    <div class="carousel-dots" id="modal-dots"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script type="module" src="{{ url_for('static', path='/js/dashboard.js') }}"></script>
+</body>
+
+</html>

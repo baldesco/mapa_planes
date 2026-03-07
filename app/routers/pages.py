@@ -106,8 +106,42 @@ async def serve_root_page(
         "current_status": status_str or None,
         "current_tags_filter": current_tags_filter,
         "user_email": current_user.email,
+        "active_page": "map",
     }
     return templates.TemplateResponse("index.html", context)
+
+
+@router.get("/dashboard", response_class=HTMLResponse, name="serve_dashboard_page")
+async def serve_dashboard_page(
+    request: Request,
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+):
+    logger.info(f"Request dashboard page for user {current_user.email}.")
+
+    try:
+        # Fetch all places for the user to calculate stats
+        places_list = await crud_places.get_places(
+            db=db,
+            user_id=current_user.id,
+            limit=1000,
+        )
+        places_json = json.dumps([p.model_dump(mode="json") for p in places_list])
+
+        context = {
+            "request": request,
+            "places_json": places_json,
+            "user_email": current_user.email,
+            "active_page": "dashboard",
+        }
+        return templates.TemplateResponse("dashboard.html", context)
+
+    except Exception as e:
+        logger.error(f"Error preparing dashboard: {e}", exc_info=True)
+        return RedirectResponse(
+            url=request.url_for("serve_root_page"),
+            status_code=status.HTTP_302_FOUND,
+        )
 
 
 @router.get("/login", response_class=HTMLResponse, name="serve_login_page")

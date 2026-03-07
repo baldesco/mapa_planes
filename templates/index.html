@@ -18,16 +18,30 @@
 <body>
     <div class="container">
         <header class="main-header">
-            <h1>🐧 Dos en la ciudad 🦖</h1>
+            <div class="header-brand">
+                <h1>🐧 Dos en la ciudad 🦖</h1>
+            </div>
+            <nav class="main-nav">
+                <a href="{{ url_for('serve_root_page') }}" class="nav-link {% if active_page == 'map' %}active{% endif %}">
+                    <i class="fas fa-map"></i> Map
+                </a>
+                <a href="{{ url_for('serve_dashboard_page') }}" class="nav-link {% if active_page == 'dashboard' %}active{% endif %}">
+                    <i class="fas fa-chart-pie"></i> Dashboard
+                </a>
+            </nav>
             {% if user_email %}
             <div class="user-info">
-                <span>Logged in as: {{ user_email }}</span>
-                <button type="button" id="logout-btn" class="logout-btn">Logout</button>
+                 <div class="user-meta">
+                    <span class="user-email">{{ user_email }}</span>
+                </div>
+                <button type="button" id="logout-btn" class="logout-btn">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
             </div>
             {% else %}
             <div class="auth-links-header">
-                <a href="{{ url_for('serve_login_page') }}">Login</a>
-                <a href="{{ url_for('serve_signup_page') }}">Sign Up</a>
+                <a href="{{ url_for('serve_login_page') }}" class="glass-btn">Login</a>
+                <a href="{{ url_for('serve_signup_page') }}" class="glass-btn primary">Sign Up</a>
             </div>
             {% endif %}
         </header>
