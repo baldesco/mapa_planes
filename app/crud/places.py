@@ -1,7 +1,9 @@
+import math
 import os
 import unicodedata
 import uuid
 from datetime import UTC, datetime
+from difflib import SequenceMatcher
 
 from fastapi import UploadFile
 
@@ -219,6 +221,87 @@ def _normalize_text(text: str | None) -> str:
         .lower()
     )
     return normalized
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    """Calculates the great-circle distance between two points in meters."""
+    R = 6371000  # Earth radius in meters
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dphi / 2) ** 2
+        + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    )
+    return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+async def check_for_potential_duplicates(
+    db: AsyncClient,
+    user_id: uuid.UUID,
+    name: str,
+    latitude: float,
+    longitude: float,
+    distance_threshold_m: float = 200.0,
+    similarity_threshold: float = 0.8,
+) -> list[Place]:
+    """
+    Checks for places belonging to the user that are close in location and name.
+    """
+    try:
+        # 1. Broad spatial filter using a bounding box (simplified lat/lon delta)
+        # 1 degree lat ~ 111km. 200m ~ 0.0018 degrees.
+        lat_delta = distance_threshold_m / 111000.0
+        # lon delta depends on latitude
+        lon_delta = distance_threshold_m / (111000.0 * math.cos(math.radians(latitude)))
+
+        query = (
+            db.table(TABLE_NAME)
+            .select("*")
+            .eq("user_id", str(user_id))
+            .is_("deleted_at", None)
+            .gte("latitude", latitude - lat_delta)
+            .lte("latitude", latitude + lat_delta)
+            .gte("longitude", longitude - lon_delta)
+            .lte("longitude", longitude + lon_delta)
+        )
+
+        response = await query.execute()
+        nearby_candidates = response.data or []
+
+        if not nearby_candidates:
+            return []
+
+        potential_duplicates = []
+        normalized_new_name = _normalize_text(name)
+
+        for p_data in nearby_candidates:
+            # Precise distance check
+            dist = haversine_distance(
+                latitude, longitude, p_data["latitude"], p_data["longitude"]
+            )
+            if dist > distance_threshold_m:
+                continue
+
+            # Name similarity check
+            normalized_existing_name = _normalize_text(p_data["name"])
+            similarity = SequenceMatcher(
+                None, normalized_new_name, normalized_existing_name
+            ).ratio()
+
+            if similarity >= similarity_threshold:
+                # Hydrate the place object
+                place_obj = await get_place_by_id(
+                    place_id=p_data["id"], user_id=user_id, db=db
+                )
+                if place_obj:
+                    potential_duplicates.append(place_obj)
+
+        return potential_duplicates
+
+    except Exception as e:
+        logger.error(f"CRUD: Error checking for duplicates: {e}", exc_info=True)
+        return []
 
 
 async def get_places(

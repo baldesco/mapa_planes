@@ -16,6 +16,7 @@
 </head>
 
 <body>
+    <div id="global-loader"></div>
     <div class="container">
         <header class="main-header">
             <div class="header-brand">
@@ -360,6 +361,36 @@
                     <button type="button" id="visits-list-plan-new-btn" class="popup-btn-plan-visit">Plan Another
                         Visit</button>
                     <button type="button" class="cancel-btn" id="visits-list-close-btn">Close</button>
+                </div>
+            </fieldset>
+        </section>
+
+        <section class="modal-section" id="duplicate-warning-modal" style="display: none;">
+            <fieldset>
+                <h2><i class="fas fa-exclamation-triangle" style="color: var(--warning-color);"></i> Possible Duplicate Detected</h2>
+                <div class="modal-content">
+                    <p>It looks like a similar place already exists nearby. Please review the following information:</p>
+                    <div id="duplicate-places-list" class="duplicate-places-list">
+                        <!-- Potential duplicates will be injected here -->
+                    </div>
+                    <p style="margin-top: 15px; font-weight: 500;">Are you sure you want to create this new place anyway?</p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="duplicate-proceed-btn" class="button-danger">Yes, Proceed Anyway</button>
+                    <button type="button" id="duplicate-cancel-btn" class="cancel-btn">No, Cancel</button>
+                </div>
+            </fieldset>
+        </section>
+
+        <section class="modal-section" id="action-prompt-modal" style="display: none;">
+            <fieldset>
+                <h2 id="action-prompt-title">Prompt Title</h2>
+                <div class="modal-content" style="border: none; background: transparent; padding: 0;">
+                    <p id="action-prompt-message" style="font-size: 1.1em; text-align: center; margin: 20px 0;"></p>
+                </div>
+                <div class="modal-actions" style="justify-content: center; gap: 20px;">
+                    <button type="button" id="action-prompt-confirm-btn" style="background-color: var(--primary-color);">Yes</button>
+                    <button type="button" id="action-prompt-cancel-btn" class="cancel-btn">No, Thanks</button>
                 </div>
             </fieldset>
         </section>

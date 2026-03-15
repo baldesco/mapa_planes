@@ -77,7 +77,10 @@ const mapHandler = {
         });
 
         marker.bindPopup(popupElement, { maxWidth: 300 });
-        marker.bindTooltip(place.name || "Unnamed Place");
+        
+        // Quick-Scan Leaflet tooltips on hover
+        const categoryLabel = place.category.replace("_", " ").toUpperCase();
+        marker.bindTooltip(`<b>${place.name || "Unnamed Place"}</b><br><span style="font-size: 0.8em; color: #666;">${categoryLabel}</span>`);
 
         markersLayer.addLayer(marker);
         markerMap[place.id] = marker;

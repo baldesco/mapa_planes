@@ -11,6 +11,7 @@ import visitForm from "./forms/visitForm.js";
 import icsCustomizeForm from "./forms/icsCustomizeForm.js";
 import modals from "./components/modals.js";
 import pinningUI from "./components/pinningUI.js";
+import duplicateWarning from "./components/duplicateWarning.js";
 import mapHandler from "./mapHandler.js";
 import tagInput from "./components/tagInput.js";
 import { setStatusMessage } from "./components/statusMessages.js";
@@ -95,6 +96,7 @@ const uiOrchestrator = {
     icsCustomizeForm.init(this.hideIcsCustomizeModal.bind(this));
     modals.init(this.showVisitReviewForm.bind(this));
     pinningUI.init(this.isMapReady);
+    duplicateWarning.init();
     search.init();
 
     // 3. Initialize Tag Filters
@@ -251,6 +253,10 @@ const uiOrchestrator = {
       this.elements.visitsListModal,
       this.elements.icsCustomizeModal,
     ];
+    // Also hide prompt modal directly since it's managed by modals.js
+    const promptModal = document.getElementById("action-prompt-modal");
+    if (promptModal) promptModal.style.display = "none";
+    
     sections.forEach((s) => {
       if (s) s.style.display = "none";
     });
@@ -374,6 +380,16 @@ const uiOrchestrator = {
     if (newPlace.latitude && newPlace.longitude) {
       mapHandler.flyTo(newPlace.latitude, newPlace.longitude);
     }
+
+    // Form Chaining: Place -> Visit
+    modals.showActionPrompt(
+      "Place Added Successfully!",
+      "Would you like to schedule or log a visit for this place now?",
+      "Yes, Plan Visit",
+      "No, Thanks",
+      () => this.showPlanVisitForm(newPlace),
+      () => mapHandler.getMarkerById(newPlace.id)?.openPopup() // Just open popup
+    );
   },
 
   handlePlaceUpdated(updatedPlace) {
@@ -433,6 +449,23 @@ const uiOrchestrator = {
         ) {
           this.currentPlaceForVisitModal = updatedPlace;
           this.renderVisitsList(updatedPlace.visits || [], updatedPlace);
+        }
+
+        // Form Chaining: Past Visit -> Review
+        if (sourceForm === "visitForm" && savedVisitData.visit_datetime) {
+            const visitDate = new Date(savedVisitData.visit_datetime);
+            const now = new Date();
+            // If the visit is in the past, prompt for review
+            if (visitDate < now) {
+                modals.showActionPrompt(
+                    "Visit Logged!",
+                    "Since this visit has already happened, would you like to add a review or photos now?",
+                    "Yes, Add Review",
+                    "No, Thanks",
+                    () => this.showVisitReviewForm(savedVisitData, updatedPlace.name),
+                    () => mapHandler.getMarkerById(updatedPlace.id)?.openPopup()
+                );
+            }
         }
       }
     } catch (error) {

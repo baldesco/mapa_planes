@@ -46,6 +46,28 @@ async def create_new_place_api(
     return created_place
 
 
+@router.post("/check-duplicate", response_model=list[models_places.Place])
+async def check_duplicate_api(
+    check_in: models_places.PlaceDuplicateCheck,
+    db: Annotated[AsyncClient, Depends(get_db)],
+    current_user: Annotated[UserInToken, Depends(get_current_active_user)],
+):
+    """
+    Checks for potential duplicate places before creation.
+    """
+    logger.info(
+        f"API Duplicate check request by user {current_user.email}: {check_in.name}"
+    )
+    duplicates = await crud_places.check_for_potential_duplicates(
+        db=db,
+        user_id=current_user.id,
+        name=check_in.name,
+        latitude=check_in.latitude,
+        longitude=check_in.longitude,
+    )
+    return duplicates
+
+
 @router.get("/", response_model=list[models_places.Place])
 async def list_places_api(
     db: Annotated[AsyncClient, Depends(get_db)],
