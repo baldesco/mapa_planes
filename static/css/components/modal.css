@@ -224,6 +224,54 @@
     background-color: var(--primary-color-dark);
 }
 
+/* --- Styles for Duplicate Warning Modal --- */
+.duplicate-places-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.duplicate-place-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    padding: 15px;
+    border-left: 4px solid var(--warning-color);
+}
+
+.duplicate-place-card h4 {
+    margin: 0 0 8px 0;
+    color: var(--primary-light);
+    font-size: 1.1em;
+}
+
+.duplicate-place-card p {
+    margin: 0 0 5px 0;
+    font-size: 0.9em;
+    color: var(--text-muted);
+}
+
+.duplicate-place-card .description {
+    font-style: italic;
+    color: var(--text-dim);
+    margin-top: 8px;
+    font-size: 0.85em;
+}
+
+.duplicate-place-card .meta-row {
+    display: flex;
+    gap: 15px;
+    margin-top: 5px;
+    font-size: 0.85em;
+    color: var(--text-dim);
+}
+
+.duplicate-place-card .meta-item i {
+    margin-right: 5px;
+    color: var(--primary-color);
+}
+
 
 /* Image Overlay */
 .image-overlay {

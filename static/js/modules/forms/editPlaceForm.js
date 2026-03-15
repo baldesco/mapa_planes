@@ -35,6 +35,7 @@ const editPlaceForm = {
     submitBtn: null,
   },
   isMapReady: false,
+  isSubmitting: false,
   hideCallback: null,
   onSaveSuccess: null,
   currentPlaceData: null,
@@ -235,8 +236,9 @@ const editPlaceForm = {
 
   async handleSubmit(event) {
     event.preventDefault();
-    if (this.elements.submitBtn.disabled || !this.currentPlaceData) return;
+    if (this.isSubmitting || this.elements.submitBtn.disabled || !this.currentPlaceData) return;
 
+    this.isSubmitting = true;
     this.setStatusMessage("Updating place...", "loading");
     this.elements.submitBtn.disabled = true;
     this.elements.submitBtn.textContent = "Updating...";
@@ -281,6 +283,8 @@ const editPlaceForm = {
       this.setStatusMessage("A network error occurred.", "error");
       this.elements.submitBtn.disabled = false;
       this.elements.submitBtn.textContent = "Save Changes";
+    } finally {
+      this.isSubmitting = false;
     }
   },
 
