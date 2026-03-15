@@ -307,6 +307,21 @@ const search = {
                     const marker = mapHandler.getMarkerById(place.id);
                     if (marker) marker.openPopup();
                 });
+                
+                // Form Chaining/Microinteractions: Hover to bounce pin
+                item.addEventListener('mouseenter', () => {
+                    const marker = mapHandler.getMarkerById(place.id);
+                    if (marker && marker._icon) {
+                        marker._icon.classList.add('bounce-pin-animation');
+                    }
+                });
+                item.addEventListener('mouseleave', () => {
+                   const marker = mapHandler.getMarkerById(place.id);
+                    if (marker && marker._icon) {
+                        marker._icon.classList.remove('bounce-pin-animation');
+                    }
+                });
+                
                 list.appendChild(item);
             });
         }

@@ -20,6 +20,11 @@ const modals = {
     seeVisitReviewDotsContainer: null,
     carouselContainer: null,
     imageOverlayInstance: null,
+    actionPromptSection: null,
+    actionPromptTitle: null,
+    actionPromptMessage: null,
+    actionPromptConfirmBtn: null,
+    actionPromptCancelBtn: null,
   },
   currentVisitDataForReviewModal: null,
   currentPlaceNameForReviewModal: null,
@@ -53,6 +58,12 @@ const modals = {
     this.elements.seeVisitReviewNextBtn = document.getElementById("see-visit-review-next-btn");
     this.elements.seeVisitReviewDotsContainer = document.getElementById("see-visit-review-dots-container");
     this.elements.carouselContainer = document.querySelector(".carousel-container");
+
+    this.elements.actionPromptSection = document.getElementById("action-prompt-modal");
+    this.elements.actionPromptTitle = document.getElementById("action-prompt-title");
+    this.elements.actionPromptMessage = document.getElementById("action-prompt-message");
+    this.elements.actionPromptConfirmBtn = document.getElementById("action-prompt-confirm-btn");
+    this.elements.actionPromptCancelBtn = document.getElementById("action-prompt-cancel-btn");
   },
 
   setupEventListeners() {
@@ -279,6 +290,50 @@ const modals = {
     overlay.classList.remove("visible");
     overlay.addEventListener("transitionend", () => overlay.remove(), { once: true });
     this.elements.imageOverlayInstance = null;
+  },
+
+  /**
+   * Reusable Action Prompt Modal (Used for Form Chaining)
+   * @param {string} title 
+   * @param {string} message 
+   * @param {string} confirmText 
+   * @param {string} cancelText 
+   * @param {Function} onConfirm 
+   * @param {Function} onCancel 
+   */
+  showActionPrompt(title, message, confirmText = "Yes", cancelText = "No", onConfirm, onCancel) {
+    const els = this.elements;
+    if (!els.actionPromptSection) return;
+
+    // Reset Listeners by replacing nodes
+    if (els.actionPromptConfirmBtn) {
+        const newConfirm = els.actionPromptConfirmBtn.cloneNode(true);
+        els.actionPromptConfirmBtn.parentNode.replaceChild(newConfirm, els.actionPromptConfirmBtn);
+        els.actionPromptConfirmBtn = newConfirm;
+    }
+    if (els.actionPromptCancelBtn) {
+        const newCancel = els.actionPromptCancelBtn.cloneNode(true);
+        els.actionPromptCancelBtn.parentNode.replaceChild(newCancel, els.actionPromptCancelBtn);
+        els.actionPromptCancelBtn = newCancel;
+    }
+
+    els.actionPromptTitle.textContent = title;
+    els.actionPromptMessage.textContent = message;
+    els.actionPromptConfirmBtn.textContent = confirmText;
+    els.actionPromptCancelBtn.textContent = cancelText;
+
+    els.actionPromptConfirmBtn.addEventListener("click", () => {
+        els.actionPromptSection.style.display = "none";
+        if (onConfirm) onConfirm();
+    });
+
+    els.actionPromptCancelBtn.addEventListener("click", () => {
+        els.actionPromptSection.style.display = "none";
+        if (onCancel) onCancel();
+    });
+
+    els.actionPromptSection.style.display = "block";
+    els.actionPromptSection.scrollIntoView({ behavior: "smooth", block: "center" });
   },
 };
 

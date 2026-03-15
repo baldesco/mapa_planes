@@ -14,65 +14,68 @@ const apiClient = {
    * @throws {Error} - Throws error on network failure or unexpected issues.
    */
   async fetch(url, options = {}, isLoginAttempt = false) {
-    // Default headers can be set here if needed, e.g., Content-Type
     const defaultHeaders = {
-      // Example: 'Content-Type': 'application/json', // Add if most requests are JSON
-      // 'Accept': 'application/json', // Add if expecting JSON responses
       ...options.headers,
     };
 
     const fetchOptions = {
       ...options,
       headers: defaultHeaders,
-      // credentials: 'include', // Usually needed if relying on cookies for auth state across origins
     };
 
     console.debug(`API Fetch: ${options.method || "GET"} ${url}`);
 
+    const loader = document.getElementById("global-loader");
+    const loaderStartTime = Date.now();
+    
+    if (loader && !url.includes("search")) {
+        loader.classList.add("active");
+    }
+
     try {
       const response = await fetch(url, fetchOptions);
 
-      // Check for 401 Unauthorized and redirect if not a login attempt
       if (
         response.status === 401 &&
         !isLoginAttempt &&
-        window.location.pathname !== "/login" // Avoid redirect if already on login page
+        window.location.pathname !== "/login"
       ) {
         console.warn(
           "Received 401 Unauthorized on API call, redirecting to login."
         );
-        // Redirect with a reason parameter
         window.location.href = "/login?reason=session_expired";
-        // Return a dummy response or throw an error to stop further processing
-        // Throwing might be cleaner to signal failure immediately.
         throw new Error("Unauthorized - Session likely expired");
-        // Or return a specific object: return { ok: false, status: 401, error: 'Unauthorized' };
       }
 
-      // Log non-OK responses for debugging, but return the response for the caller to handle
       if (!response.ok) {
         console.warn(
           `API Response not OK: ${response.status} ${response.statusText} for ${url}`
         );
-        // Attempt to parse error detail if available (caller should handle this ideally)
-        // try {
-        //     const errorData = await response.json();
-        //     console.warn('Error Detail:', errorData.detail);
-        // } catch (e) { /* Ignore if response is not JSON */ }
       }
 
       return response;
     } catch (error) {
       console.error(`API Fetch Error for ${url}:`, error);
-      // Check for network errors
       if (error instanceof TypeError && error.message === "Failed to fetch") {
         console.error(
           "Network error: Could not connect to the server. Is the backend running?"
         );
-        // Optionally display a user-friendly message here
       }
-      // Re-throw the error so the calling function knows it failed
       throw error;
+    } finally {
+      if (loader) {
+          // Enforce a minimum display time of 400ms so it doesn't just flash invisibly on fast local networks
+          const elapsedTime = Date.now() - loaderStartTime;
+          const minDisplayTime = 400; 
+          
+          if (elapsedTime < minDisplayTime) {
+              setTimeout(() => {
+                  loader.classList.remove("active");
+              }, minDisplayTime - elapsedTime);
+          } else {
+              loader.classList.remove("active");
+          }
+      }
     }
   },
 
