@@ -6,6 +6,7 @@
 import apiClient from "../apiClient.js";
 import mapHandler from "../mapHandler.js";
 import pinningUI from "../components/pinningUI.js";
+import duplicateWarning from "../components/duplicateWarning.js";
 
 const addPlaceForm = {
   elements: {
@@ -33,6 +34,7 @@ const addPlaceForm = {
     submitBtn: null,
   },
   isMapReady: false,
+  isSubmitting: false,
   hideCallback: null,
   onSaveSuccess: null,
 
@@ -236,16 +238,21 @@ const addPlaceForm = {
 
   async handleSubmit(event) {
     event.preventDefault();
-    if (this.elements.submitBtn.disabled) return;
+    if (this.isSubmitting || this.elements.submitBtn.disabled) return;
 
-    this.setStatusMessage("Saving place...", "loading");
+    this.isSubmitting = true;
+    this.setStatusMessage("Checking for duplicates...", "loading");
     this.elements.submitBtn.disabled = true;
-    this.elements.submitBtn.textContent = "Saving...";
+    this.elements.submitBtn.textContent = "Checking...";
+
+    const name = this.elements.nameInput.value;
+    const lat = parseFloat(this.elements.hiddenLat.value);
+    const lon = parseFloat(this.elements.hiddenLon.value);
 
     const payload = {
-      name: this.elements.nameInput.value,
-      latitude: parseFloat(this.elements.hiddenLat.value),
-      longitude: parseFloat(this.elements.hiddenLon.value),
+      name: name,
+      latitude: lat,
+      longitude: lon,
       category: this.elements.categorySelect.value,
       status: this.elements.statusSelect.value,
       address: this.elements.hiddenAddress.value || null,
@@ -253,6 +260,50 @@ const addPlaceForm = {
       country: this.elements.hiddenCountry.value || null,
       description: this.elements.descriptionInput?.value || null,
     };
+
+    // 1. Check for duplicates
+    try {
+      const checkResponse = await apiClient.post("/api/v1/places/check-duplicate", {
+        name: name,
+        latitude: lat,
+        longitude: lon,
+      });
+
+      if (checkResponse.ok) {
+        const duplicates = await checkResponse.json();
+        if (duplicates && duplicates.length > 0) {
+          // Show the custom duplicate warning modal
+          return new Promise((resolve) => {
+            duplicateWarning.show(
+              duplicates,
+              () => {
+                // User clicked "Proceed"
+                this.completeFormSubmission(payload).then(resolve);
+              },
+              () => {
+                // User clicked "Cancel"
+                this.setStatusMessage("Creation cancelled.", "info");
+                this.resetForm();
+                if (this.hideCallback) this.hideCallback();
+                this.isSubmitting = false;
+                resolve();
+              },
+            );
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("Duplicate check failed, proceeding anyway:", err);
+    }
+
+    // 2. Proceed if no duplicates or check failed
+    return this.completeFormSubmission(payload);
+  },
+
+  async completeFormSubmission(payload) {
+    this.setStatusMessage("Saving place...", "loading");
+    this.elements.submitBtn.disabled = true;
+    this.elements.submitBtn.textContent = "Saving...";
 
     try {
       const response = await apiClient.post("/api/v1/places/", payload);
@@ -276,6 +327,8 @@ const addPlaceForm = {
       this.setStatusMessage("A network error occurred.", "error");
       this.elements.submitBtn.disabled = false;
       this.elements.submitBtn.textContent = "Add Place";
+    } finally {
+      this.isSubmitting = false;
     }
   },
 

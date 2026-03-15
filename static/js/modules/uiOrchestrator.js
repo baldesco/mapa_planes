@@ -11,6 +11,7 @@ import visitForm from "./forms/visitForm.js";
 import icsCustomizeForm from "./forms/icsCustomizeForm.js";
 import modals from "./components/modals.js";
 import pinningUI from "./components/pinningUI.js";
+import duplicateWarning from "./components/duplicateWarning.js";
 import mapHandler from "./mapHandler.js";
 import tagInput from "./components/tagInput.js";
 import { setStatusMessage } from "./components/statusMessages.js";
@@ -95,6 +96,7 @@ const uiOrchestrator = {
     icsCustomizeForm.init(this.hideIcsCustomizeModal.bind(this));
     modals.init(this.showVisitReviewForm.bind(this));
     pinningUI.init(this.isMapReady);
+    duplicateWarning.init();
     search.init();
 
     // 3. Initialize Tag Filters

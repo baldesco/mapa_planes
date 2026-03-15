@@ -45,7 +45,12 @@ textarea {
     font-size: 1em;
     font-family: inherit;
     transition: var(--transition-base);
-    background-color: rgba(255, 255, 255, 0.05);
+    background-color: var(--bg-surface);
+    color: var(--white);
+}
+
+select option {
+    background-color: #1e293b; /* Solid background for dropdown items */
     color: var(--white);
 }
 

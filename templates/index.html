@@ -364,6 +364,23 @@
             </fieldset>
         </section>
 
+        <section class="modal-section" id="duplicate-warning-modal" style="display: none;">
+            <fieldset>
+                <h2><i class="fas fa-exclamation-triangle" style="color: var(--warning-color);"></i> Possible Duplicate Detected</h2>
+                <div class="modal-content">
+                    <p>It looks like a similar place already exists nearby. Please review the following information:</p>
+                    <div id="duplicate-places-list" class="duplicate-places-list">
+                        <!-- Potential duplicates will be injected here -->
+                    </div>
+                    <p style="margin-top: 15px; font-weight: 500;">Are you sure you want to create this new place anyway?</p>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" id="duplicate-proceed-btn" class="button-danger">Yes, Proceed Anyway</button>
+                    <button type="button" id="duplicate-cancel-btn" class="cancel-btn">No, Cancel</button>
+                </div>
+            </fieldset>
+        </section>
+
         <section class="modal-section" id="ics-customize-modal" style="display: none;">
             <form id="ics-customize-form" onsubmit="return false;">
                 <fieldset>
