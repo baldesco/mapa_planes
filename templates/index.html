@@ -16,6 +16,7 @@
 </head>
 
 <body>
+    <div id="global-loader"></div>
     <div class="container">
         <header class="main-header">
             <div class="header-brand">
@@ -377,6 +378,19 @@
                 <div class="modal-actions">
                     <button type="button" id="duplicate-proceed-btn" class="button-danger">Yes, Proceed Anyway</button>
                     <button type="button" id="duplicate-cancel-btn" class="cancel-btn">No, Cancel</button>
+                </div>
+            </fieldset>
+        </section>
+
+        <section class="modal-section" id="action-prompt-modal" style="display: none;">
+            <fieldset>
+                <h2 id="action-prompt-title">Prompt Title</h2>
+                <div class="modal-content" style="border: none; background: transparent; padding: 0;">
+                    <p id="action-prompt-message" style="font-size: 1.1em; text-align: center; margin: 20px 0;"></p>
+                </div>
+                <div class="modal-actions" style="justify-content: center; gap: 20px;">
+                    <button type="button" id="action-prompt-confirm-btn" style="background-color: var(--primary-color);">Yes</button>
+                    <button type="button" id="action-prompt-cancel-btn" class="cancel-btn">No, Thanks</button>
                 </div>
             </fieldset>
         </section>
