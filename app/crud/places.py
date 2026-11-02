@@ -101,7 +101,9 @@ async def _get_visits_for_place_ids(
                         photos_by_visit[vid] = []
                     photos_by_visit[vid].append(photo)
             except Exception as photo_err:
-                logger.error(f"CRUD Places Helper: Error fetching photos for visits: {photo_err}")
+                logger.error(
+                    f"CRUD Places Helper: Error fetching photos for visits: {photo_err}"
+                )
 
             for visit_data in response.data:
                 pid = visit_data.get("place_id")

@@ -13,7 +13,6 @@ from fastapi import (
 )
 from fastapi.responses import RedirectResponse
 from pydantic import ValidationError
-from supabase import AsyncClient
 
 from app.auth.dependencies import get_current_active_user, get_db
 from app.core.config import logger
@@ -21,6 +20,7 @@ from app.crud import places as crud_places
 from app.db.setup import get_supabase_service_client
 from app.models import places as models_places
 from app.models.auth import UserInToken
+from supabase import AsyncClient
 
 # Using APIRouter even for non-API endpoints allows for better organization
 router = APIRouter(tags=["Forms"])

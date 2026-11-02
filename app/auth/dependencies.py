@@ -1,11 +1,11 @@
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import ValidationError
-from supabase import AsyncClient, AuthApiError
 
 from app.core.config import logger
 from app.db.setup import get_base_supabase_client
 from app.models.auth import UserInToken
+from supabase import AsyncClient, AuthApiError
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 

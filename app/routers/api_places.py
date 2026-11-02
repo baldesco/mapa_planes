@@ -2,7 +2,6 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from supabase import AsyncClient
 
 from app.auth.dependencies import get_current_active_user, get_db
 from app.core.config import logger
@@ -10,6 +9,7 @@ from app.crud import places as crud_places
 from app.db.setup import get_supabase_service_client
 from app.models import places as models_places
 from app.models.auth import UserInToken
+from supabase import AsyncClient
 
 router = APIRouter(prefix="/api/v1/places", tags=["API - Places"])
 

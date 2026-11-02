@@ -1,10 +1,10 @@
 import uuid
 
 from postgrest.exceptions import APIError
-from supabase import AsyncClient
 
 from app.core.config import logger
 from app.models.tags import TagInDB
+from supabase import AsyncClient
 
 TAGS_TABLE = "tags"
 PLACE_TAGS_TABLE = "place_tags"

@@ -52,6 +52,7 @@ select = [
 ignore = [
     "E501", # Line too long
     "C901", # Too complex
+    "B008", # Do not perform function call in argument defaults (standard for FastAPI Depends)
 ]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
@@ -81,3 +82,12 @@ skip-magic-trailing-comma = false
 
 # Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
