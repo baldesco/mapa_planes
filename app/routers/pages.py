@@ -10,7 +10,6 @@ from fastapi import (
 )
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from supabase import AsyncClient
 
 from app.auth.dependencies import (
     get_current_active_user,
@@ -23,6 +22,7 @@ from app.crud import tags as crud_tags
 from app.models import places as models_places
 from app.models.auth import UserInToken
 from app.services.mapping import prepare_map_data
+from supabase import AsyncClient
 
 templates = Jinja2Templates(directory="templates")
 router = APIRouter(tags=["Pages"])

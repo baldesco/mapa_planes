@@ -65,6 +65,38 @@ PlaceInDB.model_rebuild()  # This is the one that has List['Visit']
 Place.model_rebuild()
 PlaceList.model_rebuild()
 
+
+__all__ = [
+    "GeocodeResult",
+    "Msg",
+    "PasswordResetRequest",
+    "Place",
+    "PlaceBase",
+    "PlaceCategory",
+    "PlaceCreate",
+    "PlaceInDB",
+    "PlaceList",
+    "PlaceStatus",
+    "PlaceUpdate",
+    "SupabaseUser",
+    "Tag",
+    "TagBase",
+    "TagCreate",
+    "TagInDB",
+    "Token",
+    "TokenData",
+    "User",
+    "UserBase",
+    "UserCreate",
+    "UserInToken",
+    "Visit",
+    "VisitBase",
+    "VisitCreate",
+    "VisitInDB",
+    "VisitUpdate",
+]
+
+
 # You can also create a helper function or loop through a list of models if you have many.
 # For example:
 # all_models = [User, UserInToken, ..., PlaceInDB, Visit, ...]

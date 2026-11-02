@@ -3,7 +3,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from supabase import AsyncClient, AuthApiError
 
 from app.auth import utils as auth_utils
 from app.auth.dependencies import (
@@ -14,6 +13,7 @@ from app.core.config import logger, settings
 from app.db.setup import get_base_supabase_client
 from app.models.auth import PasswordResetRequest, Token, UserCreate, UserInToken
 from app.models.general import Msg
+from supabase import AsyncClient, AuthApiError
 
 router = APIRouter(prefix="/api/v1/auth", tags=["API - Authentication"])
 

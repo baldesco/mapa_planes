@@ -1,13 +1,13 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from supabase import AsyncClient
 
 from app.auth.dependencies import get_current_active_user, get_db
 from app.core.config import logger
 from app.crud import tags as crud_tags
 from app.models import tags as models_tags
 from app.models.auth import UserInToken
+from supabase import AsyncClient
 
 router = APIRouter(prefix="/api/v1/tags", tags=["API - Tags"])
 

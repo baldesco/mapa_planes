@@ -71,3 +71,5 @@ npx supabase migration list
 
 - `20260222000001_add_description_to_places.sql`: Adds the `description` column to the `places` table.
 - `20260222000002_add_visit_photos_table.sql`: Creates the `visit_photos` table to support multiple photos per review.
+- `20260223020352_fix_visit_photos_schema.sql`: Fixes schema and adds `is_main` flag for visit photos.
+- `20260524150100_enable_rls_on_visit_photos.sql`: Enables and configures optimized Row Level Security (RLS) policies and index on `visit_photos`.

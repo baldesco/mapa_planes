@@ -1,10 +1,10 @@
 from urllib.parse import urljoin
 
 from fastapi import HTTPException, Request, status
-from supabase import AsyncClient, AuthApiError
 
 from app.core.config import logger
 from app.models.auth import SupabaseUser, UserCreate
+from supabase import AsyncClient, AuthApiError
 
 
 async def create_supabase_user(

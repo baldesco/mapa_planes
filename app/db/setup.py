@@ -1,7 +1,7 @@
 from fastapi import HTTPException, status
-from supabase import AsyncClient, create_async_client
 
 from app.core.config import logger, settings
+from supabase import AsyncClient, create_async_client
 
 # --- Supabase Client Setup ---
 _supabase_url = settings.SUPABASE_URL

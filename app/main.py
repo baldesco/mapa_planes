@@ -7,7 +7,15 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import logger, settings
 from app.db.setup import init_service_client
 from app.middleware import AuthRedirectMiddleware
-from app.routers import api_auth, api_places, api_visits, forms, pages, system
+from app.routers import (
+    api_auth,
+    api_places,
+    api_tags,
+    api_visits,
+    forms,
+    pages,
+    system,
+)
 
 
 # --- Lifespan Events ---
@@ -54,6 +62,7 @@ logger.info("Static files mounted from './static' directory at '/static'.")
 # --- Include Routers ---
 app.include_router(api_auth.router)
 app.include_router(api_places.router)
+app.include_router(api_tags.router)
 app.include_router(api_visits.router)
 app.include_router(system.router)
 app.include_router(pages.router)
