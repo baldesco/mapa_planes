@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from enum import Enum
+from enum import StrEnum
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field, field_validator
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 
 # --- Enums ---
-class PlaceCategory(str, Enum):
+class PlaceCategory(StrEnum):
     RESTAURANT = "restaurant"
     ENTERTAINMENT = "entertainment"
     PARK = "park"
@@ -21,7 +21,7 @@ class PlaceCategory(str, Enum):
     OTHER = "other"
 
 
-class PlaceStatus(str, Enum):
+class PlaceStatus(StrEnum):
     PENDING = "pending"
     PENDING_PRIORITIZED = "pending_prioritized"
     PENDING_SCHEDULED = "pending_scheduled"
